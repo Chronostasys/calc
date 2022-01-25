@@ -1,14 +1,10 @@
 # Calculator
-Try to build a simple calculator, with lexer and parser.
+Try to build a simple calculator, with lexer and recursive descent parser.
 
 
-# Lexer-Rules
+# Rules
 ```
-S -> N
-N -> N+N|i
+exp: S->F|F((ADD|MIN)F)*
+factor: F->I|I((MUL|DIV)I)*
+interger: I->i|LP S RP
 ```
-
-regex: $S=i(\\'+\\'i)^*$
-
-DFA:
-![DFA](2022-01-18-23-38-26.png)

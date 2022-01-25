@@ -1,19 +1,31 @@
 package lexer
 
 import (
+	"fmt"
 	"log"
-	"strconv"
 )
 
 const (
 	TYPE_INT  = 0
 	TYPE_PLUS = 1
+	TYPE_SUB  = 2
+	TYPE_MUL  = 3
+	TYPE_DIV  = 4
+	TYPE_LP   = 5
+	TYPE_RP   = 6
 )
 
 var (
-	input string
-	pos   int
+	input   string
+	pos     int
+	ErrEOS  = fmt.Errorf("eos error")
+	ErrTYPE = fmt.Errorf("the next token doesn't match the expected type")
 )
+
+func SetInput(s string) {
+	pos = 0
+	input = s
+}
 
 func getCh() (ch rune, end bool) {
 	if pos == len(input) {
@@ -41,11 +53,22 @@ func isNum(ch rune) bool {
 	return '0' <= ch && ch <= '9'
 }
 
-func retract() {
-	pos--
+func Retract(i int) {
+	pos -= i
 }
 
-func Scan() (code int, val interface{}, eos bool) {
+func ScanType(code int) (token string, err error) {
+	c, t, e := Scan()
+	if c == code {
+		return t, nil
+	} else if e {
+		return "", ErrEOS
+	}
+	pos -= len(t)
+	return "", ErrTYPE
+}
+
+func Scan() (code int, token string, eos bool) {
 	ch, end := getChSkipEmpty()
 	if end {
 		eos = end
@@ -62,17 +85,26 @@ func Scan() (code int, val interface{}, eos bool) {
 				break
 			}
 			if !isNum(c) {
-				retract()
+				pos--
 				break
 			}
 			i = append(i, c)
 		}
-		interger, _ := strconv.Atoi(string(i))
-		return TYPE_INT, interger, end
+		return TYPE_INT, string(i), end
 	}
 	switch ch {
 	case '+':
-		return TYPE_PLUS, nil, end
+		return TYPE_PLUS, "+", end
+	case '-':
+		return TYPE_SUB, "-", end
+	case '*':
+		return TYPE_MUL, "*", end
+	case '/':
+		return TYPE_DIV, "/", end
+	case '(':
+		return TYPE_LP, "(", end
+	case ')':
+		return TYPE_RP, ")", end
 	default:
 		log.Fatalf("unrecognized letter %c in pos %d", ch, pos)
 	}
