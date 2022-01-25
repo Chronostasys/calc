@@ -10,9 +10,15 @@ func interger() int {
 	t, err := lexer.ScanType(lexer.TYPE_INT)
 	if err != nil {
 		if err == lexer.ErrTYPE {
-			lexer.ScanType(lexer.TYPE_LP)
+			_, err = lexer.ScanType(lexer.TYPE_LP)
+			if err != nil {
+				panic(err)
+			}
 			i := exp()
-			lexer.ScanType(lexer.TYPE_RP)
+			_, err = lexer.ScanType(lexer.TYPE_RP)
+			if err != nil {
+				panic(err)
+			}
 			return i
 
 		}
@@ -23,10 +29,10 @@ func interger() int {
 }
 
 func factor() int {
-	a := interger()
+	a := symbol()
 	code, t, eos := lexer.Scan()
 	for !eos && code == lexer.TYPE_DIV || code == lexer.TYPE_MUL {
-		b := interger()
+		b := symbol()
 		if code == lexer.TYPE_DIV {
 			a = a / b
 		} else {
@@ -56,6 +62,17 @@ func exp() int {
 		lexer.Retract(len(t))
 	}
 	return a
+}
+
+func symbol() int {
+	code, t, _ := lexer.Scan()
+	if code == lexer.TYPE_PLUS {
+		return interger()
+	} else if code == lexer.TYPE_SUB {
+		return -interger()
+	}
+	lexer.Retract(len(t))
+	return interger()
 }
 
 func Parse(s string) int {
