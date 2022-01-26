@@ -3,10 +3,12 @@ package parser
 import (
 	"strconv"
 
+	"github.com/Chronostasys/calculator_go/ast"
+
 	"github.com/Chronostasys/calculator_go/lexer"
 )
 
-func interger() int {
+func interger() ast.Node {
 	t, err := lexer.ScanType(lexer.TYPE_INT)
 	if err != nil {
 		if err == lexer.ErrTYPE {
@@ -25,18 +27,18 @@ func interger() int {
 		panic(err)
 	}
 	i, _ := strconv.Atoi(t)
-	return i
+	return &ast.NumNode{Val: i}
 }
 
-func factor() int {
+func factor() ast.Node {
 	a := symbol()
 	code, t, eos := lexer.Scan()
 	for !eos && code == lexer.TYPE_DIV || code == lexer.TYPE_MUL {
 		b := symbol()
-		if code == lexer.TYPE_DIV {
-			a = a / b
-		} else {
-			a = a * b
+		a = &ast.BinNode{
+			Op:    code,
+			Left:  a,
+			Right: b,
 		}
 		code, t, eos = lexer.Scan()
 	}
@@ -46,15 +48,15 @@ func factor() int {
 	return a
 }
 
-func exp() int {
+func exp() ast.Node {
 	a := factor()
 	code, t, eos := lexer.Scan()
 	for !eos && code == lexer.TYPE_PLUS || code == lexer.TYPE_SUB {
 		b := factor()
-		if code == lexer.TYPE_PLUS {
-			a = a + b
-		} else {
-			a = a - b
+		a = &ast.BinNode{
+			Op:    code,
+			Left:  a,
+			Right: b,
 		}
 		code, t, eos = lexer.Scan()
 	}
@@ -64,12 +66,10 @@ func exp() int {
 	return a
 }
 
-func symbol() int {
+func symbol() ast.Node {
 	code, t, _ := lexer.Scan()
-	if code == lexer.TYPE_PLUS {
-		return interger()
-	} else if code == lexer.TYPE_SUB {
-		return -interger()
+	if code == lexer.TYPE_PLUS || code == lexer.TYPE_SUB {
+		return &ast.UnaryNode{Op: code, Child: interger()}
 	}
 	lexer.Retract(len(t))
 	return interger()
@@ -77,5 +77,5 @@ func symbol() int {
 
 func Parse(s string) int {
 	lexer.SetInput(s)
-	return exp()
+	return exp().Calc()
 }
