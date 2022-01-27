@@ -42,7 +42,7 @@ func SetInput(s string) {
 }
 
 func peek() (ch rune, end bool) {
-	if pos == len(input) {
+	if pos >= len(input) {
 		return ch, true
 	}
 	ch = []rune(input)[pos]
@@ -161,6 +161,12 @@ func Scan() (code int, token string, eos bool) {
 		return TYPE_ASSIGN, "=", end
 	case '\n':
 		return TYPE_NL, "\n", end
+	case '\r':
+		c, e := peek()
+		if !e && c == '\n' {
+			pos++
+			return TYPE_NL, "\n", e
+		}
 	}
 	log.Fatalf("unrecognized letter %c in pos %d", ch, pos)
 	return

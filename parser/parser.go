@@ -4,6 +4,9 @@ import (
 	"strconv"
 
 	"github.com/Chronostasys/calculator_go/ast"
+	"github.com/llir/llvm/ir"
+	"github.com/llir/llvm/ir/constant"
+	"github.com/llir/llvm/ir/types"
 
 	"github.com/Chronostasys/calculator_go/lexer"
 )
@@ -33,7 +36,7 @@ func interger() ast.Node {
 		panic(err)
 	}
 	i, _ := strconv.Atoi(t)
-	return &ast.NumNode{Val: i}
+	return &ast.NumNode{Val: constant.NewInt(types.I32, int64(i))}
 }
 
 func factor() ast.Node {
@@ -157,7 +160,13 @@ func statementList() ast.Node {
 	}
 	return n
 }
-func Parse(s string) int {
+func Parse(s string) string {
 	lexer.SetInput(s)
-	return statementList().Calc()
+	m := ir.NewModule()
+	f := m.NewFunc("main", types.Void)
+	b := f.NewBlock("")
+	statementList().Calc(m, f, b)
+	b.NewRet(nil)
+
+	return m.String()
 }
