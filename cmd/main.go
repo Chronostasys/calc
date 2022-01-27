@@ -1,21 +1,19 @@
 package main
 
 import (
-	"bufio"
-	"os"
-
+	"github.com/Chronostasys/calculator_go/ast"
 	"github.com/Chronostasys/calculator_go/parser"
 )
 
 func main() {
-	r := bufio.NewReader(os.Stdin)
-	for {
-		bs, _, err := r.ReadLine()
-		if err != nil {
-			println(err.Error())
-			return
-		}
-		re := parser.Parse(string(bs))
-		println("=>", re)
-	}
+	code :=
+		`
+	var a int
+	a = 3 + 1
+	var b int
+	b = a * 3
+
+	`
+	parser.Parse(code)
+	ast.PrintTable()
 }

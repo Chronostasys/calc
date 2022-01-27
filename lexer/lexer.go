@@ -6,34 +6,54 @@ import (
 )
 
 const (
-	TYPE_INT  = 0
-	TYPE_PLUS = 1
-	TYPE_SUB  = 2
-	TYPE_MUL  = 3
-	TYPE_DIV  = 4
-	TYPE_LP   = 5
-	TYPE_RP   = 6
+	TYPE_INT     = 0
+	TYPE_PLUS    = 1
+	TYPE_SUB     = 2
+	TYPE_MUL     = 3
+	TYPE_DIV     = 4
+	TYPE_LP      = 5  // "("
+	TYPE_RP      = 6  // ")"
+	TYPE_ASSIGN  = 7  // "="
+	TYPE_RES_VAR = 8  // "var"
+	TYPE_RES_INT = 9  // "int"
+	TYPE_NL      = 10 // "\n"
+	TYPE_VAR     = 11
 )
 
 var (
-	input   string
-	pos     int
+	input    string
+	pos      int
+	reserved = map[string]int{
+		"var": TYPE_RES_VAR,
+		"int": TYPE_RES_INT,
+	}
 	ErrEOS  = fmt.Errorf("eos error")
 	ErrTYPE = fmt.Errorf("the next token doesn't match the expected type")
 )
+
+func IsResType(token string) (code int, ok bool) {
+	code, ok = reserved[token]
+	return
+}
 
 func SetInput(s string) {
 	pos = 0
 	input = s
 }
 
-func getCh() (ch rune, end bool) {
+func peek() (ch rune, end bool) {
 	if pos == len(input) {
 		return ch, true
 	}
-	pos++
-	ch = []rune(input)[pos-1]
+	ch = []rune(input)[pos]
 	return ch, false
+}
+
+func getCh() (ch rune, end bool) {
+	defer func() {
+		pos++
+	}()
+	return peek()
 }
 
 func getChSkipEmpty() (ch rune, end bool) {
@@ -41,7 +61,7 @@ func getChSkipEmpty() (ch rune, end bool) {
 	if end {
 		return
 	}
-	if ch == ' ' {
+	if ch == ' ' || ch == '\t' {
 		return getChSkipEmpty()
 	}
 	return
@@ -49,12 +69,28 @@ func getChSkipEmpty() (ch rune, end bool) {
 func isLetter(ch rune) bool {
 	return ('a' <= ch && ch <= 'z') || ('A' <= ch && ch <= 'Z')
 }
+func isLetterOrUnderscore(ch rune) bool {
+	return isLetter(ch) || ch == '_'
+}
 func isNum(ch rune) bool {
 	return '0' <= ch && ch <= '9'
 }
 
 func Retract(i int) {
 	pos -= i
+}
+
+type Checkpoint struct {
+	pos int
+}
+
+func SetCheckpoint() Checkpoint {
+	return Checkpoint{
+		pos: pos,
+	}
+}
+func GobackTo(c Checkpoint) {
+	pos = c.pos
 }
 
 func ScanType(code int) (token string, err error) {
@@ -74,8 +110,24 @@ func Scan() (code int, token string, eos bool) {
 		eos = end
 		return
 	}
-	if isLetter(ch) {
-		log.Fatalf("unexpected letter %c in pos %d", ch, pos)
+	if isLetterOrUnderscore(ch) {
+		i := []rune{ch}
+		for {
+			c, end := getCh()
+			if end {
+				break
+			}
+			if !isLetterOrUnderscore(c) && !isNum(c) {
+				pos--
+				break
+			}
+			i = append(i, c)
+		}
+		token = string(i)
+		if tp, ok := reserved[token]; ok {
+			return tp, token, end
+		}
+		return TYPE_VAR, string(i), end
 	}
 	if isNum(ch) {
 		i := []rune{ch}
@@ -105,9 +157,12 @@ func Scan() (code int, token string, eos bool) {
 		return TYPE_LP, "(", end
 	case ')':
 		return TYPE_RP, ")", end
-	default:
-		log.Fatalf("unrecognized letter %c in pos %d", ch, pos)
+	case '=':
+		return TYPE_ASSIGN, "=", end
+	case '\n':
+		return TYPE_NL, "\n", end
 	}
+	log.Fatalf("unrecognized letter %c in pos %d", ch, pos)
 	return
 
 }

@@ -14,7 +14,13 @@ func interger() ast.Node {
 		if err == lexer.ErrTYPE {
 			_, err = lexer.ScanType(lexer.TYPE_LP)
 			if err != nil {
-				panic(err)
+				if err == lexer.ErrTYPE {
+					t, err := lexer.ScanType(lexer.TYPE_VAR)
+					if err != nil {
+						panic(err)
+					}
+					return &ast.VarNode{ID: t}
+				}
 			}
 			i := exp()
 			_, err = lexer.ScanType(lexer.TYPE_RP)
@@ -75,7 +81,83 @@ func symbol() ast.Node {
 	return interger()
 }
 
+func assign() (n ast.Node, err error) {
+	c := lexer.SetCheckpoint()
+	defer func() {
+		if err != nil {
+			lexer.GobackTo(c)
+		}
+	}()
+	id, err := lexer.ScanType(lexer.TYPE_VAR)
+	if err != nil {
+		return nil, err
+	}
+	_, err = lexer.ScanType(lexer.TYPE_ASSIGN)
+	if err != nil {
+		return nil, err
+	}
+	r := exp()
+	return &ast.BinNode{
+		Left:  &ast.VarNode{ID: id},
+		Op:    lexer.TYPE_ASSIGN,
+		Right: r,
+	}, nil
+}
+
+func empty() ast.Node {
+	return &ast.EmptyNode{}
+}
+
+func define() (n ast.Node, err error) {
+	c := lexer.SetCheckpoint()
+	defer func() {
+		if err != nil {
+			lexer.GobackTo(c)
+		}
+	}()
+	_, err = lexer.ScanType(lexer.TYPE_RES_VAR)
+	if err != nil {
+		return nil, err
+	}
+	id, err := lexer.ScanType(lexer.TYPE_VAR)
+	if err != nil {
+		return nil, err
+	}
+	_, t, eos := lexer.Scan()
+	if eos {
+		return nil, lexer.ErrEOS
+	}
+	co, ok := lexer.IsResType(t)
+	if !ok {
+		panic("expect reserved type")
+	}
+	return &ast.DefineNode{ID: id, TP: co}, nil
+}
+
+func statement() ast.Node {
+	ast, err := assign()
+	if err == nil {
+		return ast
+	}
+	ast, err = define()
+	if err == nil {
+		return ast
+	}
+	return empty()
+}
+
+func statementList() ast.Node {
+	n := &ast.SLNode{}
+	n.Children = append(n.Children, statement())
+	_, err := lexer.ScanType(lexer.TYPE_NL)
+	if err == nil {
+		n.Children = append(n.Children, statementList())
+	} else if err != lexer.ErrEOS {
+		panic("cannot recognize as a legal statement")
+	}
+	return n
+}
 func Parse(s string) int {
 	lexer.SetInput(s)
-	return exp().Calc()
+	return statementList().Calc()
 }
