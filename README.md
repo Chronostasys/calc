@@ -11,6 +11,6 @@ define: D->VAR var TYPE
 asssign: A->var ASSIGN E
 exp: E->F|F((ADD|MIN)F)*
 factor: F->S|S((MUL|DIV)S)*
-symbol: S->I|ADD I|MIN I
-interger: I->i|LP S RP|var
+symbol: S->N|ADD N|MIN N
+number: N->n|LP S RP|var
 ```

@@ -11,32 +11,43 @@ import (
 	"github.com/Chronostasys/calculator_go/lexer"
 )
 
-func interger() ast.Node {
-	t, err := lexer.ScanType(lexer.TYPE_INT)
+func number() ast.Node {
+	ch := lexer.SetCheckpoint()
+	code, t1, eos := lexer.Scan()
+	if eos {
+		panic("eos")
+	}
+	switch code {
+	case lexer.TYPE_FLOAT:
+		i, err := strconv.ParseFloat(t1, 64)
+		if err != nil {
+			panic(err)
+		}
+		return &ast.NumNode{Val: constant.NewFloat(types.Float, i)}
+	case lexer.TYPE_INT:
+		i, err := strconv.Atoi(t1)
+		if err != nil {
+			panic(err)
+		}
+		return &ast.NumNode{Val: constant.NewInt(types.I32, int64(i))}
+	}
+	lexer.GobackTo(ch)
+	_, err := lexer.ScanType(lexer.TYPE_LP)
 	if err != nil {
 		if err == lexer.ErrTYPE {
-			_, err = lexer.ScanType(lexer.TYPE_LP)
-			if err != nil {
-				if err == lexer.ErrTYPE {
-					t, err := lexer.ScanType(lexer.TYPE_VAR)
-					if err != nil {
-						panic(err)
-					}
-					return &ast.VarNode{ID: t}
-				}
-			}
-			i := exp()
-			_, err = lexer.ScanType(lexer.TYPE_RP)
+			t, err := lexer.ScanType(lexer.TYPE_VAR)
 			if err != nil {
 				panic(err)
 			}
-			return i
-
+			return &ast.VarNode{ID: t}
 		}
+	}
+	i := exp()
+	_, err = lexer.ScanType(lexer.TYPE_RP)
+	if err != nil {
 		panic(err)
 	}
-	i, _ := strconv.Atoi(t)
-	return &ast.NumNode{Val: constant.NewInt(types.I32, int64(i))}
+	return i
 }
 
 func factor() ast.Node {
@@ -76,12 +87,16 @@ func exp() ast.Node {
 }
 
 func symbol() ast.Node {
-	code, t, _ := lexer.Scan()
-	if code == lexer.TYPE_PLUS || code == lexer.TYPE_SUB {
-		return &ast.UnaryNode{Op: code, Child: interger()}
+	ch := lexer.SetCheckpoint()
+	code, _, eos := lexer.Scan()
+	if eos {
+		panic(lexer.ErrEOS)
 	}
-	lexer.Retract(len(t))
-	return interger()
+	if code == lexer.TYPE_PLUS || code == lexer.TYPE_SUB {
+		return &ast.UnaryNode{Op: code, Child: number()}
+	}
+	lexer.GobackTo(ch)
+	return number()
 }
 
 func assign() (n ast.Node, err error) {

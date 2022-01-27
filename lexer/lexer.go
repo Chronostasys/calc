@@ -6,26 +6,29 @@ import (
 )
 
 const (
-	TYPE_INT     = 0
-	TYPE_PLUS    = 1
-	TYPE_SUB     = 2
-	TYPE_MUL     = 3
-	TYPE_DIV     = 4
-	TYPE_LP      = 5  // "("
-	TYPE_RP      = 6  // ")"
-	TYPE_ASSIGN  = 7  // "="
-	TYPE_RES_VAR = 8  // "var"
-	TYPE_RES_INT = 9  // "int"
-	TYPE_NL      = 10 // "\n"
-	TYPE_VAR     = 11
+	TYPE_INT       = 0
+	TYPE_PLUS      = 1
+	TYPE_SUB       = 2
+	TYPE_MUL       = 3
+	TYPE_DIV       = 4
+	TYPE_LP        = 5  // "("
+	TYPE_RP        = 6  // ")"
+	TYPE_ASSIGN    = 7  // "="
+	TYPE_RES_VAR   = 8  // "var"
+	TYPE_RES_INT   = 9  // "int"
+	TYPE_NL        = 10 // "\n"
+	TYPE_VAR       = 11
+	TYPE_FLOAT     = 12
+	TYPE_RES_FLOAT = 13
 )
 
 var (
 	input    string
 	pos      int
 	reserved = map[string]int{
-		"var": TYPE_RES_VAR,
-		"int": TYPE_RES_INT,
+		"var":   TYPE_RES_VAR,
+		"int":   TYPE_RES_INT,
+		"float": TYPE_RES_FLOAT,
 	}
 	ErrEOS  = fmt.Errorf("eos error")
 	ErrTYPE = fmt.Errorf("the next token doesn't match the expected type")
@@ -131,10 +134,16 @@ func Scan() (code int, token string, eos bool) {
 	}
 	if isNum(ch) {
 		i := []rune{ch}
+		t := TYPE_INT
 		for {
 			c, end := getCh()
 			if end {
 				break
+			}
+			if c == '.' {
+				i = append(i, c)
+				t = TYPE_FLOAT
+				continue
 			}
 			if !isNum(c) {
 				pos--
@@ -142,7 +151,7 @@ func Scan() (code int, token string, eos bool) {
 			}
 			i = append(i, c)
 		}
-		return TYPE_INT, string(i), end
+		return t, string(i), end
 	}
 	switch ch {
 	case '+':

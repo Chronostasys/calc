@@ -10,7 +10,13 @@ import (
 	"github.com/llir/llvm/ir/value"
 )
 
-var vartable = map[string]*DefineNode{}
+var (
+	vartable = map[string]*DefineNode{}
+	typedic  = map[int]types.Type{
+		lexer.TYPE_RES_FLOAT: types.Float,
+		lexer.TYPE_RES_INT:   types.I32,
+	}
+)
 
 type Node interface {
 	Calc(*ir.Module, *ir.Func, *ir.Block) value.Value
@@ -27,15 +33,36 @@ type BinNode struct {
 }
 
 func (n *BinNode) Calc(m *ir.Module, f *ir.Func, b *ir.Block) value.Value {
+	l, r := n.Left.Calc(m, f, b), n.Right.Calc(m, f, b)
+	if tp, ok := l.Type().(*types.PointerType); ok {
+		l = b.NewLoad(tp.ElemType, l)
+	}
+	if tp, ok := r.Type().(*types.PointerType); ok {
+		r = b.NewLoad(tp.ElemType, l)
+	}
+	hasF := l.Type().Equal(types.Float) || r.Type().Equal(types.Float) ||
+		l.Type().Equal(types.Double) || r.Type().Equal(types.Double)
 	switch n.Op {
 	case lexer.TYPE_PLUS:
-		return b.NewAdd(n.Left.Calc(m, f, b), n.Right.Calc(m, f, b))
+		if hasF {
+			return b.NewFAdd(l, r)
+		}
+		return b.NewAdd(l, r)
 	case lexer.TYPE_DIV:
-		return b.NewSDiv(n.Left.Calc(m, f, b), n.Right.Calc(m, f, b))
+		if hasF {
+			return b.NewFDiv(l, r)
+		}
+		return b.NewSDiv(l, r)
 	case lexer.TYPE_MUL:
-		return b.NewMul(n.Left.Calc(m, f, b), n.Right.Calc(m, f, b))
+		if hasF {
+			return b.NewFMul(l, r)
+		}
+		return b.NewMul(l, r)
 	case lexer.TYPE_SUB:
-		return b.NewSub(n.Left.Calc(m, f, b), n.Right.Calc(m, f, b))
+		if hasF {
+			return b.NewFSub(l, r)
+		}
+		return b.NewSub(l, r)
 	case lexer.TYPE_ASSIGN:
 		v, ok := n.Left.(*VarNode)
 		if !ok {
@@ -45,7 +72,7 @@ func (n *BinNode) Calc(m *ir.Module, f *ir.Func, b *ir.Block) value.Value {
 		if !ext {
 			panic(fmt.Errorf("variable %s not defined", v.ID))
 		}
-		vartable[v.ID].Val = n.Right.Calc(m, f, b)
+		b.NewStore(r, vartable[v.ID].Val)
 		return vartable[v.ID].Val
 	default:
 		panic("unexpected op")
@@ -119,16 +146,14 @@ func (n *DefineNode) Calc(m *ir.Module, f *ir.Func, b *ir.Block) value.Value {
 	if _, ok := vartable[n.ID]; ok {
 		panic(fmt.Errorf("redefination of var %s", n.ID))
 	}
-	switch n.TP {
-	case lexer.TYPE_RES_INT:
+	if tp, ok := typedic[n.TP]; ok {
 		if f == nil {
-			n.Val = m.NewGlobal(n.ID, types.I32)
+			n.Val = m.NewGlobal(n.ID, tp)
 		} else {
-			n.Val = b.NewAlloca(types.I32)
+			n.Val = b.NewAlloca(tp)
 		}
 		vartable[n.ID] = n
-	default:
-		panic(fmt.Errorf("unknown type code %d", n.TP))
+		return n.Val
 	}
-	return n.Val
+	panic(fmt.Errorf("unknown type code %d", n.TP))
 }
