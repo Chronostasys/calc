@@ -19,7 +19,7 @@ func number() ast.Node {
 	}
 	switch code {
 	case lexer.TYPE_FLOAT:
-		i, err := strconv.ParseFloat(t1, 64)
+		i, err := strconv.ParseFloat(t1, 32)
 		if err != nil {
 			panic(err)
 		}
@@ -30,17 +30,19 @@ func number() ast.Node {
 			panic(err)
 		}
 		return &ast.NumNode{Val: constant.NewInt(types.I32, int64(i))}
+	case lexer.TYPE_VAR:
+		_, err := lexer.ScanType(lexer.TYPE_LP)
+		if err == nil {
+			lexer.GobackTo(ch)
+			return callFunc()
+		}
+
+		return &ast.VarNode{ID: t1}
 	}
 	lexer.GobackTo(ch)
 	_, err := lexer.ScanType(lexer.TYPE_LP)
 	if err != nil {
-		if err == lexer.ErrTYPE {
-			t, err := lexer.ScanType(lexer.TYPE_VAR)
-			if err != nil {
-				panic(err)
-			}
-			return &ast.VarNode{ID: t}
-		}
+		panic(err)
 	}
 	i := exp()
 	_, err = lexer.ScanType(lexer.TYPE_RP)
@@ -52,7 +54,8 @@ func number() ast.Node {
 
 func factor() ast.Node {
 	a := symbol()
-	code, t, eos := lexer.Scan()
+	ch := lexer.SetCheckpoint()
+	code, _, eos := lexer.Scan()
 	for !eos && code == lexer.TYPE_DIV || code == lexer.TYPE_MUL {
 		b := symbol()
 		a = &ast.BinNode{
@@ -60,17 +63,19 @@ func factor() ast.Node {
 			Left:  a,
 			Right: b,
 		}
-		code, t, eos = lexer.Scan()
+		ch = lexer.SetCheckpoint()
+		code, _, eos = lexer.Scan()
 	}
 	if !eos {
-		lexer.Retract(len(t))
+		lexer.GobackTo(ch)
 	}
 	return a
 }
 
 func exp() ast.Node {
 	a := factor()
-	code, t, eos := lexer.Scan()
+	ch := lexer.SetCheckpoint()
+	code, _, eos := lexer.Scan()
 	for !eos && code == lexer.TYPE_PLUS || code == lexer.TYPE_SUB {
 		b := factor()
 		a = &ast.BinNode{
@@ -78,10 +83,11 @@ func exp() ast.Node {
 			Left:  a,
 			Right: b,
 		}
-		code, t, eos = lexer.Scan()
+		ch = lexer.SetCheckpoint()
+		code, _, eos = lexer.Scan()
 	}
 	if !eos {
-		lexer.Retract(len(t))
+		lexer.GobackTo(ch)
 	}
 	return a
 }
@@ -161,6 +167,16 @@ func statement() ast.Node {
 	if err == nil {
 		return ast
 	}
+	ast, err = returnST()
+	if err == nil {
+		return ast
+	}
+	ch := lexer.SetCheckpoint()
+	c, _, _ := lexer.Scan()
+	lexer.GobackTo(ch)
+	if c == lexer.TYPE_VAR {
+		return callFunc()
+	}
 	return empty()
 }
 
@@ -169,6 +185,12 @@ func statementList() ast.Node {
 	n.Children = append(n.Children, statement())
 	_, err := lexer.ScanType(lexer.TYPE_NL)
 	if err == nil {
+		ch := lexer.SetCheckpoint()
+		c, _, _ := lexer.Scan()
+		lexer.GobackTo(ch)
+		if c == lexer.TYPE_RB {
+			return n
+		}
 		n.Children = append(n.Children, statementList())
 	} else if err != lexer.ErrEOS {
 		panic("cannot recognize as a legal statement")
@@ -222,19 +244,111 @@ func funcParams() ast.Node {
 	}
 }
 
+func function() ast.Node {
+	_, err := lexer.ScanType(lexer.TYPE_RES_FUNC)
+	if err != nil {
+		// lexer.PrintPos()
+		panic(err)
+	}
+	id, err := lexer.ScanType(lexer.TYPE_VAR)
+	if err != nil {
+		panic(err)
+	}
+	fn := &ast.FuncNode{ID: id}
+	fn.Params = funcParams()
+	_, tp, eos := lexer.Scan()
+	if eos {
+		panic(lexer.ErrEOS)
+	}
+	co, ok := lexer.IsResType(tp)
+	if !ok {
+		panic("expect reserved type")
+	}
+	fn.RetType = co
+	_, err = lexer.ScanType(lexer.TYPE_LB)
+	if err != nil {
+		panic(err)
+	}
+	fn.Statements = statementList()
+	_, err = lexer.ScanType(lexer.TYPE_RB)
+	if err != nil {
+		panic(err)
+	}
+	return fn
+}
+
+func callFunc() ast.Node {
+	getvar := func() ast.Node {
+		t, err := lexer.ScanType(lexer.TYPE_VAR)
+		if err != nil {
+			panic(err)
+		}
+		return &ast.VarNode{ID: t}
+	}
+	id, err := lexer.ScanType(lexer.TYPE_VAR)
+	if err != nil {
+		panic(err)
+	}
+	fn := &ast.CallFuncNode{ID: id}
+	_, err = lexer.ScanType(lexer.TYPE_LP)
+	if err != nil {
+		panic(err)
+	}
+	_, err = lexer.ScanType(lexer.TYPE_RP)
+	if err == nil {
+		return fn
+	}
+	if err == lexer.ErrEOS {
+		panic(err)
+	}
+	fn.Params = append(fn.Params, getvar())
+	for {
+		_, err = lexer.ScanType(lexer.TYPE_RP)
+		if err == nil {
+			return fn
+		}
+		if err == lexer.ErrEOS {
+			panic(err)
+		}
+		_, err = lexer.ScanType(lexer.TYPE_COMMA)
+		if err != nil {
+			panic(err)
+		}
+		fn.Params = append(fn.Params, getvar())
+	}
+}
+
+func returnST() (ast.Node, error) {
+	_, err := lexer.ScanType(lexer.TYPE_RES_RET)
+	if err != nil {
+		return nil, err
+	}
+	return &ast.RetNode{Exp: exp()}, nil
+}
+
+func program() ast.Node {
+	n := &ast.SLNode{}
+	n.Children = append(n.Children, function())
+	// lexer.PrintPos()
+	for {
+		ch := lexer.SetCheckpoint()
+		c, _, eos := lexer.Scan()
+		if c == lexer.TYPE_NL {
+			continue
+		}
+		lexer.GobackTo(ch)
+		if eos {
+			break
+		}
+		n.Children = append(n.Children, function())
+	}
+	return n
+}
+
 func Parse(s string) string {
 	lexer.SetInput(s)
 	m := ir.NewModule()
-	g := m.NewGlobalDef("str", constant.NewCharArrayFromString("Hello World! %d\x00"))
-
-	printf := m.NewFunc("printf", types.I32, ir.NewParam("formatstr", types.I8Ptr))
-	printf.Sig.Variadic = true
-	f := m.NewFunc("main", types.Void)
-	b := f.NewBlock("")
-	statementList().Calc(m, f, b)
-	// e := b.NewLoad(types.NewArray(uint64(len("Hello World!")+1), types.I8), g)
-	zero := constant.NewInt(types.I32, 0)
-	b.NewCall(printf, constant.NewGetElementPtr(g.Typ.ElemType, g, zero, zero), zero)
-	b.NewRet(nil)
+	ast.AddSTDFunc(m)
+	program().Calc(m, nil, nil)
 	return m.String()
 }

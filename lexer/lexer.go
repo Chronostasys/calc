@@ -24,23 +24,32 @@ const (
 	TYPE_LB        = 15 // "{"
 	TYPE_RB        = 16 // "}"
 	TYPE_COMMA     = 17 // ","
+	TYPE_RES_RET   = 18 // "return"
+	TYPE_RES_VOID  = 19 // "void"
 )
 
 var (
 	input    string
 	pos      int
 	reserved = map[string]int{
-		"var":   TYPE_RES_VAR,
+		"var":    TYPE_RES_VAR,
+		"int":    TYPE_RES_INT,
+		"float":  TYPE_RES_FLOAT,
+		"func":   TYPE_RES_FUNC,
+		"return": TYPE_RES_RET,
+		"void":   TYPE_RES_VOID,
+	}
+	reservedTypes = map[string]int{
 		"int":   TYPE_RES_INT,
 		"float": TYPE_RES_FLOAT,
-		"func":  TYPE_RES_FUNC,
+		"void":  TYPE_RES_VOID,
 	}
 	ErrEOS  = fmt.Errorf("eos error")
 	ErrTYPE = fmt.Errorf("the next token doesn't match the expected type")
 )
 
 func IsResType(token string) (code int, ok bool) {
-	code, ok = reserved[token]
+	code, ok = reservedTypes[token]
 	return
 }
 
@@ -49,7 +58,7 @@ func SetInput(s string) {
 	input = s
 }
 
-func peek() (ch rune, end bool) {
+func Peek() (ch rune, end bool) {
 	if pos >= len(input) {
 		return ch, true
 	}
@@ -61,7 +70,7 @@ func getCh() (ch rune, end bool) {
 	defer func() {
 		pos++
 	}()
-	return peek()
+	return Peek()
 }
 
 func getChSkipEmpty() (ch rune, end bool) {
@@ -109,8 +118,13 @@ func ScanType(code int) (token string, err error) {
 	} else if e {
 		return "", ErrEOS
 	}
+	// fmt.Println(pos, t)
 	GobackTo(ch)
 	return "", ErrTYPE
+}
+
+func PrintPos() {
+	println(pos)
 }
 
 func Scan() (code int, token string, eos bool) {
@@ -177,7 +191,7 @@ func Scan() (code int, token string, eos bool) {
 	case '\n':
 		return TYPE_NL, "\n", end
 	case '\r':
-		c, e := peek()
+		c, e := Peek()
 		if !e && c == '\n' {
 			pos++
 			return TYPE_NL, "\n", e

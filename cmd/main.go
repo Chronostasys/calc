@@ -1,14 +1,26 @@
 package main
 
 import (
+	"flag"
 	"io/ioutil"
+	"log"
 
 	"github.com/Chronostasys/calculator_go/parser"
 )
 
 func main() {
-	bs, _ := ioutil.ReadFile("test.calc")
+	var inf, outf string
+	flag.StringVar(&inf, "c", "test.calc", "source file")
+	flag.StringVar(&outf, "o", "test.ll", "llvm ir file")
+	flag.Parse()
+	bs, err := ioutil.ReadFile(inf)
+	if err != nil {
+		log.Fatalln(err)
+	}
 	code := string(bs)
 	ir := parser.Parse(code)
-	ioutil.WriteFile("test.ll", []byte(ir), 0777)
+	err = ioutil.WriteFile(outf, []byte(ir), 0777)
+	if err != nil {
+		log.Fatalln(err)
+	}
 }

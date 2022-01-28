@@ -11,12 +11,39 @@ import (
 )
 
 var (
-	vartable = map[string]*DefineNode{}
+	vartable = map[string]map[string]VNode{}
+	fntable  = map[string]*FuncNode{}
 	typedic  = map[int]types.Type{
 		lexer.TYPE_RES_FLOAT: types.Float,
 		lexer.TYPE_RES_INT:   types.I32,
 	}
 )
+
+func AddSTDFunc(m *ir.Module) {
+	printf := m.NewFunc("printf", types.I32, ir.NewParam("formatstr", types.I8Ptr))
+	printf.Sig.Variadic = true
+	gi := m.NewGlobalDef("stri", constant.NewCharArrayFromString("%d\n\x00"))
+	p := ir.NewParam("i", types.I32)
+	f := m.NewFunc("printIntln", types.Void, p)
+	b := f.NewBlock("")
+	zero := constant.NewInt(types.I32, 0)
+	b.NewCall(printf, constant.NewGetElementPtr(gi.Typ.ElemType, gi, zero, zero), p)
+	b.NewRet(nil)
+	fntable[f.Name()] = &FuncNode{Fn: f, ID: f.Name()}
+
+	gf := m.NewGlobalDef("strf", constant.NewCharArrayFromString("%f\n\x00"))
+	p = ir.NewParam("i", types.Float)
+	f = m.NewFunc("printFloatln", types.Void, p)
+	b = f.NewBlock("")
+	d := b.NewFPExt(p, types.Double)
+	b.NewCall(printf, constant.NewGetElementPtr(gf.Typ.ElemType, gf, zero, zero), d)
+	b.NewRet(nil)
+	fntable[f.Name()] = &FuncNode{Fn: f, ID: f.Name()}
+}
+
+type VNode interface {
+	V() value.Value
+}
 
 type Node interface {
 	Calc(*ir.Module, *ir.Func, *ir.Block) value.Value
@@ -32,14 +59,18 @@ type BinNode struct {
 	Right Node
 }
 
+func loadIfVar(n Node, m *ir.Module, f *ir.Func, b *ir.Block) value.Value {
+	if v, ok := n.(*VarNode); ok {
+		l := v.Calc(m, f, b)
+		if t, ok := l.Type().(*types.PointerType); ok {
+			return b.NewLoad(t.ElemType, l)
+		}
+	}
+	return n.Calc(m, f, b)
+}
+
 func (n *BinNode) Calc(m *ir.Module, f *ir.Func, b *ir.Block) value.Value {
-	l, r := n.Left.Calc(m, f, b), n.Right.Calc(m, f, b)
-	if tp, ok := l.Type().(*types.PointerType); ok {
-		l = b.NewLoad(tp.ElemType, l)
-	}
-	if tp, ok := r.Type().(*types.PointerType); ok {
-		r = b.NewLoad(tp.ElemType, r)
-	}
+	l, r := loadIfVar(n.Left, m, f, b), loadIfVar(n.Right, m, f, b)
 	hasF := l.Type().Equal(types.Float) || r.Type().Equal(types.Float) ||
 		l.Type().Equal(types.Double) || r.Type().Equal(types.Double)
 	switch n.Op {
@@ -68,12 +99,12 @@ func (n *BinNode) Calc(m *ir.Module, f *ir.Func, b *ir.Block) value.Value {
 		if !ok {
 			panic("assign statement's left side can only be variables")
 		}
-		_, ext := vartable[v.ID]
+		_, ext := vartable[f.Name()][v.ID]
 		if !ext {
 			panic(fmt.Errorf("variable %s not defined", v.ID))
 		}
-		b.NewStore(r, vartable[v.ID].Val)
-		return vartable[v.ID].Val
+		b.NewStore(r, vartable[f.Name()][v.ID].V())
+		return vartable[f.Name()][v.ID].V()
 	default:
 		panic("unexpected op")
 	}
@@ -110,11 +141,11 @@ type VarNode struct {
 }
 
 func (n *VarNode) Calc(m *ir.Module, f *ir.Func, b *ir.Block) value.Value {
-	v, ok := vartable[n.ID]
+	v, ok := vartable[f.Name()][n.ID]
 	if !ok {
 		panic(fmt.Errorf("variable %s not defined", n.ID))
 	}
-	return v.Val
+	return v.V()
 }
 
 // SLNode statement list node
@@ -142,6 +173,10 @@ type DefineNode struct {
 	Val value.Value
 }
 
+func (n *DefineNode) V() value.Value {
+	return n.Val
+}
+
 func (n *DefineNode) Calc(m *ir.Module, f *ir.Func, b *ir.Block) value.Value {
 	if _, ok := vartable[n.ID]; ok {
 		panic(fmt.Errorf("redefination of var %s", n.ID))
@@ -152,7 +187,7 @@ func (n *DefineNode) Calc(m *ir.Module, f *ir.Func, b *ir.Block) value.Value {
 		} else {
 			n.Val = b.NewAlloca(tp)
 		}
-		vartable[n.ID] = n
+		vartable[f.Name()][n.ID] = n
 		return n.Val
 	}
 	panic(fmt.Errorf("unknown type code %d", n.TP))
@@ -165,8 +200,11 @@ type ParamNode struct {
 }
 
 func (n *ParamNode) Calc(m *ir.Module, f *ir.Func, b *ir.Block) value.Value {
-
-	panic(fmt.Errorf("not implement yet"))
+	n.Val = ir.NewParam(n.ID, typedic[n.TP])
+	return n.Val
+}
+func (n *ParamNode) V() value.Value {
+	return n.Val
 }
 
 type ParamsNode struct {
@@ -175,5 +213,59 @@ type ParamsNode struct {
 
 func (n *ParamsNode) Calc(m *ir.Module, f *ir.Func, b *ir.Block) value.Value {
 
-	panic(fmt.Errorf("not implement yet"))
+	return zero
+}
+
+type FuncNode struct {
+	Params       Node
+	ID           string
+	RetType      int
+	Statements   Node
+	Fn           *ir.Func
+	DefaultBlock *ir.Block
+}
+
+func (n *FuncNode) Calc(m *ir.Module, f *ir.Func, b *ir.Block) value.Value {
+	_, ok := fntable[n.ID]
+	if ok {
+		panic(fmt.Sprintf("re defination of func %s", n.ID))
+	}
+	psn := n.Params.(*ParamsNode)
+	ps := []*ir.Param{}
+	vartable[n.ID] = map[string]VNode{}
+	for _, v := range psn.Params {
+		p := v.(*ParamNode)
+		vartable[n.ID][p.ID] = p
+		ps = append(ps, v.Calc(m, f, b).(*ir.Param))
+	}
+	fn := m.NewFunc(n.ID, typedic[n.RetType], ps...)
+	n.Fn = fn
+	b = fn.NewBlock("")
+	n.DefaultBlock = b
+	fntable[n.ID] = n
+
+	n.Statements.Calc(m, fn, b)
+	return fn
+}
+
+type CallFuncNode struct {
+	Params []Node
+	ID     string
+}
+
+func (n *CallFuncNode) Calc(m *ir.Module, f *ir.Func, b *ir.Block) value.Value {
+	params := []value.Value{}
+	for _, v := range n.Params {
+		params = append(params, loadIfVar(v, m, f, b))
+	}
+	return b.NewCall(fntable[n.ID].Fn, params...)
+}
+
+type RetNode struct {
+	Exp Node
+}
+
+func (n *RetNode) Calc(m *ir.Module, f *ir.Func, b *ir.Block) value.Value {
+	b.NewRet(n.Exp.Calc(m, f, b))
+	return zero
 }

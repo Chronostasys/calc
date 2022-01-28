@@ -1,6 +1,18 @@
-var _a1 float
-_a1 = 3.0 + 2.2*(3.1+9.6)/8.3
-var b int
-b = 5+9*6
-var c int
-c = b
+func add(a int, b int) int {
+    return a+b
+}
+
+
+func main() int {
+    var _a1 float
+    _a1 = 3.0 + 2.2*(3.1+9.6)/8.3
+    var b int
+    b = 5+9*6
+    var c int
+    c = b
+    c = add(c,b)
+    printIntln(c)
+    printIntln(b)
+    printFloatln(_a1)
+    return 0
+}

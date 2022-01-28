@@ -1,16 +1,21 @@
 # Calculator
-Try to build a simple calculator, with lexer and recursive descent parser.
+~~Try to build a simple calculator, with lexer and recursive descent parser~~.
 
+现在它是一个小编译器了  
+在项目根目录`make`可以编译[test.calc](cmd/test.calc)的ir文件、可执行文件和汇编  
+`make compiler`可以编译出编译器  
+因为是计算器基础上改的，所以暂时的文件后缀是`.calc`
 
 # Rules
 ```
-program: P->FN+
+program: P->(FN|NL)+
 call_func: CF->var LP (RP|(var(COMMA var)* RP))
 function: FN->FUNC var FPS TYPE LB SL RB
 func_params: FPS->LP (RP|(FP(COMMA FP)* RP))
 func_param: FP->var TYPE
 statemnt_list: SL->S|S NL SL
-statement: S->EM|D|A
+statement: S->EM|D|A|R|CF
+return: R->RET|RET E
 empty: EM->
 define: D->VAR var TYPE
 asssign: A->var ASSIGN E
