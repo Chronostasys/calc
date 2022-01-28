@@ -12,7 +12,7 @@
 ## Rules
 ```
 program: P->(FN|NL)+
-call_func: CF->var LP (RP|(var(COMMA var)* RP))
+call_func: CF->var LP (RP|(E(COMMA E)* RP))
 function: FN->FUNC var FPS TYPE LB SL RB
 func_params: FPS->LP (RP|(FP(COMMA FP)* RP))
 func_param: FP->var TYPE

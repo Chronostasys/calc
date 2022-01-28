@@ -278,13 +278,6 @@ func function() ast.Node {
 }
 
 func callFunc() ast.Node {
-	getvar := func() ast.Node {
-		t, err := lexer.ScanType(lexer.TYPE_VAR)
-		if err != nil {
-			panic(err)
-		}
-		return &ast.VarNode{ID: t}
-	}
 	id, err := lexer.ScanType(lexer.TYPE_VAR)
 	if err != nil {
 		panic(err)
@@ -301,7 +294,7 @@ func callFunc() ast.Node {
 	if err == lexer.ErrEOS {
 		panic(err)
 	}
-	fn.Params = append(fn.Params, getvar())
+	fn.Params = append(fn.Params, exp())
 	for {
 		_, err = lexer.ScanType(lexer.TYPE_RP)
 		if err == nil {
@@ -314,7 +307,7 @@ func callFunc() ast.Node {
 		if err != nil {
 			panic(err)
 		}
-		fn.Params = append(fn.Params, getvar())
+		fn.Params = append(fn.Params, exp())
 	}
 }
 

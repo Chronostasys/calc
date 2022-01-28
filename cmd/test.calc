@@ -14,5 +14,6 @@ func main() int {
     printIntln(c)
     printIntln(b)
     printFloatln(_a1)
+    printIntln(add(7*8,add(c,b)))
     return 0
 }
