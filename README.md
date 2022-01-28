@@ -4,9 +4,12 @@
 现在它是一个小编译器了  
 在项目根目录`make`可以编译[test.calc](cmd/test.calc)的ir文件、可执行文件和汇编  
 `make compiler`可以编译出编译器  
-因为是计算器基础上改的，所以暂时的文件后缀是`.calc`
+因为是计算器基础上改的，所以暂时的文件后缀是`.calc`  
 
-# Rules
+## 工具链
+- clang (llvm 12.0)
+- golang 1.17.1
+## Rules
 ```
 program: P->(FN|NL)+
 call_func: CF->var LP (RP|(var(COMMA var)* RP))
