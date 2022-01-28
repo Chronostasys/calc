@@ -157,3 +157,23 @@ func (n *DefineNode) Calc(m *ir.Module, f *ir.Func, b *ir.Block) value.Value {
 	}
 	panic(fmt.Errorf("unknown type code %d", n.TP))
 }
+
+type ParamNode struct {
+	ID  string
+	TP  int
+	Val value.Value
+}
+
+func (n *ParamNode) Calc(m *ir.Module, f *ir.Func, b *ir.Block) value.Value {
+
+	panic(fmt.Errorf("not implement yet"))
+}
+
+type ParamsNode struct {
+	Params []Node
+}
+
+func (n *ParamsNode) Calc(m *ir.Module, f *ir.Func, b *ir.Block) value.Value {
+
+	panic(fmt.Errorf("not implement yet"))
+}

@@ -175,6 +175,53 @@ func statementList() ast.Node {
 	}
 	return n
 }
+
+func funcParam() ast.Node {
+	t, err := lexer.ScanType(lexer.TYPE_VAR)
+	if err != nil {
+		panic(err)
+	}
+	_, tp, eos := lexer.Scan()
+	if eos {
+		panic(lexer.ErrEOS)
+	}
+	co, ok := lexer.IsResType(tp)
+	if !ok {
+		panic("expect reserved type")
+	}
+	return &ast.ParamNode{ID: t, TP: co}
+}
+
+func funcParams() ast.Node {
+	_, err := lexer.ScanType(lexer.TYPE_LP)
+	if err != nil {
+		panic(err)
+	}
+	_, err = lexer.ScanType(lexer.TYPE_RP)
+	if err == nil {
+		return &ast.ParamsNode{Params: []ast.Node{}}
+	}
+	if err == lexer.ErrEOS {
+		panic(err)
+	}
+	pn := &ast.ParamsNode{}
+	pn.Params = append(pn.Params, funcParam())
+	for {
+		_, err = lexer.ScanType(lexer.TYPE_RP)
+		if err == nil {
+			return pn
+		}
+		if err == lexer.ErrEOS {
+			panic(err)
+		}
+		_, err = lexer.ScanType(lexer.TYPE_COMMA)
+		if err != nil {
+			panic(err)
+		}
+		pn.Params = append(pn.Params, funcParam())
+	}
+}
+
 func Parse(s string) string {
 	lexer.SetInput(s)
 	m := ir.NewModule()

@@ -20,6 +20,10 @@ const (
 	TYPE_VAR       = 11
 	TYPE_FLOAT     = 12
 	TYPE_RES_FLOAT = 13
+	TYPE_RES_FUNC  = 14 // "func"
+	TYPE_LB        = 15 // "{"
+	TYPE_RB        = 16 // "}"
+	TYPE_COMMA     = 17 // ","
 )
 
 var (
@@ -29,6 +33,7 @@ var (
 		"var":   TYPE_RES_VAR,
 		"int":   TYPE_RES_INT,
 		"float": TYPE_RES_FLOAT,
+		"func":  TYPE_RES_FUNC,
 	}
 	ErrEOS  = fmt.Errorf("eos error")
 	ErrTYPE = fmt.Errorf("the next token doesn't match the expected type")
@@ -177,6 +182,12 @@ func Scan() (code int, token string, eos bool) {
 			pos++
 			return TYPE_NL, "\n", e
 		}
+	case '{':
+		return TYPE_LB, "{", end
+	case '}':
+		return TYPE_RB, "}", end
+	case ',':
+		return TYPE_COMMA, ",", end
 	}
 	log.Fatalf("unrecognized letter %c in pos %d", ch, pos)
 	return
