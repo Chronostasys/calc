@@ -97,13 +97,14 @@ func GobackTo(c Checkpoint) {
 }
 
 func ScanType(code int) (token string, err error) {
+	ch := SetCheckpoint()
 	c, t, e := Scan()
 	if c == code {
 		return t, nil
 	} else if e {
 		return "", ErrEOS
 	}
-	pos -= len(t)
+	GobackTo(ch)
 	return "", ErrTYPE
 }
 

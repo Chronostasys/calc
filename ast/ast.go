@@ -38,7 +38,7 @@ func (n *BinNode) Calc(m *ir.Module, f *ir.Func, b *ir.Block) value.Value {
 		l = b.NewLoad(tp.ElemType, l)
 	}
 	if tp, ok := r.Type().(*types.PointerType); ok {
-		r = b.NewLoad(tp.ElemType, l)
+		r = b.NewLoad(tp.ElemType, r)
 	}
 	hasF := l.Type().Equal(types.Float) || r.Type().Equal(types.Float) ||
 		l.Type().Equal(types.Double) || r.Type().Equal(types.Double)

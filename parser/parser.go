@@ -178,10 +178,16 @@ func statementList() ast.Node {
 func Parse(s string) string {
 	lexer.SetInput(s)
 	m := ir.NewModule()
+	g := m.NewGlobalDef("str", constant.NewCharArrayFromString("Hello World! %d\x00"))
+
+	printf := m.NewFunc("printf", types.I32, ir.NewParam("formatstr", types.I8Ptr))
+	printf.Sig.Variadic = true
 	f := m.NewFunc("main", types.Void)
 	b := f.NewBlock("")
 	statementList().Calc(m, f, b)
+	// e := b.NewLoad(types.NewArray(uint64(len("Hello World!")+1), types.I8), g)
+	zero := constant.NewInt(types.I32, 0)
+	b.NewCall(printf, constant.NewGetElementPtr(g.Typ.ElemType, g, zero, zero), zero)
 	b.NewRet(nil)
-
 	return m.String()
 }
