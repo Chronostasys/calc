@@ -32,6 +32,12 @@ const (
 	TYPE_OR        = 23 // "||"
 	TYPE_EQ        = 24 // "=="
 	TYPE_RES_BOOL  = 25 // "bool"
+	TYPE_LG        = 26 // ">"
+	TYPE_SM        = 27 // "<"
+	TYPE_LEQ       = 28 // ">="
+	TYPE_SEQ       = 29 // "<="
+	TYPE_NOT       = 30 // "!"
+	TYPE_NEQ       = 31 // "!="
 )
 
 var (
@@ -226,6 +232,24 @@ func Scan() (code int, token string, eos bool) {
 			getCh()
 			return TYPE_OR, "||", end
 		}
+	case '>':
+		if ne, _ := Peek(); ne == '=' {
+			getCh()
+			return TYPE_LEQ, ">=", end
+		}
+		return TYPE_LG, ">", end
+	case '<':
+		if ne, _ := Peek(); ne == '=' {
+			getCh()
+			return TYPE_SEQ, "<=", end
+		}
+		return TYPE_SM, "<", end
+	case '!':
+		if ne, _ := Peek(); ne == '=' {
+			getCh()
+			return TYPE_NEQ, "!=", end
+		}
+		return TYPE_NOT, "!", end
 	}
 	log.Fatalf("unrecognized letter %c in pos %d", ch, pos)
 	return

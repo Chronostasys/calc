@@ -23,4 +23,6 @@ func main() {
 	if err != nil {
 		log.Fatalln(err)
 	}
+	// ast := parser.ParseAST(code)
+	// fmt.Println(ast)
 }

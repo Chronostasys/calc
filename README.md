@@ -29,6 +29,7 @@ symbol: S->N|ADD N|MIN N
 number: N->n|LP E RP|var|CF
 
 
-bool_exp: BE->B|B AND B|B OR B
-boolean: B->TRUE|FALSE|exp EQ exp|exp NOT EQ exp|NOT B|LP BE RP
+bool_exp: BE->B|B AND BE|B OR BE
+boolean: B->TRUE|FALSE|C|NOT BE|LP BE RP|CF|var
+compare_exp: C->exp EQ exp|exp NEQ exp|exp LG exp|exp SM exp|exp LEQ exp|exp SEQ exp
 ```

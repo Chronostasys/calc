@@ -269,3 +269,39 @@ func (n *RetNode) Calc(m *ir.Module, f *ir.Func, b *ir.Block) value.Value {
 	b.NewRet(n.Exp.Calc(m, f, b))
 	return zero
 }
+
+type BoolConstNode struct {
+	Val bool
+}
+
+func (n *BoolConstNode) Calc(m *ir.Module, f *ir.Func, b *ir.Block) value.Value {
+	panic("not impl")
+}
+
+type CompareNode struct {
+	Op    int
+	Left  Node
+	Right Node
+}
+
+func (n *CompareNode) Calc(m *ir.Module, f *ir.Func, b *ir.Block) value.Value {
+	panic("not impl")
+}
+
+type BoolExpNode struct {
+	Op    int
+	Left  Node
+	Right Node
+}
+
+func (n *BoolExpNode) Calc(m *ir.Module, f *ir.Func, b *ir.Block) value.Value {
+	panic("not impl")
+}
+
+type NotNode struct {
+	Bool Node
+}
+
+func (n *NotNode) Calc(m *ir.Module, f *ir.Func, b *ir.Block) value.Value {
+	panic("not impl")
+}

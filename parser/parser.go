@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"fmt"
 	"strconv"
 
 	"github.com/Chronostasys/calculator_go/ast"
@@ -120,7 +121,7 @@ func assign() (n ast.Node, err error) {
 	if err != nil {
 		return nil, err
 	}
-	r := exp()
+	r := allexp()
 	return &ast.BinNode{
 		Left:  &ast.VarNode{ID: id},
 		Op:    lexer.TYPE_ASSIGN,
@@ -247,7 +248,7 @@ func funcParams() ast.Node {
 func function() ast.Node {
 	_, err := lexer.ScanType(lexer.TYPE_RES_FUNC)
 	if err != nil {
-		// lexer.PrintPos()
+		//
 		panic(err)
 	}
 	id, err := lexer.ScanType(lexer.TYPE_VAR)
@@ -294,7 +295,7 @@ func callFunc() ast.Node {
 	if err == lexer.ErrEOS {
 		panic(err)
 	}
-	fn.Params = append(fn.Params, exp())
+	fn.Params = append(fn.Params, allexp())
 	for {
 		_, err = lexer.ScanType(lexer.TYPE_RP)
 		if err == nil {
@@ -307,7 +308,7 @@ func callFunc() ast.Node {
 		if err != nil {
 			panic(err)
 		}
-		fn.Params = append(fn.Params, exp())
+		fn.Params = append(fn.Params, allexp())
 	}
 }
 
@@ -316,13 +317,12 @@ func returnST() (ast.Node, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ast.RetNode{Exp: exp()}, nil
+	return &ast.RetNode{Exp: allexp()}, nil
 }
 
 func program() ast.Node {
 	n := &ast.SLNode{}
-	n.Children = append(n.Children, function())
-	// lexer.PrintPos()
+	//
 	for {
 		ch := lexer.SetCheckpoint()
 		c, _, eos := lexer.Scan()
@@ -338,10 +338,157 @@ func program() ast.Node {
 	return n
 }
 
+func allexp() ast.Node {
+	n, err := runWithCatch2(boolexp)
+	if err == nil {
+		return n
+	}
+
+	return exp()
+
+}
+
+func boolexp() (node ast.Node, err error) {
+	ch := lexer.SetCheckpoint()
+	defer func() {
+		if err != nil {
+			lexer.GobackTo(ch)
+		}
+	}()
+	node, err = boolean()
+	if err != nil {
+		return nil, err
+	}
+	cp := lexer.SetCheckpoint()
+	co, _, eos := lexer.Scan()
+	if eos {
+		return nil, lexer.ErrEOS
+	}
+	if co == lexer.TYPE_AND || co == lexer.TYPE_OR {
+		n := &ast.BoolExpNode{}
+		n.Left = node
+		n.Op = co
+		node, err = boolexp()
+		if err != nil {
+			return nil, err
+		}
+		n.Right = node
+		return n, nil
+	}
+	lexer.GobackTo(cp)
+	return
+}
+
+func runWithCatch(f func() ast.Node) (node ast.Node, err error) {
+	ch := lexer.SetCheckpoint()
+	defer func() {
+		lexer.GobackTo(ch)
+		err = fmt.Errorf("%v", recover())
+	}()
+	node = f()
+	return
+}
+func runWithCatch2(f func() (ast.Node, error)) (node ast.Node, err error) {
+	ch := lexer.SetCheckpoint()
+	defer func() {
+		i := recover()
+		if i != nil {
+			err = fmt.Errorf("%v", i)
+		}
+		if err != nil {
+			lexer.GobackTo(ch)
+		}
+	}()
+	node, err = f()
+	return
+}
+
+func boolean() (node ast.Node, err error) {
+	ch1 := lexer.SetCheckpoint()
+	defer func() {
+		if err != nil {
+			lexer.GobackTo(ch1)
+		}
+	}()
+	_, err = lexer.ScanType(lexer.TYPE_RES_TRUE)
+	if err == nil {
+		return &ast.BoolConstNode{Val: true}, nil
+	}
+	_, err = lexer.ScanType(lexer.TYPE_RES_FALSE)
+	if err == nil {
+		return &ast.BoolConstNode{Val: false}, nil
+	}
+	node, err = runWithCatch2(compare)
+	if err == nil {
+		return node, nil
+	}
+	ch := lexer.SetCheckpoint()
+	code, t1, eos := lexer.Scan()
+	if eos {
+		return nil, lexer.ErrEOS
+	}
+	switch code {
+	case lexer.TYPE_VAR:
+		_, err := lexer.ScanType(lexer.TYPE_LP)
+		if err == nil {
+			lexer.GobackTo(ch)
+			return callFunc(), nil
+		}
+		return &ast.VarNode{ID: t1}, nil
+	case lexer.TYPE_NOT:
+		node, err = boolexp()
+		if err != nil {
+			return nil, err
+		}
+		return &ast.NotNode{Bool: node}, nil
+	case lexer.TYPE_LP:
+		node, err = boolexp()
+		if err != nil {
+			return nil, err
+		}
+		_, err = lexer.ScanType(lexer.TYPE_RP)
+		if err != nil {
+			return nil, err
+		}
+		return
+	}
+
+	return nil, fmt.Errorf("parse failed")
+}
+
+func compare() (node ast.Node, err error) {
+	ch := lexer.SetCheckpoint()
+	defer func() {
+		if err != nil {
+			lexer.GobackTo(ch)
+		}
+	}()
+	n := &ast.CompareNode{}
+	n.Left = exp()
+	code, _, eos := lexer.Scan()
+	if eos {
+		return nil, lexer.ErrEOS
+	}
+	switch code {
+	case lexer.TYPE_EQ, lexer.TYPE_NEQ,
+		lexer.TYPE_LG, lexer.TYPE_SM,
+		lexer.TYPE_LEQ, lexer.TYPE_SEQ:
+		n.Op = code
+	default:
+		return nil, fmt.Errorf("expect compare op")
+	}
+	n.Right = exp()
+	return n, nil
+}
+
 func Parse(s string) string {
-	lexer.SetInput(s)
 	m := ir.NewModule()
 	ast.AddSTDFunc(m)
-	program().Calc(m, nil, nil)
+	ParseAST(s).Calc(m, nil, nil)
 	return m.String()
+}
+func ParseAST(s string) ast.Node {
+	lexer.SetInput(s)
+
+	return program()
 }
