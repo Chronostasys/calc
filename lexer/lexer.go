@@ -26,6 +26,12 @@ const (
 	TYPE_COMMA     = 17 // ","
 	TYPE_RES_RET   = 18 // "return"
 	TYPE_RES_VOID  = 19 // "void"
+	TYPE_RES_TRUE  = 20 // "true"
+	TYPE_RES_FALSE = 21 // "false"
+	TYPE_AND       = 22 // "&&"
+	TYPE_OR        = 23 // "||"
+	TYPE_EQ        = 24 // "=="
+	TYPE_RES_BOOL  = 25 // "bool"
 )
 
 var (
@@ -38,11 +44,15 @@ var (
 		"func":   TYPE_RES_FUNC,
 		"return": TYPE_RES_RET,
 		"void":   TYPE_RES_VOID,
+		"true":   TYPE_RES_TRUE,
+		"false":  TYPE_RES_FALSE,
+		"bool":   TYPE_RES_BOOL,
 	}
 	reservedTypes = map[string]int{
 		"int":   TYPE_RES_INT,
 		"float": TYPE_RES_FLOAT,
 		"void":  TYPE_RES_VOID,
+		"bool":  TYPE_RES_BOOL,
 	}
 	ErrEOS  = fmt.Errorf("eos error")
 	ErrTYPE = fmt.Errorf("the next token doesn't match the expected type")
@@ -187,6 +197,10 @@ func Scan() (code int, token string, eos bool) {
 	case ')':
 		return TYPE_RP, ")", end
 	case '=':
+		if ne, _ := Peek(); ne == '=' {
+			getCh()
+			return TYPE_EQ, "==", end
+		}
 		return TYPE_ASSIGN, "=", end
 	case '\n':
 		return TYPE_NL, "\n", end
@@ -202,6 +216,16 @@ func Scan() (code int, token string, eos bool) {
 		return TYPE_RB, "}", end
 	case ',':
 		return TYPE_COMMA, ",", end
+	case '&':
+		if ne, _ := Peek(); ne == '&' {
+			getCh()
+			return TYPE_AND, "&&", end
+		}
+	case '|':
+		if ne, _ := Peek(); ne == '|' {
+			getCh()
+			return TYPE_OR, "||", end
+		}
 	}
 	log.Fatalf("unrecognized letter %c in pos %d", ch, pos)
 	return
