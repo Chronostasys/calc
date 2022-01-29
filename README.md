@@ -16,20 +16,18 @@ call_func: CF->var LP (RP|(E(COMMA AE)* RP))
 function: FN->FUNC var FPS TYPE LB SL RB
 func_params: FPS->LP (RP|(FP(COMMA FP)* RP))
 func_param: FP->var TYPE
-statemnt_list: SL->S|S NL SL
-statement: S->EM|D|A|R|CF
-return: R->RET|RET AE
-empty: EM->
-define: D->VAR var TYPE
-asssign: A->var ASSIGN AE
+statemnt_list: SL->S|(S SL)
+statement: S->EM|D|A|R|(CF NL)
+return: R->RET|(RET (BE NL)|(E NL))
+empty: EM->NL
+define: D->VAR var TYPE NL
+asssign: A->var ASSIGN AE NL
 all_exp: AE->E|BE
 exp: E->F|F((ADD|MIN)F)*
 factor: F->S|S((MUL|DIV)S)*
-symbol: S->N|ADD N|MIN N
-number: N->n|LP E RP|var|CF
-
-
-bool_exp: BE->B|B AND BE|B OR BE
-boolean: B->TRUE|FALSE|C|NOT BE|LP BE RP|CF|var
-compare_exp: C->exp EQ exp|exp NEQ exp|exp LG exp|exp SM exp|exp LEQ exp|exp SEQ exp
+symbol: S->N|((ADD|MIN) N)
+number: N->n|(LP E RP)|var|CF
+bool_exp: BE->B|(B (AND|OR) BE)
+boolean: B->TRUE|FALSE|C|(NOT B)|(LP BE RP)|CF|var
+compare_exp: C->exp (EQ|NEQ|LG|SM|LEQ|SEQ) exp
 ```

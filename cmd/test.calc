@@ -4,6 +4,11 @@ func add(a int, b int) int {
 
 
 func main() int {
+    var d bool
+    d = false
+    printBoolln(d)
+    d = true||d
+    printBoolln(d)
     var _a1 float
     _a1 = 3.0 + 2.2*(3.1+9.6)/8.3
     var b int
@@ -15,5 +20,8 @@ func main() int {
     printIntln(b)
     printFloatln(_a1)
     printIntln(add(7*8,add(c,b)))
+    d = !(c!=(b+c-b))&&b>c
+    printBoolln(d)
+    printBoolln(!(c!=(b+c-b))||b>c)
     return 0
 }

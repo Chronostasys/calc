@@ -6,6 +6,7 @@ import (
 	"github.com/Chronostasys/calculator_go/lexer"
 	"github.com/llir/llvm/ir"
 	"github.com/llir/llvm/ir/constant"
+	"github.com/llir/llvm/ir/enum"
 	"github.com/llir/llvm/ir/types"
 	"github.com/llir/llvm/ir/value"
 )
@@ -16,30 +17,9 @@ var (
 	typedic  = map[int]types.Type{
 		lexer.TYPE_RES_FLOAT: types.Float,
 		lexer.TYPE_RES_INT:   types.I32,
+		lexer.TYPE_RES_BOOL:  types.I1,
 	}
 )
-
-func AddSTDFunc(m *ir.Module) {
-	printf := m.NewFunc("printf", types.I32, ir.NewParam("formatstr", types.I8Ptr))
-	printf.Sig.Variadic = true
-	gi := m.NewGlobalDef("stri", constant.NewCharArrayFromString("%d\n\x00"))
-	p := ir.NewParam("i", types.I32)
-	f := m.NewFunc("printIntln", types.Void, p)
-	b := f.NewBlock("")
-	zero := constant.NewInt(types.I32, 0)
-	b.NewCall(printf, constant.NewGetElementPtr(gi.Typ.ElemType, gi, zero, zero), p)
-	b.NewRet(nil)
-	fntable[f.Name()] = &FuncNode{Fn: f, ID: f.Name()}
-
-	gf := m.NewGlobalDef("strf", constant.NewCharArrayFromString("%f\n\x00"))
-	p = ir.NewParam("i", types.Float)
-	f = m.NewFunc("printFloatln", types.Void, p)
-	b = f.NewBlock("")
-	d := b.NewFPExt(p, types.Double)
-	b.NewCall(printf, constant.NewGetElementPtr(gf.Typ.ElemType, gf, zero, zero), d)
-	b.NewRet(nil)
-	fntable[f.Name()] = &FuncNode{Fn: f, ID: f.Name()}
-}
 
 type VNode interface {
 	V() value.Value
@@ -69,10 +49,21 @@ func loadIfVar(n Node, m *ir.Module, f *ir.Func, b *ir.Block) value.Value {
 	return n.Calc(m, f, b)
 }
 
+func hasFloatType(ts ...value.Value) bool {
+	hasfloat := false
+	for _, v := range ts {
+		_, ok := v.Type().(*types.FloatType)
+		if ok {
+			hasfloat = true
+			return hasfloat
+		}
+	}
+	return hasfloat
+}
+
 func (n *BinNode) Calc(m *ir.Module, f *ir.Func, b *ir.Block) value.Value {
 	l, r := loadIfVar(n.Left, m, f, b), loadIfVar(n.Right, m, f, b)
-	hasF := l.Type().Equal(types.Float) || r.Type().Equal(types.Float) ||
-		l.Type().Equal(types.Double) || r.Type().Equal(types.Double)
+	hasF := hasFloatType(l, r)
 	switch n.Op {
 	case lexer.TYPE_PLUS:
 		if hasF {
@@ -126,11 +117,12 @@ type UnaryNode struct {
 var zero = constant.NewInt(types.I32, 0)
 
 func (n *UnaryNode) Calc(m *ir.Module, f *ir.Func, b *ir.Block) value.Value {
+	c := loadIfVar(n.Child, m, f, b)
 	switch n.Op {
 	case lexer.TYPE_PLUS:
-		return n.Child.Calc(m, f, b)
+		return c
 	case lexer.TYPE_SUB:
-		return b.NewSub(zero, n.Child.Calc(m, f, b))
+		return b.NewSub(zero, c)
 	default:
 		panic("unexpected op")
 	}
@@ -186,8 +178,8 @@ func (n *DefineNode) Calc(m *ir.Module, f *ir.Func, b *ir.Block) value.Value {
 			n.Val = m.NewGlobal(n.ID, tp)
 		} else {
 			n.Val = b.NewAlloca(tp)
+			vartable[f.Name()][n.ID] = n
 		}
-		vartable[f.Name()][n.ID] = n
 		return n.Val
 	}
 	panic(fmt.Errorf("unknown type code %d", n.TP))
@@ -275,7 +267,7 @@ type BoolConstNode struct {
 }
 
 func (n *BoolConstNode) Calc(m *ir.Module, f *ir.Func, b *ir.Block) value.Value {
-	panic("not impl")
+	return constant.NewBool(n.Val)
 }
 
 type CompareNode struct {
@@ -283,9 +275,28 @@ type CompareNode struct {
 	Left  Node
 	Right Node
 }
+type e struct {
+	IntE   enum.IPred
+	FloatE enum.FPred
+}
+
+var comparedic = map[int]e{
+	lexer.TYPE_EQ:  {enum.IPredEQ, enum.FPredOEQ},
+	lexer.TYPE_NEQ: {enum.IPredNE, enum.FPredONE},
+	lexer.TYPE_LG:  {enum.IPredSGT, enum.FPredOGT},
+	lexer.TYPE_LEQ: {enum.IPredSGE, enum.FPredOGE},
+	lexer.TYPE_SM:  {enum.IPredSLT, enum.FPredOLT},
+	lexer.TYPE_SEQ: {enum.IPredSLE, enum.FPredOLE},
+}
 
 func (n *CompareNode) Calc(m *ir.Module, f *ir.Func, b *ir.Block) value.Value {
-	panic("not impl")
+	l, r := loadIfVar(n.Left, m, f, b), loadIfVar(n.Right, m, f, b)
+	hasF := hasFloatType(l, r)
+	if hasF {
+		return b.NewFCmp(comparedic[n.Op].FloatE, l, r)
+	} else {
+		return b.NewICmp(comparedic[n.Op].IntE, l, r)
+	}
 }
 
 type BoolExpNode struct {
@@ -295,7 +306,12 @@ type BoolExpNode struct {
 }
 
 func (n *BoolExpNode) Calc(m *ir.Module, f *ir.Func, b *ir.Block) value.Value {
-	panic("not impl")
+	l, r := loadIfVar(n.Left, m, f, b), loadIfVar(n.Right, m, f, b)
+	if n.Op == lexer.TYPE_AND {
+		return b.NewAnd(l, r)
+	} else {
+		return b.NewOr(l, r)
+	}
 }
 
 type NotNode struct {
@@ -303,5 +319,5 @@ type NotNode struct {
 }
 
 func (n *NotNode) Calc(m *ir.Module, f *ir.Func, b *ir.Block) value.Value {
-	panic("not impl")
+	return b.NewICmp(enum.IPredEQ, loadIfVar(n.Bool, m, f, b), constant.False)
 }

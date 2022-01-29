@@ -112,6 +112,11 @@ func assign() (n ast.Node, err error) {
 		if err != nil {
 			lexer.GobackTo(c)
 		}
+		defer func() {
+			if err == nil {
+				empty()
+			}
+		}()
 	}()
 	id, err := lexer.ScanType(lexer.TYPE_VAR)
 	if err != nil {
@@ -130,6 +135,10 @@ func assign() (n ast.Node, err error) {
 }
 
 func empty() ast.Node {
+	_, err := lexer.ScanType(lexer.TYPE_NL)
+	if err != nil {
+		panic(err)
+	}
 	return &ast.EmptyNode{}
 }
 
@@ -139,6 +148,11 @@ func define() (n ast.Node, err error) {
 		if err != nil {
 			lexer.GobackTo(c)
 		}
+		defer func() {
+			if err == nil {
+				empty()
+			}
+		}()
 	}()
 	_, err = lexer.ScanType(lexer.TYPE_RES_VAR)
 	if err != nil {
@@ -173,29 +187,29 @@ func statement() ast.Node {
 		return ast
 	}
 	ch := lexer.SetCheckpoint()
-	c, _, _ := lexer.Scan()
-	lexer.GobackTo(ch)
+	c, t, _ := lexer.Scan()
 	if c == lexer.TYPE_VAR {
-		return callFunc()
+		lexer.GobackTo(ch)
+		cf := callFunc()
+		empty()
+		return cf
+	} else if c == lexer.TYPE_NL {
+		lexer.GobackTo(ch)
+		return empty()
 	}
-	return empty()
+	panic(fmt.Sprintf("parse fail %s", t))
 }
 
 func statementList() ast.Node {
 	n := &ast.SLNode{}
 	n.Children = append(n.Children, statement())
-	_, err := lexer.ScanType(lexer.TYPE_NL)
-	if err == nil {
-		ch := lexer.SetCheckpoint()
-		c, _, _ := lexer.Scan()
-		lexer.GobackTo(ch)
-		if c == lexer.TYPE_RB {
-			return n
-		}
-		n.Children = append(n.Children, statementList())
-	} else if err != lexer.ErrEOS {
-		panic("cannot recognize as a legal statement")
+	ch := lexer.SetCheckpoint()
+	c, _, _ := lexer.Scan()
+	lexer.GobackTo(ch)
+	if c == lexer.TYPE_RB {
+		return n
 	}
+	n.Children = append(n.Children, statementList())
 	return n
 }
 
@@ -312,12 +326,22 @@ func callFunc() ast.Node {
 	}
 }
 
-func returnST() (ast.Node, error) {
-	_, err := lexer.ScanType(lexer.TYPE_RES_RET)
+func returnST() (n ast.Node, err error) {
+	_, err = lexer.ScanType(lexer.TYPE_RES_RET)
 	if err != nil {
 		return nil, err
 	}
-	return &ast.RetNode{Exp: allexp()}, nil
+	n, err = runWithCatch2(boolexp)
+	if err == nil {
+		_, err = runWithCatch(empty)
+		if err == nil {
+			return &ast.RetNode{Exp: n}, nil
+		}
+	}
+
+	n = exp()
+	empty()
+	return &ast.RetNode{Exp: n}, nil
 }
 
 func program() ast.Node {
@@ -436,7 +460,7 @@ func boolean() (node ast.Node, err error) {
 		}
 		return &ast.VarNode{ID: t1}, nil
 	case lexer.TYPE_NOT:
-		node, err = boolexp()
+		node, err = boolean()
 		if err != nil {
 			return nil, err
 		}

@@ -6,38 +6,38 @@ import (
 )
 
 const (
-	TYPE_INT       = 0
-	TYPE_PLUS      = 1
-	TYPE_SUB       = 2
-	TYPE_MUL       = 3
-	TYPE_DIV       = 4
-	TYPE_LP        = 5  // "("
-	TYPE_RP        = 6  // ")"
-	TYPE_ASSIGN    = 7  // "="
-	TYPE_RES_VAR   = 8  // "var"
-	TYPE_RES_INT   = 9  // "int"
-	TYPE_NL        = 10 // "\n"
-	TYPE_VAR       = 11
-	TYPE_FLOAT     = 12
-	TYPE_RES_FLOAT = 13
-	TYPE_RES_FUNC  = 14 // "func"
-	TYPE_LB        = 15 // "{"
-	TYPE_RB        = 16 // "}"
-	TYPE_COMMA     = 17 // ","
-	TYPE_RES_RET   = 18 // "return"
-	TYPE_RES_VOID  = 19 // "void"
-	TYPE_RES_TRUE  = 20 // "true"
-	TYPE_RES_FALSE = 21 // "false"
-	TYPE_AND       = 22 // "&&"
-	TYPE_OR        = 23 // "||"
-	TYPE_EQ        = 24 // "=="
-	TYPE_RES_BOOL  = 25 // "bool"
-	TYPE_LG        = 26 // ">"
-	TYPE_SM        = 27 // "<"
-	TYPE_LEQ       = 28 // ">="
-	TYPE_SEQ       = 29 // "<="
-	TYPE_NOT       = 30 // "!"
-	TYPE_NEQ       = 31 // "!="
+	TYPE_INT = iota
+	TYPE_PLUS
+	TYPE_SUB
+	TYPE_MUL
+	TYPE_DIV
+	TYPE_LP      // "("
+	TYPE_RP      // ")"
+	TYPE_ASSIGN  // "="
+	TYPE_RES_VAR // "var"
+	TYPE_RES_INT // "int"
+	TYPE_NL      // "\n"
+	TYPE_VAR
+	TYPE_FLOAT
+	TYPE_RES_FLOAT
+	TYPE_RES_FUNC  // "func"
+	TYPE_LB        // "{"
+	TYPE_RB        // "}"
+	TYPE_COMMA     // ","
+	TYPE_RES_RET   // "return"
+	TYPE_RES_VOID  // "void"
+	TYPE_RES_TRUE  // "true"
+	TYPE_RES_FALSE // "false"
+	TYPE_AND       // "&&"
+	TYPE_OR        // "||"
+	TYPE_EQ        // "=="
+	TYPE_RES_BOOL  // "bool"
+	TYPE_LG        // ">"
+	TYPE_SM        // "<"
+	TYPE_LEQ       // ">="
+	TYPE_SEQ       // "<="
+	TYPE_NOT       // "!"
+	TYPE_NEQ       // "!="
 )
 
 var (
