@@ -17,7 +17,7 @@ function: FN->FUNC var FPS TYPE SB
 func_params: FPS->LP (RP|(FP(COMMA FP)* RP))
 func_param: FP->var TYPE
 statemnt_list: SL->S|(S SL)
-statement: S->EM|D|A|R|(CF NL)|I|(DA NL)
+statement: S->CS|BS|EM|D|A|R|(CF NL)|I|(DA NL)
 return: R->RET|(RET AE)
 empty: EM->NL
 define: D->VAR var TYPE NL
@@ -34,5 +34,7 @@ statement_block:SB->LB SL RB NL
 def_ass: DA->var DEFA exp|VAR var ASSIGN exp
 if_st: I->IF BE SB($|(EL SB|I))
 for_st: F->FOR (DA|$ SEMI BE SEMI A|$)|$ SB
+break_statement: BS->BR NL
+continue_statement: CS->CT NL
 ```
 一般`$`指句尾，但是我这里指任意空格或者制表符

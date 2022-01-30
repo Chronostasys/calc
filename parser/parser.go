@@ -167,7 +167,19 @@ func define() (n ast.Node, err error) {
 }
 
 func statement() ast.Node {
-	ast, err := defineAndAssign()
+	ast, err := continueST()
+	if err == nil {
+		return ast
+	}
+	ast, err = breakST()
+	if err == nil {
+		return ast
+	}
+	ast, err = forloop()
+	if err == nil {
+		return ast
+	}
+	ast, err = defineAndAssign()
 	if err == nil {
 		return ast
 	}
@@ -351,6 +363,7 @@ func program() *ast.ProgramNode {
 }
 
 func allexp() ast.Node {
+	ch1 := lexer.SetCheckpoint()
 	n, err := runWithCatch2(boolexp)
 	if err == nil {
 		ch := lexer.SetCheckpoint()
@@ -366,6 +379,7 @@ func allexp() ast.Node {
 		}
 	}
 
+	lexer.GobackTo(ch1)
 	return exp()
 
 }
@@ -579,6 +593,55 @@ func defineAndAssign() (n ast.Node, err error) {
 VAL:
 	val := allexp()
 	return &ast.DefAndAssignNode{Val: val, ID: id}, nil
+}
+
+func breakST() (n ast.Node, err error) {
+	_, err = lexer.ScanType(lexer.TYPE_RES_BR)
+	if err != nil {
+		return nil, err
+	}
+	empty()
+	return &ast.BreakNode{}, err
+}
+func continueST() (n ast.Node, err error) {
+	_, err = lexer.ScanType(lexer.TYPE_RES_CO)
+	if err != nil {
+		return nil, err
+	}
+	empty()
+	return &ast.ContinueNode{}, nil
+}
+
+func forloop() (n ast.Node, err error) {
+	_, err = lexer.ScanType(lexer.TYPE_RES_FOR)
+	if err != nil {
+		return nil, err
+	}
+	fn := &ast.ForNode{}
+	def, err := defineAndAssign()
+	if err == nil {
+		fn.DefineAssign = def
+	}
+	_, err = lexer.ScanType(lexer.TYPE_SEMI)
+	if err != nil {
+		st, err := statementBlock()
+		if err != nil {
+			return nil, err
+		}
+		fn.Statements = st
+		return fn, nil
+	}
+	fn.Bool, _ = boolexp()
+	_, err = lexer.ScanType(lexer.TYPE_SEMI)
+	if err != nil {
+		return nil, err
+	}
+	fn.Assign, _ = assign()
+	fn.Statements, err = statementBlock()
+	if err != nil {
+		return nil, err
+	}
+	return fn, nil
 }
 
 func Parse(s string) string {

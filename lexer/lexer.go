@@ -40,24 +40,31 @@ const (
 	TYPE_NEQ       // "!="
 	TYPE_RES_IF    // "if"
 	TYPE_RES_EL    // "else"
-	TYPE_DEAS
+	TYPE_DEAS      // ":="
+	TYPE_RES_FOR   // "for"
+	TYPE_SEMI      // ";"
+	TYPE_RES_BR    // "break"
+	TYPE_RES_CO    // "continue"
 )
 
 var (
 	input    string
 	pos      int
 	reserved = map[string]int{
-		"var":    TYPE_RES_VAR,
-		"int":    TYPE_RES_INT,
-		"float":  TYPE_RES_FLOAT,
-		"func":   TYPE_RES_FUNC,
-		"return": TYPE_RES_RET,
-		"void":   TYPE_RES_VOID,
-		"true":   TYPE_RES_TRUE,
-		"false":  TYPE_RES_FALSE,
-		"bool":   TYPE_RES_BOOL,
-		"if":     TYPE_RES_IF,
-		"else":   TYPE_RES_EL,
+		"var":      TYPE_RES_VAR,
+		"int":      TYPE_RES_INT,
+		"float":    TYPE_RES_FLOAT,
+		"func":     TYPE_RES_FUNC,
+		"return":   TYPE_RES_RET,
+		"void":     TYPE_RES_VOID,
+		"true":     TYPE_RES_TRUE,
+		"false":    TYPE_RES_FALSE,
+		"bool":     TYPE_RES_BOOL,
+		"if":       TYPE_RES_IF,
+		"else":     TYPE_RES_EL,
+		"for":      TYPE_RES_FOR,
+		"break":    TYPE_RES_BR,
+		"continue": TYPE_RES_CO,
 	}
 	reservedTypes = map[string]int{
 		"int":   TYPE_RES_INT,
@@ -85,6 +92,14 @@ func Peek() (ch rune, end bool) {
 	}
 	ch = []rune(input)[pos]
 	return ch, false
+}
+
+func PeekToken() (code int, token string, eos bool) {
+	ch := SetCheckpoint()
+	defer func() {
+		GobackTo(ch)
+	}()
+	return Scan()
 }
 
 func getCh() (ch rune, end bool) {
@@ -260,6 +275,8 @@ func Scan() (code int, token string, eos bool) {
 			getCh()
 			return TYPE_DEAS, ":=", end
 		}
+	case ';':
+		return TYPE_SEMI, ";", end
 	}
 	log.Fatalf("unrecognized letter %c in pos %d", ch, pos)
 	return

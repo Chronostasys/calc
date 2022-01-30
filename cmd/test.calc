@@ -22,6 +22,18 @@ func main() int {
 }
 
 func add(a int, b int) int {
+	for i := 0; i < 10; i = i + 1 {
+        printIntln(i)
+	}
+    for i := 0; true; i = i + 1 {
+        if i > 3 {
+            break
+        }
+        if i == 1 {
+            continue
+        }
+        printIntln(i)
+	}
     if a>b {
         var a int
         a = 100

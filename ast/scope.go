@@ -12,6 +12,8 @@ type scope struct {
 	vartable       map[string]value.Value
 	childrenScopes []*scope
 	block          *ir.Block
+	continueBlock  *ir.Block
+	breakBlock     *ir.Block
 }
 
 func newScope(block *ir.Block) *scope {
@@ -24,6 +26,8 @@ func newScope(block *ir.Block) *scope {
 func (s *scope) addChildScope(block *ir.Block) *scope {
 	child := newScope(block)
 	child.parent = s
+	child.continueBlock = s.continueBlock
+	child.breakBlock = s.breakBlock
 	s.childrenScopes = append(s.childrenScopes, child)
 	return child
 }
