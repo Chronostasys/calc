@@ -112,11 +112,6 @@ func assign() (n ast.Node, err error) {
 		if err != nil {
 			lexer.GobackTo(c)
 		}
-		defer func() {
-			if err == nil {
-				empty()
-			}
-		}()
 	}()
 	id, err := lexer.ScanType(lexer.TYPE_VAR)
 	if err != nil {
@@ -126,7 +121,7 @@ func assign() (n ast.Node, err error) {
 	if err != nil {
 		return nil, err
 	}
-	r := allexp()
+	r := allexpNL()
 	return &ast.BinNode{
 		Left:  &ast.VarNode{ID: id},
 		Op:    lexer.TYPE_ASSIGN,
@@ -326,22 +321,29 @@ func callFunc() ast.Node {
 	}
 }
 
+func allexpNL() (n ast.Node) {
+	ch := lexer.SetCheckpoint()
+	n, err := runWithCatch2(boolexp)
+	if err == nil {
+		_, err = runWithCatch(empty)
+		if err == nil {
+			return n
+		}
+		lexer.GobackTo(ch)
+	}
+
+	n = exp()
+	empty()
+	return n
+}
+
 func returnST() (n ast.Node, err error) {
 	_, err = lexer.ScanType(lexer.TYPE_RES_RET)
 	if err != nil {
 		return nil, err
 	}
-	n, err = runWithCatch2(boolexp)
-	if err == nil {
-		_, err = runWithCatch(empty)
-		if err == nil {
-			return &ast.RetNode{Exp: n}, nil
-		}
-	}
 
-	n = exp()
-	empty()
-	return &ast.RetNode{Exp: n}, nil
+	return &ast.RetNode{Exp: allexpNL()}, nil
 }
 
 func program() *ast.ProgramNode {

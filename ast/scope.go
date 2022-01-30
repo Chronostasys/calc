@@ -3,6 +3,7 @@ package ast
 import (
 	"fmt"
 
+	"github.com/llir/llvm/ir"
 	"github.com/llir/llvm/ir/value"
 )
 
@@ -10,16 +11,18 @@ type scope struct {
 	parent         *scope
 	vartable       map[string]value.Value
 	childrenScopes []*scope
+	block          *ir.Block
 }
 
-func newScope() *scope {
+func newScope(block *ir.Block) *scope {
 	return &scope{
 		vartable: make(map[string]value.Value),
+		block:    block,
 	}
 }
 
-func (s *scope) addChildScope() *scope {
-	child := newScope()
+func (s *scope) addChildScope(block *ir.Block) *scope {
+	child := newScope(block)
 	child.parent = s
 	s.childrenScopes = append(s.childrenScopes, child)
 	return child

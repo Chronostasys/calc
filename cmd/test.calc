@@ -1,4 +1,5 @@
 func main() int {
+    add(1,1)
     var d bool
     d = false
     printBoolln(d)
@@ -23,11 +24,14 @@ func main() int {
 }
 
 func add(a int, b int) int {
-    if true {
+    if a>b {
+        printIntln(1)
         return a
-    }else if false {
+    }else if a<b {
+        printIntln(2)
         return b
     }else {
+        printIntln(3)
         return 0
     }
     return a+b
