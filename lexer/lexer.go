@@ -55,6 +55,8 @@ var (
 		"true":   TYPE_RES_TRUE,
 		"false":  TYPE_RES_FALSE,
 		"bool":   TYPE_RES_BOOL,
+		"if":     TYPE_RES_IF,
+		"else":   TYPE_RES_EL,
 	}
 	reservedTypes = map[string]int{
 		"int":   TYPE_RES_INT,

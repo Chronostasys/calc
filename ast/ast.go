@@ -354,3 +354,22 @@ type NotNode struct {
 func (n *NotNode) calc(m *ir.Module, f *ir.Func, b *ir.Block, s *scope) value.Value {
 	return b.NewICmp(enum.IPredEQ, loadIfVar(n.Bool, m, f, b, s), constant.False)
 }
+
+type IfNode struct {
+	BoolExp    Node
+	Statements Node
+}
+
+func (n *IfNode) calc(m *ir.Module, f *ir.Func, b *ir.Block, s *scope) value.Value {
+	panic("not impl")
+}
+
+type IfElseNode struct {
+	BoolExp    Node
+	Statements Node
+	ElSt       Node
+}
+
+func (n *IfElseNode) calc(m *ir.Module, f *ir.Func, b *ir.Block, s *scope) value.Value {
+	panic("not impl")
+}

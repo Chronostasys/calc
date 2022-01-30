@@ -174,7 +174,11 @@ func define() (n ast.Node, err error) {
 }
 
 func statement() ast.Node {
-	ast, err := assign()
+	ast, err := ifstatement()
+	if err == nil {
+		return ast
+	}
+	ast, err = assign()
 	if err == nil {
 		return ast
 	}
@@ -402,8 +406,11 @@ func boolexp() (node ast.Node, err error) {
 func runWithCatch(f func() ast.Node) (node ast.Node, err error) {
 	ch := lexer.SetCheckpoint()
 	defer func() {
-		lexer.GobackTo(ch)
-		err = fmt.Errorf("%v", recover())
+		i := recover()
+		if i != nil {
+			lexer.GobackTo(ch)
+			err = fmt.Errorf("%v", i)
+		}
 	}()
 	node = f()
 	return
@@ -512,6 +519,35 @@ func statementBlock() (ast.Node, error) {
 		return nil, err
 	}
 	return n, nil
+}
+
+func ifstatement() (n ast.Node, err error) {
+	_, err = lexer.ScanType(lexer.TYPE_RES_IF)
+	if err != nil {
+		return nil, err
+	}
+	be, err := boolexp()
+	if err != nil {
+		return nil, err
+	}
+	statements, err := statementBlock()
+	if err != nil {
+		return nil, err
+	}
+	_, err = lexer.ScanType(lexer.TYPE_RES_EL)
+	if err != nil {
+		return &ast.IfNode{BoolExp: be, Statements: statements}, nil
+	}
+	elstatements, err := ifstatement()
+	if err == nil {
+		return &ast.IfElseNode{BoolExp: be, Statements: statements, ElSt: elstatements}, nil
+	}
+	elstatements, err = statementBlock()
+	if err != nil {
+		return nil, err
+	}
+	return &ast.IfElseNode{BoolExp: be, Statements: statements, ElSt: elstatements}, nil
+
 }
 
 func Parse(s string) string {

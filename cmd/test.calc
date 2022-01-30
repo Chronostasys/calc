@@ -23,5 +23,12 @@ func main() int {
 }
 
 func add(a int, b int) int {
+    if true {
+        return a
+    }else if false {
+        return b
+    }else {
+        return 0
+    }
     return a+b
 }
