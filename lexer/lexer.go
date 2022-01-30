@@ -40,6 +40,7 @@ const (
 	TYPE_NEQ       // "!="
 	TYPE_RES_IF    // "if"
 	TYPE_RES_EL    // "else"
+	TYPE_DEAS
 )
 
 var (
@@ -254,6 +255,11 @@ func Scan() (code int, token string, eos bool) {
 			return TYPE_NEQ, "!=", end
 		}
 		return TYPE_NOT, "!", end
+	case ':':
+		if ne, _ := Peek(); ne == '=' {
+			getCh()
+			return TYPE_DEAS, ":=", end
+		}
 	}
 	log.Fatalf("unrecognized letter %c in pos %d", ch, pos)
 	return

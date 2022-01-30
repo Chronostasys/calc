@@ -17,11 +17,11 @@ function: FN->FUNC var FPS TYPE SB
 func_params: FPS->LP (RP|(FP(COMMA FP)* RP))
 func_param: FP->var TYPE
 statemnt_list: SL->S|(S SL)
-statement: S->EM|D|A|R|(CF NL)|I
-return: R->RET|(RET (BE NL)|(E NL))
+statement: S->EM|D|A|R|(CF NL)|I|(DA NL)
+return: R->RET|(RET AE)
 empty: EM->NL
 define: D->VAR var TYPE NL
-asssign: A->var ASSIGN AE NL
+asssign: A->var ASSIGN AE
 all_exp: AE->E|BE
 exp: E->F|F((ADD|MIN)F)*
 factor: F->S|S((MUL|DIV)S)*
@@ -31,5 +31,8 @@ bool_exp: BE->B|(B (AND|OR) BE)
 boolean: B->TRUE|FALSE|C|(NOT B)|(LP BE RP)|CF|var
 compare_exp: C->exp (EQ|NEQ|LG|SM|LEQ|SEQ) exp
 statement_block:SB->LB SL RB NL
+def_ass: DA->var DEFA exp|VAR var ASSIGN exp
 if_st: I->IF BE SB($|(EL SB|I))
+for_st: F->FOR (DA|$ SEMI BE SEMI A|$)|$ SB
 ```
+一般`$`指句尾，但是我这里指任意空格或者制表符

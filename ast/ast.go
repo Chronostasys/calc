@@ -415,3 +415,22 @@ func (n *IfElseNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 	}
 	return zero
 }
+
+type DefAndAssignNode struct {
+	Val Node
+	ID  string
+}
+
+func (n *DefAndAssignNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
+	if _, ok := s.vartable[n.ID]; ok {
+		panic(fmt.Errorf("redefination of var %s", n.ID))
+	}
+	if f != nil {
+		val := n.Val.calc(m, f, s)
+		v := s.block.NewAlloca(val.Type())
+		s.addVar(n.ID, v)
+		s.block.NewStore(val, v)
+		return zero
+	}
+	panic("not impl")
+}

@@ -121,7 +121,7 @@ func assign() (n ast.Node, err error) {
 	if err != nil {
 		return nil, err
 	}
-	r := allexpNL()
+	r := allexp()
 	return &ast.BinNode{
 		Left:  &ast.VarNode{ID: id},
 		Op:    lexer.TYPE_ASSIGN,
@@ -143,11 +143,9 @@ func define() (n ast.Node, err error) {
 		if err != nil {
 			lexer.GobackTo(c)
 		}
-		defer func() {
-			if err == nil {
-				empty()
-			}
-		}()
+		if err == nil {
+			empty()
+		}
 	}()
 	_, err = lexer.ScanType(lexer.TYPE_RES_VAR)
 	if err != nil {
@@ -169,7 +167,11 @@ func define() (n ast.Node, err error) {
 }
 
 func statement() ast.Node {
-	ast, err := ifstatement()
+	ast, err := defineAndAssign()
+	if err == nil {
+		return ast
+	}
+	ast, err = ifstatement()
 	if err == nil {
 		return ast
 	}
@@ -321,29 +323,13 @@ func callFunc() ast.Node {
 	}
 }
 
-func allexpNL() (n ast.Node) {
-	ch := lexer.SetCheckpoint()
-	n, err := runWithCatch2(boolexp)
-	if err == nil {
-		_, err = runWithCatch(empty)
-		if err == nil {
-			return n
-		}
-		lexer.GobackTo(ch)
-	}
-
-	n = exp()
-	empty()
-	return n
-}
-
 func returnST() (n ast.Node, err error) {
 	_, err = lexer.ScanType(lexer.TYPE_RES_RET)
 	if err != nil {
 		return nil, err
 	}
 
-	return &ast.RetNode{Exp: allexpNL()}, nil
+	return &ast.RetNode{Exp: allexp()}, nil
 }
 
 func program() *ast.ProgramNode {
@@ -367,7 +353,17 @@ func program() *ast.ProgramNode {
 func allexp() ast.Node {
 	n, err := runWithCatch2(boolexp)
 	if err == nil {
-		return n
+		ch := lexer.SetCheckpoint()
+		code, _, eos := lexer.Scan()
+		if eos {
+			panic("unexpected eos")
+		}
+		lexer.GobackTo(ch)
+		switch code {
+		case lexer.TYPE_DIV, lexer.TYPE_MUL, lexer.TYPE_PLUS, lexer.TYPE_SUB:
+		default:
+			return n
+		}
 	}
 
 	return exp()
@@ -550,6 +546,39 @@ func ifstatement() (n ast.Node, err error) {
 	}
 	return &ast.IfElseNode{BoolExp: be, Statements: statements, ElSt: elstatements}, nil
 
+}
+
+func defineAndAssign() (n ast.Node, err error) {
+	ch := lexer.SetCheckpoint()
+	defer func() {
+		if err != nil {
+			lexer.GobackTo(ch)
+		}
+	}()
+	var id string
+	_, err = lexer.ScanType(lexer.TYPE_RES_VAR)
+	if err != nil {
+		id, err = lexer.ScanType(lexer.TYPE_VAR)
+		if err != nil {
+			return nil, err
+		}
+		_, err = lexer.ScanType(lexer.TYPE_DEAS)
+		if err != nil {
+			return nil, err
+		}
+		goto VAL
+	}
+	id, err = lexer.ScanType(lexer.TYPE_VAR)
+	if err != nil {
+		return nil, err
+	}
+	_, err = lexer.ScanType(lexer.TYPE_ASSIGN)
+	if err != nil {
+		return nil, err
+	}
+VAL:
+	val := allexp()
+	return &ast.DefAndAssignNode{Val: val, ID: id}, nil
 }
 
 func Parse(s string) string {
