@@ -289,6 +289,7 @@ func function() ast.Node {
 	if err != nil {
 		panic(err)
 	}
+	fn.AddtoScope()
 	return fn
 }
 
@@ -344,8 +345,8 @@ func returnST() (n ast.Node, err error) {
 	return &ast.RetNode{Exp: n}, nil
 }
 
-func program() ast.Node {
-	n := &ast.SLNode{}
+func program() *ast.ProgramNode {
+	n := &ast.ProgramNode{}
 	//
 	for {
 		ch := lexer.SetCheckpoint()
@@ -508,10 +509,10 @@ func compare() (node ast.Node, err error) {
 func Parse(s string) string {
 	m := ir.NewModule()
 	ast.AddSTDFunc(m)
-	ParseAST(s).Calc(m, nil, nil)
+	ParseAST(s).Emit(m)
 	return m.String()
 }
-func ParseAST(s string) ast.Node {
+func ParseAST(s string) *ast.ProgramNode {
 	lexer.SetInput(s)
 
 	return program()

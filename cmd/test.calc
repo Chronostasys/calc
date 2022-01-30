@@ -1,8 +1,3 @@
-func add(a int, b int) int {
-    return a+b
-}
-
-
 func main() int {
     var d bool
     d = false
@@ -23,5 +18,10 @@ func main() int {
     d = !(c!=(b+c-b))&&b>c
     printBoolln(d)
     printBoolln(!(c!=(b+c-b))||b>c)
+    add(1,2)
     return 0
+}
+
+func add(a int, b int) int {
+    return a+b
 }

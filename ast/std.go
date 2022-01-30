@@ -16,7 +16,7 @@ func AddSTDFunc(m *ir.Module) {
 	zero := constant.NewInt(types.I32, 0)
 	b.NewCall(printf, constant.NewGetElementPtr(gi.Typ.ElemType, gi, zero, zero), p)
 	b.NewRet(nil)
-	fntable[f.Name()] = &FuncNode{Fn: f, ID: f.Name()}
+	globalScope.addVar(f.Name(), f)
 
 	gf := m.NewGlobalDef("strf", constant.NewCharArrayFromString("%f\n\x00"))
 	p = ir.NewParam("i", types.Float)
@@ -25,7 +25,7 @@ func AddSTDFunc(m *ir.Module) {
 	d := b.NewFPExt(p, types.Double)
 	b.NewCall(printf, constant.NewGetElementPtr(gf.Typ.ElemType, gf, zero, zero), d)
 	b.NewRet(nil)
-	fntable[f.Name()] = &FuncNode{Fn: f, ID: f.Name()}
+	globalScope.addVar(f.Name(), f)
 
 	p = ir.NewParam("i", types.I1)
 	f = m.NewFunc("printBoolln", types.Void, p)
@@ -33,5 +33,5 @@ func AddSTDFunc(m *ir.Module) {
 	i32 := b.NewZExt(p, types.I32)
 	b.NewCall(printf, constant.NewGetElementPtr(gi.Typ.ElemType, gi, zero, zero), i32)
 	b.NewRet(nil)
-	fntable[f.Name()] = &FuncNode{Fn: f, ID: f.Name()}
+	globalScope.addVar(f.Name(), f)
 }

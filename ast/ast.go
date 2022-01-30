@@ -12,9 +12,8 @@ import (
 )
 
 var (
-	vartable = map[string]map[string]VNode{}
-	fntable  = map[string]*FuncNode{}
-	typedic  = map[int]types.Type{
+	globalScope = newScope()
+	typedic     = map[int]types.Type{
 		lexer.TYPE_RES_FLOAT: types.Float,
 		lexer.TYPE_RES_INT:   types.I32,
 		lexer.TYPE_RES_BOOL:  types.I1,
@@ -26,11 +25,11 @@ type VNode interface {
 }
 
 type Node interface {
-	Calc(*ir.Module, *ir.Func, *ir.Block) value.Value
+	calc(*ir.Module, *ir.Func, *ir.Block, *scope) value.Value
 }
 
 func PrintTable() {
-	fmt.Println(vartable)
+	fmt.Println(globalScope)
 }
 
 type BinNode struct {
@@ -39,14 +38,14 @@ type BinNode struct {
 	Right Node
 }
 
-func loadIfVar(n Node, m *ir.Module, f *ir.Func, b *ir.Block) value.Value {
+func loadIfVar(n Node, m *ir.Module, f *ir.Func, b *ir.Block, s *scope) value.Value {
 	if v, ok := n.(*VarNode); ok {
-		l := v.Calc(m, f, b)
+		l := v.calc(m, f, b, s)
 		if t, ok := l.Type().(*types.PointerType); ok {
 			return b.NewLoad(t.ElemType, l)
 		}
 	}
-	return n.Calc(m, f, b)
+	return n.calc(m, f, b, s)
 }
 
 func hasFloatType(ts ...value.Value) bool {
@@ -61,8 +60,8 @@ func hasFloatType(ts ...value.Value) bool {
 	return hasfloat
 }
 
-func (n *BinNode) Calc(m *ir.Module, f *ir.Func, b *ir.Block) value.Value {
-	l, r := loadIfVar(n.Left, m, f, b), loadIfVar(n.Right, m, f, b)
+func (n *BinNode) calc(m *ir.Module, f *ir.Func, b *ir.Block, s *scope) value.Value {
+	l, r := loadIfVar(n.Left, m, f, b, s), loadIfVar(n.Right, m, f, b, s)
 	hasF := hasFloatType(l, r)
 	switch n.Op {
 	case lexer.TYPE_PLUS:
@@ -90,12 +89,12 @@ func (n *BinNode) Calc(m *ir.Module, f *ir.Func, b *ir.Block) value.Value {
 		if !ok {
 			panic("assign statement's left side can only be variables")
 		}
-		_, ext := vartable[f.Name()][v.ID]
-		if !ext {
+		val, err := s.searchVar(v.ID)
+		if err != nil {
 			panic(fmt.Errorf("variable %s not defined", v.ID))
 		}
-		b.NewStore(r, vartable[f.Name()][v.ID].V())
-		return vartable[f.Name()][v.ID].V()
+		b.NewStore(r, val)
+		return val
 	default:
 		panic("unexpected op")
 	}
@@ -105,7 +104,7 @@ type NumNode struct {
 	Val value.Value
 }
 
-func (n *NumNode) Calc(m *ir.Module, f *ir.Func, b *ir.Block) value.Value {
+func (n *NumNode) calc(m *ir.Module, f *ir.Func, b *ir.Block, s *scope) value.Value {
 	return n.Val
 }
 
@@ -116,8 +115,8 @@ type UnaryNode struct {
 
 var zero = constant.NewInt(types.I32, 0)
 
-func (n *UnaryNode) Calc(m *ir.Module, f *ir.Func, b *ir.Block) value.Value {
-	c := loadIfVar(n.Child, m, f, b)
+func (n *UnaryNode) calc(m *ir.Module, f *ir.Func, b *ir.Block, s *scope) value.Value {
+	c := loadIfVar(n.Child, m, f, b, s)
 	switch n.Op {
 	case lexer.TYPE_PLUS:
 		return c
@@ -132,12 +131,12 @@ type VarNode struct {
 	ID string
 }
 
-func (n *VarNode) Calc(m *ir.Module, f *ir.Func, b *ir.Block) value.Value {
-	v, ok := vartable[f.Name()][n.ID]
-	if !ok {
+func (n *VarNode) calc(m *ir.Module, f *ir.Func, b *ir.Block, s *scope) value.Value {
+	v, err := s.searchVar(n.ID)
+	if err != nil {
 		panic(fmt.Errorf("variable %s not defined", n.ID))
 	}
-	return v.V()
+	return v
 }
 
 // SLNode statement list node
@@ -145,9 +144,26 @@ type SLNode struct {
 	Children []Node
 }
 
-func (n *SLNode) Calc(m *ir.Module, f *ir.Func, b *ir.Block) value.Value {
+func (n *SLNode) calc(m *ir.Module, f *ir.Func, b *ir.Block, s *scope) value.Value {
 	for _, v := range n.Children {
-		v.Calc(m, f, b)
+		v.calc(m, f, b, s)
+	}
+	return zero
+}
+
+type ProgramNode struct {
+	Children []Node
+}
+
+func (n *ProgramNode) calc(m *ir.Module, f *ir.Func, b *ir.Block, s *scope) value.Value {
+	for _, v := range n.Children {
+		v.calc(m, f, b, s)
+	}
+	return zero
+}
+func (n *ProgramNode) Emit(m *ir.Module) value.Value {
+	for _, v := range n.Children {
+		v.calc(m, nil, nil, globalScope)
 	}
 	return zero
 }
@@ -155,7 +171,7 @@ func (n *SLNode) Calc(m *ir.Module, f *ir.Func, b *ir.Block) value.Value {
 type EmptyNode struct {
 }
 
-func (n *EmptyNode) Calc(m *ir.Module, f *ir.Func, b *ir.Block) value.Value {
+func (n *EmptyNode) calc(m *ir.Module, f *ir.Func, b *ir.Block, s *scope) value.Value {
 	return zero
 }
 
@@ -169,8 +185,8 @@ func (n *DefineNode) V() value.Value {
 	return n.Val
 }
 
-func (n *DefineNode) Calc(m *ir.Module, f *ir.Func, b *ir.Block) value.Value {
-	if _, ok := vartable[n.ID]; ok {
+func (n *DefineNode) calc(m *ir.Module, f *ir.Func, b *ir.Block, s *scope) value.Value {
+	if _, err := s.searchVar(n.ID); err == nil {
 		panic(fmt.Errorf("redefination of var %s", n.ID))
 	}
 	if tp, ok := typedic[n.TP]; ok {
@@ -178,7 +194,7 @@ func (n *DefineNode) Calc(m *ir.Module, f *ir.Func, b *ir.Block) value.Value {
 			n.Val = m.NewGlobal(n.ID, tp)
 		} else {
 			n.Val = b.NewAlloca(tp)
-			vartable[f.Name()][n.ID] = n
+			s.addVar(n.ID, n.Val)
 		}
 		return n.Val
 	}
@@ -191,7 +207,7 @@ type ParamNode struct {
 	Val value.Value
 }
 
-func (n *ParamNode) Calc(m *ir.Module, f *ir.Func, b *ir.Block) value.Value {
+func (n *ParamNode) calc(m *ir.Module, f *ir.Func, b *ir.Block, s *scope) value.Value {
 	n.Val = ir.NewParam(n.ID, typedic[n.TP])
 	return n.Val
 }
@@ -203,7 +219,7 @@ type ParamsNode struct {
 	Params []Node
 }
 
-func (n *ParamsNode) Calc(m *ir.Module, f *ir.Func, b *ir.Block) value.Value {
+func (n *ParamsNode) calc(m *ir.Module, f *ir.Func, b *ir.Block, s *scope) value.Value {
 
 	return zero
 }
@@ -217,26 +233,39 @@ type FuncNode struct {
 	DefaultBlock *ir.Block
 }
 
-func (n *FuncNode) Calc(m *ir.Module, f *ir.Func, b *ir.Block) value.Value {
-	_, ok := fntable[n.ID]
-	if ok {
-		panic(fmt.Sprintf("re defination of func %s", n.ID))
-	}
+func (n *FuncNode) AddtoScope() {
 	psn := n.Params.(*ParamsNode)
 	ps := []*ir.Param{}
-	vartable[n.ID] = map[string]VNode{}
 	for _, v := range psn.Params {
 		p := v.(*ParamNode)
-		vartable[n.ID][p.ID] = p
-		ps = append(ps, v.Calc(m, f, b).(*ir.Param))
+		param := ir.NewParam(p.ID, typedic[p.TP])
+		ps = append(ps, param)
+	}
+	globalScope.addVar(n.ID, ir.NewFunc(n.ID, typedic[n.RetType], ps...))
+}
+
+func (n *FuncNode) calc(m *ir.Module, f *ir.Func, b *ir.Block, s *scope) value.Value {
+	// _, err := s.searchVar(n.ID)
+	// if err == nil {
+	// 	panic(fmt.Sprintf("re defination of func %s", n.ID))
+	// }
+	psn := n.Params.(*ParamsNode)
+	ps := []*ir.Param{}
+	childScope := s.addChildScope()
+
+	for _, v := range psn.Params {
+		p := v.(*ParamNode)
+		param := v.calc(m, f, b, s).(*ir.Param)
+		childScope.addVar(p.ID, param)
+		ps = append(ps, param)
 	}
 	fn := m.NewFunc(n.ID, typedic[n.RetType], ps...)
 	n.Fn = fn
 	b = fn.NewBlock("")
 	n.DefaultBlock = b
-	fntable[n.ID] = n
+	s.addVar(n.ID, n.Fn)
 
-	n.Statements.Calc(m, fn, b)
+	n.Statements.calc(m, fn, b, childScope)
 	return fn
 }
 
@@ -245,20 +274,24 @@ type CallFuncNode struct {
 	ID     string
 }
 
-func (n *CallFuncNode) Calc(m *ir.Module, f *ir.Func, b *ir.Block) value.Value {
+func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, b *ir.Block, s *scope) value.Value {
 	params := []value.Value{}
 	for _, v := range n.Params {
-		params = append(params, loadIfVar(v, m, f, b))
+		params = append(params, loadIfVar(v, m, f, b, s))
 	}
-	return b.NewCall(fntable[n.ID].Fn, params...)
+	fn, err := s.searchVar(n.ID)
+	if err != nil {
+		panic(err)
+	}
+	return b.NewCall(fn, params...)
 }
 
 type RetNode struct {
 	Exp Node
 }
 
-func (n *RetNode) Calc(m *ir.Module, f *ir.Func, b *ir.Block) value.Value {
-	b.NewRet(n.Exp.Calc(m, f, b))
+func (n *RetNode) calc(m *ir.Module, f *ir.Func, b *ir.Block, s *scope) value.Value {
+	b.NewRet(n.Exp.calc(m, f, b, s))
 	return zero
 }
 
@@ -266,7 +299,7 @@ type BoolConstNode struct {
 	Val bool
 }
 
-func (n *BoolConstNode) Calc(m *ir.Module, f *ir.Func, b *ir.Block) value.Value {
+func (n *BoolConstNode) calc(m *ir.Module, f *ir.Func, b *ir.Block, s *scope) value.Value {
 	return constant.NewBool(n.Val)
 }
 
@@ -289,8 +322,8 @@ var comparedic = map[int]e{
 	lexer.TYPE_SEQ: {enum.IPredSLE, enum.FPredOLE},
 }
 
-func (n *CompareNode) Calc(m *ir.Module, f *ir.Func, b *ir.Block) value.Value {
-	l, r := loadIfVar(n.Left, m, f, b), loadIfVar(n.Right, m, f, b)
+func (n *CompareNode) calc(m *ir.Module, f *ir.Func, b *ir.Block, s *scope) value.Value {
+	l, r := loadIfVar(n.Left, m, f, b, s), loadIfVar(n.Right, m, f, b, s)
 	hasF := hasFloatType(l, r)
 	if hasF {
 		return b.NewFCmp(comparedic[n.Op].FloatE, l, r)
@@ -305,8 +338,8 @@ type BoolExpNode struct {
 	Right Node
 }
 
-func (n *BoolExpNode) Calc(m *ir.Module, f *ir.Func, b *ir.Block) value.Value {
-	l, r := loadIfVar(n.Left, m, f, b), loadIfVar(n.Right, m, f, b)
+func (n *BoolExpNode) calc(m *ir.Module, f *ir.Func, b *ir.Block, s *scope) value.Value {
+	l, r := loadIfVar(n.Left, m, f, b, s), loadIfVar(n.Right, m, f, b, s)
 	if n.Op == lexer.TYPE_AND {
 		return b.NewAnd(l, r)
 	} else {
@@ -318,6 +351,6 @@ type NotNode struct {
 	Bool Node
 }
 
-func (n *NotNode) Calc(m *ir.Module, f *ir.Func, b *ir.Block) value.Value {
-	return b.NewICmp(enum.IPredEQ, loadIfVar(n.Bool, m, f, b), constant.False)
+func (n *NotNode) calc(m *ir.Module, f *ir.Func, b *ir.Block, s *scope) value.Value {
+	return b.NewICmp(enum.IPredEQ, loadIfVar(n.Bool, m, f, b, s), constant.False)
 }
