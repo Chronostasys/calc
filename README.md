@@ -13,11 +13,11 @@
 ```
 program: P->(FN|NL)+
 call_func: CF->var LP (RP|(E(COMMA AE)* RP))
-function: FN->FUNC var FPS TYPE LB SL RB
+function: FN->FUNC var FPS TYPE SB
 func_params: FPS->LP (RP|(FP(COMMA FP)* RP))
 func_param: FP->var TYPE
 statemnt_list: SL->S|(S SL)
-statement: S->EM|D|A|R|(CF NL)
+statement: S->EM|D|A|R|(CF NL)|I
 return: R->RET|(RET (BE NL)|(E NL))
 empty: EM->NL
 define: D->VAR var TYPE NL
@@ -30,4 +30,6 @@ number: N->n|(LP E RP)|var|CF
 bool_exp: BE->B|(B (AND|OR) BE)
 boolean: B->TRUE|FALSE|C|(NOT B)|(LP BE RP)|CF|var
 compare_exp: C->exp (EQ|NEQ|LG|SM|LEQ|SEQ) exp
+statement_block:SB->LB SL RB NL
+if_st: I->IF BE SB($|(EL SB|I))
 ```

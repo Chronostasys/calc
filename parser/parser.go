@@ -280,12 +280,7 @@ func function() ast.Node {
 		panic("expect reserved type")
 	}
 	fn.RetType = co
-	_, err = lexer.ScanType(lexer.TYPE_LB)
-	if err != nil {
-		panic(err)
-	}
-	fn.Statements = statementList()
-	_, err = lexer.ScanType(lexer.TYPE_RB)
+	fn.Statements, err = statementBlock()
 	if err != nil {
 		panic(err)
 	}
@@ -503,6 +498,19 @@ func compare() (node ast.Node, err error) {
 		return nil, fmt.Errorf("expect compare op")
 	}
 	n.Right = exp()
+	return n, nil
+}
+
+func statementBlock() (ast.Node, error) {
+	_, err := lexer.ScanType(lexer.TYPE_LB)
+	if err != nil {
+		return nil, err
+	}
+	n := statementList()
+	_, err = lexer.ScanType(lexer.TYPE_RB)
+	if err != nil {
+		return nil, err
+	}
 	return n, nil
 }
 

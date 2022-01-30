@@ -38,6 +38,8 @@ const (
 	TYPE_SEQ       // "<="
 	TYPE_NOT       // "!"
 	TYPE_NEQ       // "!="
+	TYPE_RES_IF    // "if"
+	TYPE_RES_EL    // "else"
 )
 
 var (
