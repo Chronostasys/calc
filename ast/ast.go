@@ -188,7 +188,7 @@ func (n *DefineNode) V() value.Value {
 }
 
 func (n *DefineNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
-	if _, err := s.searchVar(n.ID); err == nil {
+	if _, ok := s.vartable[n.ID]; ok {
 		panic(fmt.Errorf("redefination of var %s", n.ID))
 	}
 	if tp, ok := typedic[n.TP]; ok {
