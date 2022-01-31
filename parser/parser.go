@@ -673,10 +673,7 @@ func structDef() (n ast.Node, err error) {
 	if strings.Contains(t, ".") {
 		panic("unexpected '.'")
 	}
-	stNode := &ast.StructDefNode{
-		ID:     t,
-		Fields: make(map[string]*ast.Field),
-	}
+	fields := make(map[string]*ast.Field)
 	_, err = lexer.ScanType(lexer.TYPE_RES_STRUCT)
 	if err != nil {
 		return nil, err
@@ -704,21 +701,21 @@ func structDef() (n ast.Node, err error) {
 		}
 		co, ok := lexer.IsResType(tp)
 		if ok {
-			stNode.Fields[t] = &ast.Field{
+			fields[t] = &ast.Field{
 				Type: co,
 			}
 		} else {
 			if code != lexer.TYPE_VAR {
 				panic("bad type")
 			}
-			stNode.Fields[t] = &ast.Field{
+			fields[t] = &ast.Field{
 				CustomTp: strings.Split(tp, "."),
 			}
 		}
 
 		empty()
 	}
-	return stNode, nil
+	return ast.NewStructDefNode(t, fields), nil
 }
 
 func structInit() (n ast.Node, err error) {

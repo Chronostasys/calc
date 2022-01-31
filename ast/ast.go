@@ -2,6 +2,7 @@ package ast
 
 import (
 	"fmt"
+	"reflect"
 	"strconv"
 	"strings"
 
@@ -41,12 +42,10 @@ type BinNode struct {
 }
 
 func loadIfVar(n Node, m *ir.Module, f *ir.Func, s *scope) value.Value {
-	if v, ok := n.(*VarNode); ok {
-		l := v.calc(m, f, s)
+	l := n.calc(m, f, s)
 
-		if t, ok := l.Type().(*types.PointerType); ok {
-			return s.block.NewLoad(t.ElemType, l)
-		}
+	if t, ok := l.Type().(*types.PointerType); ok {
+		return s.block.NewLoad(t.ElemType, l)
 	}
 	return n.calc(m, f, s)
 }
@@ -135,8 +134,22 @@ func (n *VarNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 		}
 		return v
 	}
-	// TODO
-	panic("not impl")
+	va, err := s.searchVar(n.ID[0])
+	if err != nil {
+		// TODO module
+		panic(fmt.Errorf("variable %s not defined", n.ID))
+	}
+
+	s1 := reflect.Indirect(reflect.ValueOf(va).Elem()).FieldByName("ElemType").MethodByName("Name").Call([]reflect.Value{})[0].String()
+	for _, v := range n.ID[1:] {
+		tp := globalScope.getStruct(s1)
+		fi := tp.fieldsIdx[v]
+		va = s.block.NewGetElementPtr(tp.structType, va,
+			constant.NewIndex(zero),
+			constant.NewIndex(constant.NewInt(types.I32, int64(fi.idx))))
+		s1 = fi.ftype.Name()
+	}
+	return va
 }
 
 // SLNode statement list node
@@ -156,12 +169,24 @@ type ProgramNode struct {
 }
 
 func (n *ProgramNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
-	for _, v := range n.Children {
-		v.calc(m, f, s)
-	}
+	n.Emit(m)
 	return zero
 }
 func (n *ProgramNode) Emit(m *ir.Module) value.Value {
+
+	// define all structs
+	for {
+		failed := []func(m *ir.Module) error{}
+		for _, v := range globalScope.defFuncs {
+			if v(m) != nil {
+				failed = append(failed, v)
+			}
+		}
+		globalScope.defFuncs = failed
+		if len(failed) == 0 {
+			break
+		}
+	}
 	for _, v := range n.Children {
 		v.calc(m, nil, globalScope)
 	}
@@ -191,11 +216,19 @@ func (n *DefineNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 		panic("unexpected '.' in varname")
 	}
 	if len(n.CustomTp) != 0 {
-		// TODO
-		panic("not impl")
-	}
-	if _, ok := s.vartable[n.ID]; ok {
-		panic(fmt.Errorf("redefination of var %s", n.ID))
+		if len(n.CustomTp) == 1 {
+			tp := globalScope.getStruct(n.CustomTp[0])
+			if f == nil {
+				n.Val = m.NewGlobal(n.ID, tp.structType)
+			} else {
+				n.Val = s.block.NewAlloca(tp.structType)
+				s.addVar(n.ID, n.Val)
+			}
+			return n.Val
+		} else {
+			// TODO
+			panic("not impl")
+		}
 	}
 	if tp, ok := typedic[n.TP]; ok {
 		if f == nil {
@@ -442,11 +475,8 @@ func (n *DefAndAssignNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value 
 	if strings.Contains(n.ID, ".") {
 		panic("unexpected '.'")
 	}
-	if _, ok := s.vartable[n.ID]; ok {
-		panic(fmt.Errorf("redefination of var %s", n.ID))
-	}
 	if f != nil {
-		val := n.Val.calc(m, f, s)
+		val := loadIfVar(n.Val, m, f, s)
 		v := s.block.NewAlloca(val.Type())
 		s.addVar(n.ID, v)
 		s.block.NewStore(val, v)
@@ -526,18 +556,54 @@ func (n *ContinueNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 }
 
 type Field struct {
-	Idx      int
 	Type     int
 	CustomTp []string
 }
 
-type StructDefNode struct {
-	ID     string
-	Fields map[string]*Field
+type structDefNode struct {
+	id     string
+	fields map[string]*Field
 }
 
-func (n *StructDefNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
-	panic("not impl")
+func NewStructDefNode(id string, fieldsMap map[string]*Field) Node {
+	n := &structDefNode{id: id, fields: fieldsMap}
+	defFunc := func(m *ir.Module) error {
+		fields := []types.Type{}
+		fieldsIdx := map[string]*field{}
+		i := 0
+		for k, v := range n.fields {
+			if len(v.CustomTp) == 0 {
+				fields = append(fields, typedic[v.Type])
+			} else {
+				if len(v.CustomTp) == 1 {
+					s := globalScope.getStruct(v.CustomTp[0])
+					if s == nil {
+						return errVarNotFound
+					}
+					fields = append(fields, s.structType)
+				} else {
+					panic("not impl")
+				}
+			}
+			fieldsIdx[k] = &field{
+				idx:   i,
+				ftype: fields[i],
+			}
+			i++
+		}
+		globalScope.addStruct(n.id, &typedef{
+			fieldsIdx:  fieldsIdx,
+			structType: m.NewTypeDef(n.id, types.NewStruct(fields...)),
+		})
+		return nil
+	}
+	globalScope.defFuncs = append(globalScope.defFuncs, defFunc)
+	return n
+
+}
+
+func (n *structDefNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
+	return zero
 }
 
 type StructInitNode struct {
@@ -546,5 +612,18 @@ type StructInitNode struct {
 }
 
 func (n *StructInitNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
-	panic("not impl")
+	if len(n.ID) > 1 {
+		panic("not impl yet")
+	} else {
+		tp := globalScope.getStruct(n.ID[0])
+		alloca := s.block.NewAlloca(tp.structType)
+		for k, v := range n.Fields {
+			fi := tp.fieldsIdx[k]
+			ptr := s.block.NewGetElementPtr(tp.structType, alloca,
+				constant.NewIndex(zero),
+				constant.NewIndex(constant.NewInt(types.I32, int64(fi.idx))))
+			s.block.NewStore(loadIfVar(v, m, f, s), ptr)
+		}
+		return alloca
+	}
 }

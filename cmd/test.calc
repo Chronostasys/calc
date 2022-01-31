@@ -1,4 +1,14 @@
 func main() int {
+    h := Test{
+        A:100,
+        B: Test1{
+            A:200,
+            B:true,
+        },
+    }
+    h.B.A = 300
+    printBoolln(h.B.B)
+    printIntln(h.B.A)
     add(2,1)
     d := false
     printBoolln(d)
@@ -22,14 +32,17 @@ func main() int {
 }
 
 type Test struct {
-    A Test
+    A int
+    B Test1
+}
+type Test1 struct {
+    A int
+    B bool
 }
 
+
+
 func add(a int, b int) int {
-    var h Test
-    h = Test{
-        A:Test{},
-    }
 	for i := 0; i < 10; i = i + 1 {
         printIntln(i)
 	}

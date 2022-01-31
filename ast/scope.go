@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/llir/llvm/ir"
+	"github.com/llir/llvm/ir/types"
 	"github.com/llir/llvm/ir/value"
 )
 
@@ -14,12 +15,25 @@ type scope struct {
 	block          *ir.Block
 	continueBlock  *ir.Block
 	breakBlock     *ir.Block
+	types          map[string]*typedef
+	defFuncs       []func(m *ir.Module) error
+}
+
+type typedef struct {
+	structType types.Type
+	fieldsIdx  map[string]*field
+}
+
+type field struct {
+	idx   int
+	ftype types.Type
 }
 
 func newScope(block *ir.Block) *scope {
 	return &scope{
 		vartable: make(map[string]value.Value),
 		block:    block,
+		types:    map[string]*typedef{},
 	}
 }
 
@@ -58,4 +72,17 @@ func (s *scope) searchVar(id string) (value.Value, error) {
 		scope = scope.parent
 	}
 	return nil, errVarNotFound
+}
+
+func (s *scope) addStruct(id string, structT *typedef) error {
+	_, ok := s.types[id]
+	if ok {
+		return errRedef
+	}
+	s.types[id] = structT
+	return nil
+}
+
+func (s *scope) getStruct(id string) *typedef {
+	return s.types[id]
 }
