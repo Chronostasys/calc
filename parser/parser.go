@@ -376,6 +376,10 @@ func program() *ast.ProgramNode {
 }
 
 func allexp() ast.Node {
+	ast, err := runWithCatch2(structInit)
+	if err == nil {
+		return ast
+	}
 	ch1 := lexer.SetCheckpoint()
 	n, err := runWithCatch2(boolexp)
 	if err == nil {
@@ -681,10 +685,6 @@ func structDef() (n ast.Node, err error) {
 	if err != nil {
 		return nil, err
 	}
-	_, err = lexer.ScanType(lexer.TYPE_NL)
-	if err != nil {
-		return nil, err
-	}
 	for {
 		_, err = lexer.ScanType(lexer.TYPE_RB)
 		if err == nil {
@@ -717,6 +717,49 @@ func structDef() (n ast.Node, err error) {
 		}
 
 		empty()
+	}
+	return stNode, nil
+}
+
+func structInit() (n ast.Node, err error) {
+	t, err := lexer.ScanType(lexer.TYPE_VAR)
+	if err != nil {
+		return nil, err
+	}
+	stNode := &ast.StructInitNode{
+		ID:     strings.Split(t, "."),
+		Fields: make(map[string]ast.Node),
+	}
+	_, err = lexer.ScanType(lexer.TYPE_LB)
+	if err != nil {
+		return nil, err
+	}
+	for {
+		_, err = lexer.ScanType(lexer.TYPE_RB)
+		if err == nil {
+			break
+		}
+		t, err := lexer.ScanType(lexer.TYPE_VAR)
+		if err != nil {
+			empty()
+			continue
+		}
+		if strings.Contains(t, ".") {
+			panic("unexpected '.'")
+		}
+		_, err = lexer.ScanType(lexer.TYPE_COLON)
+		if err != nil {
+			return nil, err
+		}
+		stNode.Fields[t] = allexp()
+		_, err = lexer.ScanType(lexer.TYPE_COMMA)
+		if err != nil {
+			_, err = lexer.ScanType(lexer.TYPE_RB)
+			if err != nil {
+				return nil, err
+			}
+			break
+		}
 	}
 	return stNode, nil
 }

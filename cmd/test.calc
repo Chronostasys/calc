@@ -22,10 +22,14 @@ func main() int {
 }
 
 type Test struct {
-    A int
+    A Test
 }
 
 func add(a int, b int) int {
+    var h Test
+    h = Test{
+        A:Test{},
+    }
 	for i := 0; i < 10; i = i + 1 {
         printIntln(i)
 	}

@@ -539,3 +539,12 @@ type StructDefNode struct {
 func (n *StructDefNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 	panic("not impl")
 }
+
+type StructInitNode struct {
+	ID     []string
+	Fields map[string]Node
+}
+
+func (n *StructInitNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
+	panic("not impl")
+}

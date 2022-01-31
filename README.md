@@ -22,7 +22,7 @@ return: R->RET|(RET AE)
 empty: EM->NL
 define: D->VAR var TYPE NL
 asssign: A->var ASSIGN AE
-all_exp: AE->E|BE
+all_exp: AE->E|BE|SI
 exp: E->F|F((ADD|MIN)F)*
 factor: F->S|S((MUL|DIV)S)*
 symbol: S->N|((ADD|MIN) N)
@@ -36,6 +36,7 @@ if_st: I->IF BE SB($|(EL SB|I))
 for_st: F->FOR (DA|$ SEMI BE SEMI A|$)|$ SB
 break_statement: BS->BR NL
 continue_statement: CS->CT NL
-struct_def: T->TP var STRUCT LB NL (var TYPE NL)* RB
+struct_def: T->TP var STRUCT LB ((var TYPE NL)|NL)* RB
+struct_init_exp: SI->(var LB ((var COLON AE COMMA)|NL)* RB)
 ```
 一般`$`指句尾，但是我这里指任意空格或者制表符

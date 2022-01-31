@@ -47,6 +47,7 @@ const (
 	TYPE_RES_CO     // "continue"
 	TYPE_RES_TYPE   // "type"
 	TYPE_RES_STRUCT // "struct"
+	TYPE_COLON      // ":"
 )
 
 var (
@@ -283,6 +284,7 @@ func Scan() (code int, token string, eos bool) {
 			getCh()
 			return TYPE_DEAS, ":=", end
 		}
+		return TYPE_COLON, ":", end
 	case ';':
 		return TYPE_SEMI, ";", end
 	}
