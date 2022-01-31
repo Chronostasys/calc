@@ -3,6 +3,7 @@ package ast
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/Chronostasys/calculator_go/lexer"
 	"github.com/llir/llvm/ir"
@@ -87,14 +88,7 @@ func (n *BinNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 		}
 		return s.block.NewSub(l, r)
 	case lexer.TYPE_ASSIGN:
-		v, ok := n.Left.(*VarNode)
-		if !ok {
-			panic("assign statement's left side can only be variables")
-		}
-		val, err := s.searchVar(v.ID)
-		if err != nil {
-			panic(fmt.Errorf("variable %s not defined", v.ID))
-		}
+		val := n.Left.calc(m, f, s)
 		s.block.NewStore(r, val)
 		return val
 	default:
@@ -130,15 +124,19 @@ func (n *UnaryNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 }
 
 type VarNode struct {
-	ID string
+	ID []string
 }
 
 func (n *VarNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
-	v, err := s.searchVar(n.ID)
-	if err != nil {
-		panic(fmt.Errorf("variable %s not defined", n.ID))
+	if len(n.ID) == 1 {
+		v, err := s.searchVar(n.ID[0])
+		if err != nil {
+			panic(fmt.Errorf("variable %s not defined", n.ID))
+		}
+		return v
 	}
-	return v
+	// TODO
+	panic("not impl")
 }
 
 // SLNode statement list node
@@ -178,9 +176,10 @@ func (n *EmptyNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 }
 
 type DefineNode struct {
-	ID  string
-	TP  int
-	Val value.Value
+	ID       string
+	TP       int
+	CustomTp []string
+	Val      value.Value
 }
 
 func (n *DefineNode) V() value.Value {
@@ -188,6 +187,13 @@ func (n *DefineNode) V() value.Value {
 }
 
 func (n *DefineNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
+	if strings.Contains(n.ID, ".") {
+		panic("unexpected '.' in varname")
+	}
+	if len(n.CustomTp) != 0 {
+		// TODO
+		panic("not impl")
+	}
 	if _, ok := s.vartable[n.ID]; ok {
 		panic(fmt.Errorf("redefination of var %s", n.ID))
 	}
@@ -204,12 +210,20 @@ func (n *DefineNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 }
 
 type ParamNode struct {
-	ID  string
-	TP  int
-	Val value.Value
+	ID       string
+	TP       int
+	Val      value.Value
+	CustomTp []string
 }
 
 func (n *ParamNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
+	if strings.Contains(n.ID, ".") {
+		panic("unexpected '.' in paramname")
+	}
+	if len(n.CustomTp) != 0 {
+		// TODO
+		panic("not impl")
+	}
 	n.Val = ir.NewParam(n.ID, typedic[n.TP])
 	return n.Val
 }
@@ -236,6 +250,9 @@ type FuncNode struct {
 }
 
 func (n *FuncNode) AddtoScope() {
+	if strings.Contains(n.ID, ".") {
+		panic("unexpected '.' in funcname")
+	}
 	psn := n.Params.(*ParamsNode)
 	ps := []*ir.Param{}
 	for _, v := range psn.Params {
@@ -422,6 +439,9 @@ type DefAndAssignNode struct {
 }
 
 func (n *DefAndAssignNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
+	if strings.Contains(n.ID, ".") {
+		panic("unexpected '.'")
+	}
 	if _, ok := s.vartable[n.ID]; ok {
 		panic(fmt.Errorf("redefination of var %s", n.ID))
 	}
@@ -432,6 +452,7 @@ func (n *DefAndAssignNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value 
 		s.block.NewStore(val, v)
 		return v
 	}
+	// TODO
 	panic("not impl")
 }
 
@@ -502,4 +523,19 @@ func (n *ContinueNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 	}
 	s.block.NewBr(s.continueBlock)
 	return zero
+}
+
+type Field struct {
+	Idx      int
+	Type     int
+	CustomTp []string
+}
+
+type StructDefNode struct {
+	ID     string
+	Fields map[string]*Field
+}
+
+func (n *StructDefNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
+	panic("not impl")
 }

@@ -2,6 +2,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"io/ioutil"
 	"log"
 
@@ -18,11 +19,11 @@ func main() {
 		log.Fatalln(err)
 	}
 	code := string(bs)
-	ir := parser.Parse(code)
-	err = ioutil.WriteFile(outf, []byte(ir), 0777)
-	if err != nil {
-		log.Fatalln(err)
-	}
-	// ast := parser.ParseAST(code)
-	// fmt.Println(ast)
+	// ir := parser.Parse(code)
+	// err = ioutil.WriteFile(outf, []byte(ir), 0777)
+	// if err != nil {
+	// 	log.Fatalln(err)
+	// }
+	ast := parser.ParseAST(code)
+	fmt.Println(ast)
 }

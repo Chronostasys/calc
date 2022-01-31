@@ -20,31 +20,33 @@ const (
 	TYPE_VAR
 	TYPE_FLOAT
 	TYPE_RES_FLOAT
-	TYPE_RES_FUNC  // "func"
-	TYPE_LB        // "{"
-	TYPE_RB        // "}"
-	TYPE_COMMA     // ","
-	TYPE_RES_RET   // "return"
-	TYPE_RES_VOID  // "void"
-	TYPE_RES_TRUE  // "true"
-	TYPE_RES_FALSE // "false"
-	TYPE_AND       // "&&"
-	TYPE_OR        // "||"
-	TYPE_EQ        // "=="
-	TYPE_RES_BOOL  // "bool"
-	TYPE_LG        // ">"
-	TYPE_SM        // "<"
-	TYPE_LEQ       // ">="
-	TYPE_SEQ       // "<="
-	TYPE_NOT       // "!"
-	TYPE_NEQ       // "!="
-	TYPE_RES_IF    // "if"
-	TYPE_RES_EL    // "else"
-	TYPE_DEAS      // ":="
-	TYPE_RES_FOR   // "for"
-	TYPE_SEMI      // ";"
-	TYPE_RES_BR    // "break"
-	TYPE_RES_CO    // "continue"
+	TYPE_RES_FUNC   // "func"
+	TYPE_LB         // "{"
+	TYPE_RB         // "}"
+	TYPE_COMMA      // ","
+	TYPE_RES_RET    // "return"
+	TYPE_RES_VOID   // "void"
+	TYPE_RES_TRUE   // "true"
+	TYPE_RES_FALSE  // "false"
+	TYPE_AND        // "&&"
+	TYPE_OR         // "||"
+	TYPE_EQ         // "=="
+	TYPE_RES_BOOL   // "bool"
+	TYPE_LG         // ">"
+	TYPE_SM         // "<"
+	TYPE_LEQ        // ">="
+	TYPE_SEQ        // "<="
+	TYPE_NOT        // "!"
+	TYPE_NEQ        // "!="
+	TYPE_RES_IF     // "if"
+	TYPE_RES_EL     // "else"
+	TYPE_DEAS       // ":="
+	TYPE_RES_FOR    // "for"
+	TYPE_SEMI       // ";"
+	TYPE_RES_BR     // "break"
+	TYPE_RES_CO     // "continue"
+	TYPE_RES_TYPE   // "type"
+	TYPE_RES_STRUCT // "struct"
 )
 
 var (
@@ -65,6 +67,8 @@ var (
 		"for":      TYPE_RES_FOR,
 		"break":    TYPE_RES_BR,
 		"continue": TYPE_RES_CO,
+		"type":     TYPE_RES_TYPE,
+		"struct":   TYPE_RES_STRUCT,
 	}
 	reservedTypes = map[string]int{
 		"int":   TYPE_RES_INT,
@@ -175,6 +179,10 @@ func Scan() (code int, token string, eos bool) {
 			c, end := getCh()
 			if end {
 				break
+			}
+			if c == '.' {
+				i = append(i, c)
+				continue
 			}
 			if !isLetterOrUnderscore(c) && !isNum(c) {
 				pos--

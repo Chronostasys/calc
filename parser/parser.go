@@ -3,6 +3,7 @@ package parser
 import (
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/Chronostasys/calculator_go/ast"
 	"github.com/llir/llvm/ir"
@@ -38,7 +39,7 @@ func number() ast.Node {
 			return callFunc()
 		}
 
-		return &ast.VarNode{ID: t1}
+		return &ast.VarNode{ID: strings.Split(t1, ".")}
 	}
 	lexer.GobackTo(ch)
 	_, err := lexer.ScanType(lexer.TYPE_LP)
@@ -123,7 +124,7 @@ func assign() (n ast.Node, err error) {
 	}
 	r := allexp()
 	return &ast.BinNode{
-		Left:  &ast.VarNode{ID: id},
+		Left:  &ast.VarNode{ID: strings.Split(id, ".")},
 		Op:    lexer.TYPE_ASSIGN,
 		Right: r,
 	}, nil
@@ -155,13 +156,17 @@ func define() (n ast.Node, err error) {
 	if err != nil {
 		return nil, err
 	}
-	_, t, eos := lexer.Scan()
+	code, t, eos := lexer.Scan()
 	if eos {
 		return nil, lexer.ErrEOS
 	}
 	co, ok := lexer.IsResType(t)
 	if !ok {
-		panic("expect reserved type")
+		if code == lexer.TYPE_VAR {
+			return &ast.DefineNode{ID: id, CustomTp: strings.Split(t, ".")}, nil
+		} else {
+			panic("expect type")
+		}
 	}
 	return &ast.DefineNode{ID: id, TP: co}, nil
 }
@@ -231,13 +236,16 @@ func funcParam() ast.Node {
 	if err != nil {
 		panic(err)
 	}
-	_, tp, eos := lexer.Scan()
+	code, tp, eos := lexer.Scan()
 	if eos {
 		panic(lexer.ErrEOS)
 	}
 	co, ok := lexer.IsResType(tp)
 	if !ok {
-		panic("expect reserved type")
+		if code != lexer.TYPE_VAR {
+			panic("bad type")
+		}
+		return &ast.ParamNode{ID: t, CustomTp: strings.Split(tp, ".")}
 	}
 	return &ast.ParamNode{ID: t, TP: co}
 }
@@ -357,7 +365,12 @@ func program() *ast.ProgramNode {
 		if eos {
 			break
 		}
-		n.Children = append(n.Children, function())
+		ast, err := structDef()
+		if err == nil {
+			n.Children = append(n.Children, ast)
+		} else {
+			n.Children = append(n.Children, function())
+		}
 	}
 	return n
 }
@@ -473,7 +486,7 @@ func boolean() (node ast.Node, err error) {
 			lexer.GobackTo(ch)
 			return callFunc(), nil
 		}
-		return &ast.VarNode{ID: t1}, nil
+		return &ast.VarNode{ID: strings.Split(t1, ".")}, nil
 	case lexer.TYPE_NOT:
 		node, err = boolean()
 		if err != nil {
@@ -642,6 +655,70 @@ func forloop() (n ast.Node, err error) {
 		return nil, err
 	}
 	return fn, nil
+}
+
+func structDef() (n ast.Node, err error) {
+	_, err = lexer.ScanType(lexer.TYPE_RES_TYPE)
+	if err != nil {
+		return nil, err
+	}
+	t, err := lexer.ScanType(lexer.TYPE_VAR)
+	if err != nil {
+		return nil, err
+	}
+	if strings.Contains(t, ".") {
+		panic("unexpected '.'")
+	}
+	stNode := &ast.StructDefNode{
+		ID:     t,
+		Fields: make(map[string]*ast.Field),
+	}
+	_, err = lexer.ScanType(lexer.TYPE_RES_STRUCT)
+	if err != nil {
+		return nil, err
+	}
+	_, err = lexer.ScanType(lexer.TYPE_LB)
+	if err != nil {
+		return nil, err
+	}
+	_, err = lexer.ScanType(lexer.TYPE_NL)
+	if err != nil {
+		return nil, err
+	}
+	for {
+		_, err = lexer.ScanType(lexer.TYPE_RB)
+		if err == nil {
+			break
+		}
+		t, err := lexer.ScanType(lexer.TYPE_VAR)
+		if err != nil {
+			empty()
+			continue
+		}
+		if strings.Contains(t, ".") {
+			panic("unexpected '.'")
+		}
+		code, tp, eos := lexer.Scan()
+		if eos {
+			panic(lexer.ErrEOS)
+		}
+		co, ok := lexer.IsResType(tp)
+		if ok {
+			stNode.Fields[t] = &ast.Field{
+				Type: co,
+			}
+		} else {
+			if code != lexer.TYPE_VAR {
+				panic("bad type")
+			}
+			stNode.Fields[t] = &ast.Field{
+				CustomTp: strings.Split(tp, "."),
+			}
+		}
+
+		empty()
+	}
+	return stNode, nil
 }
 
 func Parse(s string) string {

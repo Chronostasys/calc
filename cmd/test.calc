@@ -21,6 +21,10 @@ func main() int {
     return 0
 }
 
+type Test struct {
+    A int
+}
+
 func add(a int, b int) int {
 	for i := 0; i < 10; i = i + 1 {
         printIntln(i)

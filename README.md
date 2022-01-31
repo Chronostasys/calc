@@ -11,7 +11,7 @@
 - golang 1.17.1
 ## Rules
 ```
-program: P->(FN|NL)+
+program: P->(FN|NL|T)+
 call_func: CF->var LP (RP|(E(COMMA AE)* RP))
 function: FN->FUNC var FPS TYPE SB
 func_params: FPS->LP (RP|(FP(COMMA FP)* RP))
@@ -36,5 +36,6 @@ if_st: I->IF BE SB($|(EL SB|I))
 for_st: F->FOR (DA|$ SEMI BE SEMI A|$)|$ SB
 break_statement: BS->BR NL
 continue_statement: CS->CT NL
+struct_def: T->TP var STRUCT LB NL (var TYPE NL)* RB
 ```
 一般`$`指句尾，但是我这里指任意空格或者制表符
