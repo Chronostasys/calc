@@ -187,6 +187,11 @@ func (n *ProgramNode) Emit(m *ir.Module) value.Value {
 			break
 		}
 	}
+	// add all func declaration to scope
+	for _, v := range globalScope.funcDefFuncs {
+		v()
+	}
+
 	for _, v := range n.Children {
 		v.calc(m, nil, globalScope)
 	}
@@ -267,25 +272,27 @@ type FuncNode struct {
 }
 
 func (n *FuncNode) AddtoScope() {
-	if strings.Contains(n.ID, ".") {
-		panic("unexpected '.' in funcname")
-	}
-	psn := n.Params.(*ParamsNode)
-	ps := []*ir.Param{}
-	for _, v := range psn.Params {
-		p := v.(*ParamNode)
+	globalScope.funcDefFuncs = append(globalScope.funcDefFuncs, func() {
+		if strings.Contains(n.ID, ".") {
+			panic("unexpected '.' in funcname")
+		}
+		psn := n.Params.(*ParamsNode)
+		ps := []*ir.Param{}
+		for _, v := range psn.Params {
+			p := v.(*ParamNode)
+			tp, err := n.RetType.calc()
+			if err != nil {
+				panic(err)
+			}
+			param := ir.NewParam(p.ID, tp)
+			ps = append(ps, param)
+		}
 		tp, err := n.RetType.calc()
 		if err != nil {
 			panic(err)
 		}
-		param := ir.NewParam(p.ID, tp)
-		ps = append(ps, param)
-	}
-	tp, err := n.RetType.calc()
-	if err != nil {
-		panic(err)
-	}
-	globalScope.addVar(n.ID, ir.NewFunc(n.ID, tp, ps...))
+		globalScope.addVar(n.ID, ir.NewFunc(n.ID, tp, ps...))
+	})
 }
 
 func (n *FuncNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {

@@ -17,6 +17,7 @@ type scope struct {
 	breakBlock     *ir.Block
 	types          map[string]*typedef
 	defFuncs       []func(m *ir.Module) error
+	funcDefFuncs   []func()
 }
 
 type typedef struct {
