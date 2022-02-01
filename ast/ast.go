@@ -637,3 +637,12 @@ func (v *TypeNode) calc() (types.Type, error) {
 		}
 	}
 }
+
+type ArrayInitNode struct {
+	Type *TypeNode
+	Vals []Node
+}
+
+func (n *ArrayInitNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
+	panic("not impl")
+}

@@ -790,6 +790,39 @@ func structInit() (n ast.Node, err error) {
 	return stNode, nil
 }
 
+func arrayInit() (n ast.Node, err error) {
+	an := &ast.ArrayInitNode{}
+	tp, err := arrayTypes()
+	if err != nil {
+		return nil, err
+	}
+	an.Type = tp
+	_, err = lexer.ScanType(lexer.TYPE_LB)
+	if err != nil {
+		return nil, err
+	}
+	for {
+		_, err = lexer.ScanType(lexer.TYPE_RB)
+		if err == nil {
+			break
+		}
+		_, err = lexer.ScanType(lexer.TYPE_NL)
+		if err == nil {
+			continue
+		}
+		an.Vals = append(an.Vals, allexp())
+		_, err = lexer.ScanType(lexer.TYPE_COMMA)
+		if err != nil {
+			_, err = lexer.ScanType(lexer.TYPE_RB)
+			if err != nil {
+				return nil, err
+			}
+			break
+		}
+	}
+	return an, err
+}
+
 func Parse(s string) string {
 	m := ir.NewModule()
 	ast.AddSTDFunc(m)
