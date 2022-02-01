@@ -156,19 +156,11 @@ func define() (n ast.Node, err error) {
 	if err != nil {
 		return nil, err
 	}
-	code, t, eos := lexer.Scan()
-	if eos {
-		return nil, lexer.ErrEOS
+	tp, err := allTypes()
+	if err != nil {
+		panic(err)
 	}
-	co, ok := lexer.IsResType(t)
-	if !ok {
-		if code == lexer.TYPE_VAR {
-			return &ast.DefineNode{ID: id, CustomTp: strings.Split(t, ".")}, nil
-		} else {
-			panic("expect type")
-		}
-	}
-	return &ast.DefineNode{ID: id, TP: co}, nil
+	return &ast.DefineNode{ID: id, TP: tp}, nil
 }
 
 func statement() ast.Node {
@@ -236,18 +228,11 @@ func funcParam() ast.Node {
 	if err != nil {
 		panic(err)
 	}
-	code, tp, eos := lexer.Scan()
-	if eos {
-		panic(lexer.ErrEOS)
+	tp, err := allTypes()
+	if err != nil {
+		panic(err)
 	}
-	co, ok := lexer.IsResType(tp)
-	if !ok {
-		if code != lexer.TYPE_VAR {
-			panic("bad type")
-		}
-		return &ast.ParamNode{ID: t, CustomTp: strings.Split(tp, ".")}
-	}
-	return &ast.ParamNode{ID: t, TP: co}
+	return &ast.ParamNode{ID: t, TP: tp}
 }
 
 func funcParams() ast.Node {
@@ -292,15 +277,11 @@ func function() ast.Node {
 	}
 	fn := &ast.FuncNode{ID: id}
 	fn.Params = funcParams()
-	_, tp, eos := lexer.Scan()
-	if eos {
-		panic(lexer.ErrEOS)
+	tp, err := allTypes()
+	if err != nil {
+		panic(err)
 	}
-	co, ok := lexer.IsResType(tp)
-	if !ok {
-		panic("expect reserved type")
-	}
-	fn.RetType = co
+	fn.RetType = tp
 	fn.Statements, err = statementBlock()
 	if err != nil {
 		panic(err)
@@ -673,7 +654,7 @@ func structDef() (n ast.Node, err error) {
 	if strings.Contains(t, ".") {
 		panic("unexpected '.'")
 	}
-	fields := make(map[string]*ast.Field)
+	fields := make(map[string]*ast.TypeNode)
 	_, err = lexer.ScanType(lexer.TYPE_RES_STRUCT)
 	if err != nil {
 		return nil, err
@@ -695,27 +676,75 @@ func structDef() (n ast.Node, err error) {
 		if strings.Contains(t, ".") {
 			panic("unexpected '.'")
 		}
-		code, tp, eos := lexer.Scan()
-		if eos {
-			panic(lexer.ErrEOS)
+		fields[t], err = allTypes()
+		if err != nil {
+			panic(err)
 		}
-		co, ok := lexer.IsResType(tp)
-		if ok {
-			fields[t] = &ast.Field{
-				Type: co,
-			}
-		} else {
-			if code != lexer.TYPE_VAR {
-				panic("bad type")
-			}
-			fields[t] = &ast.Field{
-				CustomTp: strings.Split(tp, "."),
-			}
-		}
-
 		empty()
 	}
 	return ast.NewStructDefNode(t, fields), nil
+}
+
+func allTypes() (n *ast.TypeNode, err error) {
+	n, err = basicTypes()
+	if err != nil {
+		return arrayTypes()
+	}
+	return
+}
+
+func arrayTypes() (n *ast.TypeNode, err error) {
+	var arr, lastArr *ast.Array
+	innerarr := &ast.Array{}
+	for {
+		_, err = lexer.ScanType(lexer.TYPE_LSB)
+		if err != nil {
+			break
+		}
+		t, err := lexer.ScanType(lexer.TYPE_INT)
+		if err != nil {
+			return nil, err
+		}
+		innerarr.Len, _ = strconv.Atoi(t)
+		_, err = lexer.ScanType(lexer.TYPE_RSB)
+		if err != nil {
+			return nil, err
+		}
+		if arr == nil {
+			arr = innerarr
+		} else {
+			lastArr.InnerArr = innerarr
+		}
+
+		lastArr = innerarr
+		innerarr = &ast.Array{}
+	}
+	if arr == nil {
+		return nil, fmt.Errorf("not array type")
+	}
+	tn, err := basicTypes()
+	if err != nil {
+		return nil, err
+	}
+	tn.Arr = arr
+	return tn, nil
+
+}
+
+func basicTypes() (n *ast.TypeNode, err error) {
+	code, t, eos := lexer.Scan()
+	if eos {
+		return nil, lexer.ErrEOS
+	}
+	co, ok := lexer.IsResType(t)
+	if !ok {
+		if code == lexer.TYPE_VAR {
+			return &ast.TypeNode{CustomTp: strings.Split(t, ".")}, nil
+		} else {
+			return nil, fmt.Errorf("not basic type")
+		}
+	}
+	return &ast.TypeNode{ResType: co}, nil
 }
 
 func structInit() (n ast.Node, err error) {

@@ -21,8 +21,10 @@ statement: S->CS|BS|EM|D|A|R|(CF NL)|I|(DA NL)
 return: R->RET|(RET AE)
 empty: EM->NL
 define: D->VAR var TYPE NL
+all_types: TYPE->BTYPE|AT
+array_types: AT->(LSB n RSB)+ BTYPE
 asssign: A->var ASSIGN AE
-all_exp: AE->E|BE|SI
+all_exp: AE->E|BE|SI|AI
 exp: E->F|F((ADD|MIN)F)*
 factor: F->S|S((MUL|DIV)S)*
 symbol: S->N|((ADD|MIN) N)
@@ -38,5 +40,6 @@ break_statement: BS->BR NL
 continue_statement: CS->CT NL
 struct_def: T->TP var STRUCT LB ((var TYPE NL)|NL)* RB
 struct_init_exp: SI->(var LB ((var COLON AE COMMA)|NL)* RB)
+array_init_exp: AI->AT LB ((AE COMMA)|NL)* RB
 ```
 一般`$`指句尾，但是我这里指任意空格或者制表符

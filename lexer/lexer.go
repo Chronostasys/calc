@@ -48,6 +48,8 @@ const (
 	TYPE_RES_TYPE   // "type"
 	TYPE_RES_STRUCT // "struct"
 	TYPE_COLON      // ":"
+	TYPE_LSB        // "["
+	TYPE_RSB        // "]"
 )
 
 var (
@@ -182,6 +184,12 @@ func Scan() (code int, token string, eos bool) {
 				break
 			}
 			if c == '.' {
+				// handle xxx.XXX
+				i = append(i, c)
+				continue
+			}
+			if c == '[' || c == ']' {
+				// handle indexing (xxx[X])
 				i = append(i, c)
 				continue
 			}
@@ -287,6 +295,10 @@ func Scan() (code int, token string, eos bool) {
 		return TYPE_COLON, ":", end
 	case ';':
 		return TYPE_SEMI, ";", end
+	case '[':
+		return TYPE_LSB, "[", end
+	case ']':
+		return TYPE_RSB, "]", end
 	}
 	log.Fatalf("unrecognized letter %c in pos %d", ch, pos)
 	return
