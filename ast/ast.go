@@ -126,21 +126,41 @@ type VarNode struct {
 	ID []string
 }
 
+func getElmType(v interface{}) types.Type {
+	return reflect.Indirect(reflect.ValueOf(v).Elem()).FieldByName("ElemType").Interface().(types.Type)
+}
+
+func getTypeName(v interface{}) string {
+	return reflect.Indirect(reflect.ValueOf(v).Elem()).FieldByName("ElemType").MethodByName("Name").Call([]reflect.Value{})[0].String()
+}
+
 func (n *VarNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
-	if len(n.ID) == 1 {
-		v, err := s.searchVar(n.ID[0])
-		if err != nil {
-			panic(fmt.Errorf("variable %s not defined", n.ID))
-		}
-		return v
+	vid := n.ID[0]
+	idx := strings.Index(vid, "[")
+	var idxs []string
+	if idx != -1 {
+		vid = vid[:idx]
+		idxs = strings.Split(n.ID[0][idx+1:len(n.ID[0])-1], "][")
 	}
-	va, err := s.searchVar(n.ID[0])
+	va, err := s.searchVar(vid)
 	if err != nil {
 		// TODO module
 		panic(fmt.Errorf("variable %s not defined", n.ID))
 	}
+	if len(idxs) != 0 && len(idxs[0]) != 0 {
+		for _, v := range idxs {
+			id, _ := strconv.Atoi(v)
+			tp := getElmType(va.Type())
+			va = s.block.NewGetElementPtr(tp, va,
+				constant.NewIndex(zero),
+				constant.NewIndex(constant.NewInt(types.I32, int64(id))))
+		}
 
-	s1 := reflect.Indirect(reflect.ValueOf(va).Elem()).FieldByName("ElemType").MethodByName("Name").Call([]reflect.Value{})[0].String()
+	}
+	if len(n.ID) == 1 {
+		return va
+	}
+	s1 := getTypeName(va.Type())
 	for _, v := range n.ID[1:] {
 		tp := globalScope.getStruct(s1)
 		fi := tp.fieldsIdx[v]
@@ -630,19 +650,28 @@ type Array struct {
 }
 
 func (v *TypeNode) calc() (types.Type, error) {
+	var s types.Type
 	if len(v.CustomTp) == 0 {
-		return typedic[v.ResType], nil
+		s = typedic[v.ResType]
 	} else {
 		if len(v.CustomTp) == 1 {
-			s := globalScope.getStruct(v.CustomTp[0])
-			if s == nil {
+			st := globalScope.getStruct(v.CustomTp[0])
+			if st == nil {
 				return nil, errVarNotFound
 			}
-			return s.structType, nil
+			s = st.structType
 		} else {
 			panic("not impl")
 		}
 	}
+	if s == nil {
+		return nil, errVarNotFound
+	}
+	tp := s
+	for arr := v.Arr; arr != nil; arr = arr.InnerArr {
+		tp = types.NewArray(uint64(arr.Len), tp)
+	}
+	return tp, nil
 }
 
 type ArrayInitNode struct {
@@ -651,5 +680,17 @@ type ArrayInitNode struct {
 }
 
 func (n *ArrayInitNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
-	panic("not impl")
+	tp := n.Type
+	atype, err := tp.calc()
+	if err != nil {
+		panic(err)
+	}
+	alloca := s.block.NewAlloca(atype)
+	for k, v := range n.Vals {
+		ptr := s.block.NewGetElementPtr(atype, alloca,
+			constant.NewIndex(zero),
+			constant.NewIndex(constant.NewInt(types.I32, int64(k))))
+		s.block.NewStore(loadIfVar(v, m, f, s), ptr)
+	}
+	return alloca
 }

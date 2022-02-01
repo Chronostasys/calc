@@ -1,14 +1,16 @@
 func main() int {
-    h := Test{
+    var a [2][3]Test
+    a = [2][3]Test{}
+    a[1][2]= Test{
         A:100,
         B: Test1{
             A:200,
             B:true,
         },
     }
-    h.B.A = 300
-    printBoolln(h.B.B)
-    printIntln(h.B.A)
+    a[1][2].B.A = 300
+    printBoolln(a[1][2].B.B)
+    printIntln(a[1][2].B.A)
     add(2,1)
     d := false
     printBoolln(d)

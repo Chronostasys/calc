@@ -357,7 +357,11 @@ func program() *ast.ProgramNode {
 }
 
 func allexp() ast.Node {
-	ast, err := runWithCatch2(structInit)
+	ast, err := runWithCatch2(arrayInit)
+	if err == nil {
+		return ast
+	}
+	ast, err = runWithCatch2(structInit)
 	if err == nil {
 		return ast
 	}
@@ -694,7 +698,13 @@ func allTypes() (n *ast.TypeNode, err error) {
 }
 
 func arrayTypes() (n *ast.TypeNode, err error) {
-	var arr, lastArr *ast.Array
+	ch := lexer.SetCheckpoint()
+	defer func() {
+		if err != nil {
+			lexer.GobackTo(ch)
+		}
+	}()
+	var arr *ast.Array
 	innerarr := &ast.Array{}
 	for {
 		_, err = lexer.ScanType(lexer.TYPE_LSB)
@@ -710,13 +720,11 @@ func arrayTypes() (n *ast.TypeNode, err error) {
 		if err != nil {
 			return nil, err
 		}
-		if arr == nil {
-			arr = innerarr
-		} else {
-			lastArr.InnerArr = innerarr
+		if arr != nil {
+			innerarr.InnerArr = arr
 		}
+		arr = innerarr
 
-		lastArr = innerarr
 		innerarr = &ast.Array{}
 	}
 	if arr == nil {
@@ -732,6 +740,12 @@ func arrayTypes() (n *ast.TypeNode, err error) {
 }
 
 func basicTypes() (n *ast.TypeNode, err error) {
+	ch := lexer.SetCheckpoint()
+	defer func() {
+		if err != nil {
+			lexer.GobackTo(ch)
+		}
+	}()
 	code, t, eos := lexer.Scan()
 	if eos {
 		return nil, lexer.ErrEOS
@@ -826,7 +840,8 @@ func arrayInit() (n ast.Node, err error) {
 func Parse(s string) string {
 	m := ir.NewModule()
 	ast.AddSTDFunc(m)
-	ParseAST(s).Emit(m)
+	ast := ParseAST(s)
+	ast.Emit(m)
 	return m.String()
 }
 func ParseAST(s string) *ast.ProgramNode {
