@@ -160,6 +160,17 @@ func (n *VarNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 	if len(n.ID) == 1 {
 		return va
 	}
+	tpptr := va.Type()
+	for {
+		if ptr, ok := tpptr.(*types.PointerType); ok {
+			tpptr = ptr.ElemType
+			if _, ok := tpptr.(*types.PointerType); ok {
+				va = s.block.NewLoad(tpptr, va)
+			} else {
+				break
+			}
+		}
+	}
 	s1 := getTypeName(va.Type())
 	for _, v := range n.ID[1:] {
 		tp := globalScope.getStruct(s1)

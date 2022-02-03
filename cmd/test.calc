@@ -1,11 +1,15 @@
 func main() int {
+    a2 :=  &Test{
+        A:100,
+    }
+    printIntln(a2.A)
     var a1 int
     a1 = 1
     printIntln(a1)
     var b1 *int
     b1 = &a1
     c1 := &b1
-    printIntln(*b1)
+    printIntln(3 * *b1)
     printIntln(**c1)
     Add1(c1)
     printIntln(**c1)
