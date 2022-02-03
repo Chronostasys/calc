@@ -47,7 +47,7 @@ func loadIfVar(n Node, m *ir.Module, f *ir.Func, s *scope) value.Value {
 	if t, ok := l.Type().(*types.PointerType); ok {
 		return s.block.NewLoad(t.ElemType, l)
 	}
-	return n.calc(m, f, s)
+	return l
 }
 
 func hasFloatType(ts ...value.Value) bool {
@@ -549,7 +549,7 @@ func (n *ForNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 		n.Assign.calc(m, f, condScope)
 	}
 	if n.Bool != nil {
-		cond.NewCondBr(loadIfVar(n.Bool, m, f, child), body, end)
+		cond.NewCondBr(loadIfVar(n.Bool, m, f, condScope), body, end)
 	} else {
 		cond.NewBr(body)
 	}
