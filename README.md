@@ -21,16 +21,17 @@ statement: S->CS|BS|EM|D|A|R|(CF NL)|I|(DA NL)
 return: R->RET|(RET AE)
 empty: EM->NL
 define: D->VAR var TYPE NL
-all_types: TYPE->BTYPE|AT
-array_types: AT->(LSB n RSB)+ BTYPE
-asssign: A->var ASSIGN AE
-all_exp: AE->E|BE|SI|AI
+all_types: TYPE->MUL*  BTYPE|AT
+basic_types: BTYPE->tp
+array_types: AT->LSB n RSB TYPE
+asssign: A->MUL* var ASSIGN AE
+all_exp: AE->E|BE|TPE|TVE
 exp: E->F|F((ADD|MIN)F)*
 factor: F->S|S((MUL|DIV)S)*
 symbol: S->N|((ADD|MIN) N)
-number: N->n|(LP E RP)|var|CF
+number: N->n|(LP E RP)|TVE
 bool_exp: BE->B|(B (AND|OR) BE)
-boolean: B->TRUE|FALSE|C|(NOT B)|(LP BE RP)|CF|var
+boolean: B->TRUE|FALSE|C|(NOT B)|(LP BE RP)|TVE
 compare_exp: C->exp (EQ|NEQ|LG|SM|LEQ|SEQ) exp
 statement_block:SB->LB SL RB NL
 def_ass: DA->var DEFA exp|VAR var ASSIGN exp
@@ -41,5 +42,7 @@ continue_statement: CS->CT NL
 struct_def: T->TP var STRUCT LB ((var TYPE NL)|NL)* RB
 struct_init_exp: SI->(var LB ((var COLON AE COMMA)|NL)* RB)
 array_init_exp: AI->AT LB ((AE COMMA)|NL)* RB
+take_ptr_exp: TPE->ESP AI|SI|var
+take_val_exp: TVE->MUL* AI|SI|var|CF
 ```
 一般`$`指句尾，但是我这里指任意空格或者制表符

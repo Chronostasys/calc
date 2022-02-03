@@ -13,8 +13,12 @@ import (
 	"github.com/Chronostasys/calculator_go/lexer"
 )
 
-func number() ast.Node {
+func number() (n ast.Node) {
 	ch := lexer.SetCheckpoint()
+	n, err := runWithCatch2(takeValExp)
+	if err == nil {
+		return n
+	}
 	code, t1, eos := lexer.Scan()
 	if eos {
 		panic("eos")
@@ -32,17 +36,10 @@ func number() ast.Node {
 			panic(err)
 		}
 		return &ast.NumNode{Val: constant.NewInt(types.I32, int64(i))}
-	case lexer.TYPE_VAR:
-		_, err := lexer.ScanType(lexer.TYPE_LP)
-		if err == nil {
-			lexer.GobackTo(ch)
-			return callFunc()
-		}
 
-		return &ast.VarNode{ID: strings.Split(t1, ".")}
 	}
 	lexer.GobackTo(ch)
-	_, err := lexer.ScanType(lexer.TYPE_LP)
+	_, err = lexer.ScanType(lexer.TYPE_LP)
 	if err != nil {
 		panic(err)
 	}
@@ -114,6 +111,14 @@ func assign() (n ast.Node, err error) {
 			lexer.GobackTo(c)
 		}
 	}()
+	level := 0
+	for {
+		_, err = lexer.ScanType(lexer.TYPE_MUL)
+		if err != nil {
+			break
+		}
+		level++
+	}
 	id, err := lexer.ScanType(lexer.TYPE_VAR)
 	if err != nil {
 		return nil, err
@@ -124,7 +129,7 @@ func assign() (n ast.Node, err error) {
 	}
 	r := allexp()
 	return &ast.BinNode{
-		Left:  &ast.VarNode{ID: strings.Split(id, ".")},
+		Left:  &ast.TakeValNode{Node: &ast.VarNode{ID: strings.Split(id, ".")}, Level: level},
 		Op:    lexer.TYPE_ASSIGN,
 		Right: r,
 	}, nil
@@ -357,14 +362,14 @@ func program() *ast.ProgramNode {
 }
 
 func allexp() ast.Node {
-	ast, err := runWithCatch2(arrayInit)
+	ast, err := runWithCatch2(takePtrExp)
 	if err == nil {
 		return ast
 	}
-	ast, err = runWithCatch2(structInit)
-	if err == nil {
-		return ast
-	}
+	// ast, err = runWithCatch2(takeValExp)
+	// if err == nil {
+	// 	return ast
+	// }
 	ch1 := lexer.SetCheckpoint()
 	n, err := runWithCatch2(boolexp)
 	if err == nil {
@@ -463,19 +468,16 @@ func boolean() (node ast.Node, err error) {
 	if err == nil {
 		return node, nil
 	}
-	ch := lexer.SetCheckpoint()
-	code, t1, eos := lexer.Scan()
+	n, err := runWithCatch2(takeValExp)
+	if err == nil {
+		return n, nil
+	}
+
+	code, _, eos := lexer.Scan()
 	if eos {
 		return nil, lexer.ErrEOS
 	}
 	switch code {
-	case lexer.TYPE_VAR:
-		_, err := lexer.ScanType(lexer.TYPE_LP)
-		if err == nil {
-			lexer.GobackTo(ch)
-			return callFunc(), nil
-		}
-		return &ast.VarNode{ID: strings.Split(t1, ".")}, nil
 	case lexer.TYPE_NOT:
 		node, err = boolean()
 		if err != nil {
@@ -492,6 +494,7 @@ func boolean() (node ast.Node, err error) {
 			return nil, err
 		}
 		return
+
 	}
 
 	return nil, fmt.Errorf("parse failed")
@@ -658,7 +661,7 @@ func structDef() (n ast.Node, err error) {
 	if strings.Contains(t, ".") {
 		panic("unexpected '.'")
 	}
-	fields := make(map[string]*ast.TypeNode)
+	fields := make(map[string]ast.TypeNode)
 	_, err = lexer.ScanType(lexer.TYPE_RES_STRUCT)
 	if err != nil {
 		return nil, err
@@ -689,57 +692,60 @@ func structDef() (n ast.Node, err error) {
 	return ast.NewStructDefNode(t, fields), nil
 }
 
-func allTypes() (n *ast.TypeNode, err error) {
+func allTypes() (n ast.TypeNode, err error) {
+	ptrLevel := 0
+	for {
+		_, err = lexer.ScanType(lexer.TYPE_MUL)
+		if err != nil {
+			break
+		}
+		ptrLevel++
+	}
 	n, err = basicTypes()
 	if err != nil {
-		return arrayTypes()
+		n, err = arrayTypes()
+		if err != nil {
+			return nil, err
+		}
 	}
+	n.SetPtrLevel(ptrLevel)
 	return
 }
 
-func arrayTypes() (n *ast.TypeNode, err error) {
+func arrayTypes() (n ast.TypeNode, err error) {
 	ch := lexer.SetCheckpoint()
 	defer func() {
 		if err != nil {
 			lexer.GobackTo(ch)
 		}
 	}()
-	var arr *ast.Array
-	innerarr := &ast.Array{}
-	for {
-		_, err = lexer.ScanType(lexer.TYPE_LSB)
-		if err != nil {
-			break
-		}
-		t, err := lexer.ScanType(lexer.TYPE_INT)
-		if err != nil {
-			return nil, err
-		}
-		innerarr.Len, _ = strconv.Atoi(t)
-		_, err = lexer.ScanType(lexer.TYPE_RSB)
-		if err != nil {
-			return nil, err
-		}
-		if arr != nil {
-			innerarr.InnerArr = arr
-		}
-		arr = innerarr
-
-		innerarr = &ast.Array{}
+	var arr *ast.ArrayTypeNode = &ast.ArrayTypeNode{}
+	_, err = lexer.ScanType(lexer.TYPE_LSB)
+	if err != nil {
+		return nil, err
+	}
+	t, err := lexer.ScanType(lexer.TYPE_INT)
+	if err != nil {
+		return nil, err
+	}
+	arr.Len, _ = strconv.Atoi(t)
+	_, err = lexer.ScanType(lexer.TYPE_RSB)
+	if err != nil {
+		return nil, err
 	}
 	if arr == nil {
 		return nil, fmt.Errorf("not array type")
 	}
-	tn, err := basicTypes()
+	tn, err := allTypes()
 	if err != nil {
 		return nil, err
 	}
-	tn.Arr = arr
-	return tn, nil
+	arr.ElmType = tn
+	return arr, nil
 
 }
 
-func basicTypes() (n *ast.TypeNode, err error) {
+func basicTypes() (n ast.TypeNode, err error) {
 	ch := lexer.SetCheckpoint()
 	defer func() {
 		if err != nil {
@@ -753,12 +759,12 @@ func basicTypes() (n *ast.TypeNode, err error) {
 	co, ok := lexer.IsResType(t)
 	if !ok {
 		if code == lexer.TYPE_VAR {
-			return &ast.TypeNode{CustomTp: strings.Split(t, ".")}, nil
+			return &ast.BasicTypeNode{CustomTp: strings.Split(t, ".")}, nil
 		} else {
 			return nil, fmt.Errorf("not basic type")
 		}
 	}
-	return &ast.TypeNode{ResType: co}, nil
+	return &ast.BasicTypeNode{ResType: co}, nil
 }
 
 func structInit() (n ast.Node, err error) {
@@ -835,6 +841,66 @@ func arrayInit() (n ast.Node, err error) {
 		}
 	}
 	return an, err
+}
+
+func takePtrExp() (n ast.Node, err error) {
+	_, err = lexer.ScanType(lexer.TYPE_ESP)
+	if err != nil {
+		return nil, err
+	}
+	var node ast.Node
+	node, err = runWithCatch2(arrayInit)
+	if err == nil {
+		return &ast.TakePtrNode{Node: node}, nil
+	}
+	node, err = runWithCatch2(structInit)
+	if err == nil {
+		return &ast.TakePtrNode{Node: node}, nil
+	}
+	t, err := lexer.ScanType(lexer.TYPE_VAR)
+	if err != nil {
+		return nil, err
+	}
+	node = &ast.VarNode{
+		ID: strings.Split(t, "."),
+	}
+	return &ast.TakePtrNode{Node: node}, nil
+
+}
+func takeValExp() (n ast.Node, err error) {
+	level := 0
+	for {
+		_, err = lexer.ScanType(lexer.TYPE_MUL)
+		if err != nil {
+			break
+		}
+		level++
+	}
+	var node ast.Node
+	node, err = runWithCatch2(arrayInit)
+	if err == nil {
+		return &ast.TakeValNode{Node: node, Level: level}, nil
+	}
+	node, err = runWithCatch2(structInit)
+	if err == nil {
+		return &ast.TakeValNode{Node: node, Level: level}, nil
+	}
+	ch := lexer.SetCheckpoint()
+	t, err := lexer.ScanType(lexer.TYPE_VAR)
+	if err != nil {
+		return nil, err
+	}
+	_, err = lexer.ScanType(lexer.TYPE_LP)
+	if err == nil {
+		lexer.GobackTo(ch)
+		node = callFunc()
+		return &ast.TakeValNode{Node: node, Level: level}, nil
+	}
+	node = &ast.VarNode{
+		ID: strings.Split(t, "."),
+	}
+	return &ast.TakeValNode{Node: node, Level: level}, nil
+
 }
 
 func Parse(s string) string {

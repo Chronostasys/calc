@@ -227,7 +227,7 @@ func (n *EmptyNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 
 type DefineNode struct {
 	ID  string
-	TP  *TypeNode
+	TP  TypeNode
 	Val value.Value
 }
 
@@ -254,7 +254,7 @@ func (n *DefineNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 
 type ParamNode struct {
 	ID  string
-	TP  *TypeNode
+	TP  TypeNode
 	Val value.Value
 }
 
@@ -285,7 +285,7 @@ func (n *ParamsNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 type FuncNode struct {
 	Params       Node
 	ID           string
-	RetType      *TypeNode
+	RetType      TypeNode
 	Statements   Node
 	Fn           *ir.Func
 	DefaultBlock *ir.Block
@@ -300,7 +300,7 @@ func (n *FuncNode) AddtoScope() {
 		ps := []*ir.Param{}
 		for _, v := range psn.Params {
 			p := v.(*ParamNode)
-			tp, err := n.RetType.calc()
+			tp, err := p.TP.calc()
 			if err != nil {
 				panic(err)
 			}
@@ -363,7 +363,13 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 	if err != nil {
 		panic(err)
 	}
-	return s.block.NewCall(fn, params...)
+	re := s.block.NewCall(fn, params...)
+	if re.Type().Equal(types.Void) {
+		return re
+	}
+	alloc := s.block.NewAlloca(re.Type())
+	s.block.NewStore(re, alloc)
+	return alloc
 }
 
 type RetNode struct {
@@ -580,10 +586,10 @@ func (n *ContinueNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 
 type structDefNode struct {
 	id     string
-	fields map[string]*TypeNode
+	fields map[string]TypeNode
 }
 
-func NewStructDefNode(id string, fieldsMap map[string]*TypeNode) Node {
+func NewStructDefNode(id string, fieldsMap map[string]TypeNode) Node {
 	n := &structDefNode{id: id, fields: fieldsMap}
 	defFunc := func(m *ir.Module) error {
 		fields := []types.Type{}
@@ -638,18 +644,43 @@ func (n *StructInitNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 	}
 }
 
-type TypeNode struct {
+type BasicTypeNode struct {
 	ResType  int
 	CustomTp []string
-	Arr      *Array
+	PtrLevel int
 }
 
-type Array struct {
+type TypeNode interface {
+	calc() (types.Type, error)
+	SetPtrLevel(int)
+}
+
+type ArrayTypeNode struct {
 	Len      int
-	InnerArr *Array
+	ElmType  TypeNode
+	PtrLevel int
 }
 
-func (v *TypeNode) calc() (types.Type, error) {
+func (v *ArrayTypeNode) SetPtrLevel(i int) {
+	v.PtrLevel = i
+}
+func (v *BasicTypeNode) SetPtrLevel(i int) {
+	v.PtrLevel = i
+}
+func (v *ArrayTypeNode) calc() (types.Type, error) {
+	elm, err := v.ElmType.calc()
+	if err != nil {
+		return nil, err
+	}
+	var tp types.Type
+	tp = types.NewArray(uint64(v.Len), elm)
+	for i := 0; i < v.PtrLevel; i++ {
+		tp = types.NewPointer(tp)
+	}
+	return tp, nil
+}
+
+func (v *BasicTypeNode) calc() (types.Type, error) {
 	var s types.Type
 	if len(v.CustomTp) == 0 {
 		s = typedic[v.ResType]
@@ -667,15 +698,14 @@ func (v *TypeNode) calc() (types.Type, error) {
 	if s == nil {
 		return nil, errVarNotFound
 	}
-	tp := s
-	for arr := v.Arr; arr != nil; arr = arr.InnerArr {
-		tp = types.NewArray(uint64(arr.Len), tp)
+	for i := 0; i < v.PtrLevel; i++ {
+		s = types.NewPointer(s)
 	}
-	return tp, nil
+	return s, nil
 }
 
 type ArrayInitNode struct {
-	Type *TypeNode
+	Type TypeNode
 	Vals []Node
 }
 
@@ -693,4 +723,30 @@ func (n *ArrayInitNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 		s.block.NewStore(loadIfVar(v, m, f, s), ptr)
 	}
 	return alloca
+}
+
+type TakePtrNode struct {
+	Node Node
+}
+
+func (n *TakePtrNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
+	v := n.Node.calc(m, f, s)
+	ptr := s.block.NewAlloca(v.Type())
+	s.block.NewStore(v, ptr)
+	return ptr
+}
+
+type TakeValNode struct {
+	Level int
+	Node  Node
+}
+
+func (n *TakeValNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
+	v := n.Node.calc(m, f, s)
+
+	for i := 0; i < n.Level; i++ {
+		v = s.block.NewLoad(getElmType(v.Type()), v)
+	}
+	return v
+
 }

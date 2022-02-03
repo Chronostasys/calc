@@ -6,20 +6,20 @@ import (
 )
 
 const (
-	TYPE_INT = iota
-	TYPE_PLUS
-	TYPE_SUB
-	TYPE_MUL
-	TYPE_DIV
-	TYPE_LP      // "("
-	TYPE_RP      // ")"
-	TYPE_ASSIGN  // "="
-	TYPE_RES_VAR // "var"
-	TYPE_RES_INT // "int"
-	TYPE_NL      // "\n"
-	TYPE_VAR
-	TYPE_FLOAT
-	TYPE_RES_FLOAT
+	TYPE_INT        = iota
+	TYPE_PLUS       // "+"
+	TYPE_SUB        // "-"
+	TYPE_MUL        // "*"
+	TYPE_DIV        // "/"
+	TYPE_LP         // "("
+	TYPE_RP         // ")"
+	TYPE_ASSIGN     // "="
+	TYPE_RES_VAR    // "var"
+	TYPE_RES_INT    // "int"
+	TYPE_NL         // "\n"
+	TYPE_VAR        // "([a-z]|[A-Z])([a-z]|[A-Z]|[0-9])*(\.([a-z]|[A-Z]|[0-9])*)*"
+	TYPE_FLOAT      // 小数，x.y这种
+	TYPE_RES_FLOAT  // "float"
 	TYPE_RES_FUNC   // "func"
 	TYPE_LB         // "{"
 	TYPE_RB         // "}"
@@ -50,6 +50,7 @@ const (
 	TYPE_COLON      // ":"
 	TYPE_LSB        // "["
 	TYPE_RSB        // "]"
+	TYPE_ESP        // "&"
 )
 
 var (
@@ -264,6 +265,7 @@ func Scan() (code int, token string, eos bool) {
 			getCh()
 			return TYPE_AND, "&&", end
 		}
+		return TYPE_ESP, "&", end
 	case '|':
 		if ne, _ := Peek(); ne == '|' {
 			getCh()
