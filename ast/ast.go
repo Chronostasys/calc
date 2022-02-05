@@ -169,7 +169,10 @@ func (n *UnaryNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 	case lexer.TYPE_PLUS:
 		return c
 	case lexer.TYPE_SUB:
-		// TODO float
+		hasF, re := hasFloatType(s.block, c)
+		if hasF {
+			return s.block.NewFSub(constant.NewFloat(c.Type().(*types.FloatType), 0), re[0])
+		}
 		return s.block.NewSub(zero, c)
 	default:
 		panic("unexpected op")
