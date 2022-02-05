@@ -2,13 +2,13 @@ package parser
 
 import (
 	"fmt"
+	"math/bits"
 	"strconv"
 	"strings"
 
 	"github.com/Chronostasys/calculator_go/ast"
 	"github.com/llir/llvm/ir"
 	"github.com/llir/llvm/ir/constant"
-	"github.com/llir/llvm/ir/types"
 
 	"github.com/Chronostasys/calculator_go/lexer"
 )
@@ -25,17 +25,17 @@ func number() (n ast.Node) {
 	}
 	switch code {
 	case lexer.TYPE_FLOAT:
-		i, err := strconv.ParseFloat(t1, 32)
+		i, err := strconv.ParseFloat(t1, bits.UintSize)
 		if err != nil {
 			panic(err)
 		}
-		return &ast.NumNode{Val: constant.NewFloat(types.Float, i)}
+		return &ast.NumNode{Val: constant.NewFloat(lexer.DefaultFloatType(), i)}
 	case lexer.TYPE_INT:
 		i, err := strconv.Atoi(t1)
 		if err != nil {
 			panic(err)
 		}
-		return &ast.NumNode{Val: constant.NewInt(types.I32, int64(i))}
+		return &ast.NumNode{Val: constant.NewInt(lexer.DefaultIntType(), int64(i))}
 
 	}
 	lexer.GobackTo(ch)

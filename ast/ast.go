@@ -17,8 +17,8 @@ import (
 var (
 	globalScope = newScope(nil)
 	typedic     = map[int]types.Type{
-		lexer.TYPE_RES_FLOAT: types.Float,
-		lexer.TYPE_RES_INT:   types.I32,
+		lexer.TYPE_RES_FLOAT: lexer.DefaultFloatType(),
+		lexer.TYPE_RES_INT:   lexer.DefaultIntType(),
 		lexer.TYPE_RES_BOOL:  types.I1,
 	}
 )
