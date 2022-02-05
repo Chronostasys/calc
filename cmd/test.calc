@@ -1,4 +1,7 @@
 func main() int {
+    var a4 byte
+    a4 = 1
+    printIntln(a4)
     a2 :=  &Test{
         A:100,
     }

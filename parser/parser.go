@@ -2,16 +2,31 @@ package parser
 
 import (
 	"fmt"
-	"math/bits"
 	"strconv"
 	"strings"
 
 	"github.com/Chronostasys/calculator_go/ast"
 	"github.com/llir/llvm/ir"
 	"github.com/llir/llvm/ir/constant"
+	"github.com/llir/llvm/ir/types"
 
 	"github.com/Chronostasys/calculator_go/lexer"
 )
+
+func ParseInt(s string) (int64, *types.IntType, error) {
+	bw := 8
+	for {
+		re, err := strconv.ParseInt(s, 10, bw)
+		if err == nil {
+			return re, types.NewInt(uint64(bw)), err
+		} else {
+			if bw == 64 {
+				return 0, nil, err
+			}
+			bw *= 2
+		}
+	}
+}
 
 func number() (n ast.Node) {
 	ch := lexer.SetCheckpoint()
@@ -25,17 +40,22 @@ func number() (n ast.Node) {
 	}
 	switch code {
 	case lexer.TYPE_FLOAT:
-		i, err := strconv.ParseFloat(t1, bits.UintSize)
+		i, err := strconv.ParseFloat(t1, 32)
+		tp := types.Float
 		if err != nil {
-			panic(err)
+			i, err = strconv.ParseFloat(t1, 64)
+			if err != nil {
+				panic(err)
+			}
+			tp = types.Double
 		}
-		return &ast.NumNode{Val: constant.NewFloat(lexer.DefaultFloatType(), i)}
+		return &ast.NumNode{Val: constant.NewFloat(tp, i)}
 	case lexer.TYPE_INT:
-		i, err := strconv.Atoi(t1)
+		i, tp, err := ParseInt(t1)
 		if err != nil {
 			panic(err)
 		}
-		return &ast.NumNode{Val: constant.NewInt(lexer.DefaultIntType(), int64(i))}
+		return &ast.NumNode{Val: constant.NewInt(tp, i)}
 
 	}
 	lexer.GobackTo(ch)

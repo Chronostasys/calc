@@ -17,9 +17,14 @@ import (
 var (
 	globalScope = newScope(nil)
 	typedic     = map[int]types.Type{
-		lexer.TYPE_RES_FLOAT: lexer.DefaultFloatType(),
-		lexer.TYPE_RES_INT:   lexer.DefaultIntType(),
-		lexer.TYPE_RES_BOOL:  types.I1,
+		lexer.TYPE_RES_FLOAT:   lexer.DefaultFloatType(),
+		lexer.TYPE_RES_INT:     lexer.DefaultIntType(),
+		lexer.TYPE_RES_BOOL:    types.I1,
+		lexer.TYPE_RES_FLOAT32: types.Float,
+		lexer.TYPE_RES_INT32:   types.I32,
+		lexer.TYPE_RES_FLOAT64: types.Double,
+		lexer.TYPE_RES_INT64:   types.I64,
+		lexer.TYPE_RES_BYTE:    types.I8,
 	}
 )
 
@@ -41,8 +46,7 @@ type BinNode struct {
 	Right Node
 }
 
-func loadIfVar(n Node, m *ir.Module, f *ir.Func, s *scope) value.Value {
-	l := n.calc(m, f, s)
+func loadIfVar(l value.Value, s *scope) value.Value {
 
 	if t, ok := l.Type().(*types.PointerType); ok {
 		return s.block.NewLoad(t.ElemType, l)
@@ -50,21 +54,67 @@ func loadIfVar(n Node, m *ir.Module, f *ir.Func, s *scope) value.Value {
 	return l
 }
 
-func hasFloatType(ts ...value.Value) bool {
-	hasfloat := false
+func hasFloatType(b *ir.Block, ts ...value.Value) (bool, []value.Value) {
 	for _, v := range ts {
-		_, ok := v.Type().(*types.FloatType)
-		if ok {
-			hasfloat = true
-			return hasfloat
+		switch v.Type().(type) {
+		case *types.FloatType:
+		case *types.IntType:
+			tp := v.Type().(*types.IntType)
+			if tp.BitSize == 1 {
+				return false, ts
+			}
+		default:
+			return false, ts
 		}
 	}
-	return hasfloat
+	hasfloat := false
+	var maxF *types.FloatType = types.Half
+	var maxI *types.IntType = types.I8
+	for _, v := range ts {
+		t, ok := v.Type().(*types.FloatType)
+		if ok {
+			hasfloat = true
+			if t.Kind > maxF.Kind {
+				maxF = t
+			}
+		} else {
+			tp := v.Type().(*types.IntType)
+			if tp.BitSize > maxI.BitSize {
+				maxI = tp
+			}
+		}
+	}
+	re := []value.Value{}
+	for _, v := range ts {
+		if hasfloat {
+			t, ok := v.Type().(*types.FloatType)
+			if ok {
+				if t.Kind == maxF.Kind {
+					re = append(re, v)
+				} else {
+					re = append(re, b.NewFPExt(v, maxF))
+				}
+			} else {
+				re = append(re, b.NewSIToFP(v, maxF))
+			}
+		} else {
+			t := v.Type().(*types.IntType)
+			if t.BitSize == maxI.BitSize {
+				re = append(re, v)
+			} else {
+				re = append(re, b.NewZExt(v, maxI))
+			}
+		}
+	}
+
+	return hasfloat, re
 }
 
 func (n *BinNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
-	l, r := loadIfVar(n.Left, m, f, s), loadIfVar(n.Right, m, f, s)
-	hasF := hasFloatType(l, r)
+	rawL, rawR := n.Left.calc(m, f, s), n.Right.calc(m, f, s)
+	l, r := loadIfVar(rawL, s), loadIfVar(rawR, s)
+	hasF, re := hasFloatType(s.block, l, r)
+	l, r = re[0], re[1]
 	switch n.Op {
 	case lexer.TYPE_PLUS:
 		if hasF {
@@ -87,7 +137,10 @@ func (n *BinNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 		}
 		return s.block.NewSub(l, r)
 	case lexer.TYPE_ASSIGN:
-		val := n.Left.calc(m, f, s)
+		val := rawL
+		// if _, ok := n.Right.(*NumNode); ok {
+
+		// }
 		s.block.NewStore(r, val)
 		return val
 	default:
@@ -111,11 +164,12 @@ type UnaryNode struct {
 var zero = constant.NewInt(types.I32, 0)
 
 func (n *UnaryNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
-	c := loadIfVar(n.Child, m, f, s)
+	c := loadIfVar(n.Child.calc(m, f, s), s)
 	switch n.Op {
 	case lexer.TYPE_PLUS:
 		return c
 	case lexer.TYPE_SUB:
+		// TODO float
 		return s.block.NewSub(zero, c)
 	default:
 		panic("unexpected op")
@@ -366,13 +420,18 @@ type CallFuncNode struct {
 }
 
 func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
-	params := []value.Value{}
-	for _, v := range n.Params {
-		params = append(params, loadIfVar(v, m, f, s))
-	}
 	fn, err := s.searchVar(n.ID)
 	if err != nil {
 		panic(err)
+	}
+	params := []value.Value{}
+	for i, v := range n.Params {
+		tp := fn.(*ir.Func).Params[i].Typ
+		p, err := implicitCast(loadIfVar(v.calc(m, f, s), s), tp, s)
+		if err != nil {
+			panic(err)
+		}
+		params = append(params, p)
 	}
 	re := s.block.NewCall(fn, params...)
 	if re.Type().Equal(types.Void) {
@@ -388,7 +447,11 @@ type RetNode struct {
 }
 
 func (n *RetNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
-	s.block.NewRet(loadIfVar(n.Exp, m, f, s))
+	v, err := implicitCast(loadIfVar(n.Exp.calc(m, f, s), s), f.Sig.RetType, s)
+	if err != nil {
+		panic(err)
+	}
+	s.block.NewRet(v)
 	return zero
 }
 
@@ -420,8 +483,9 @@ var comparedic = map[int]e{
 }
 
 func (n *CompareNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
-	l, r := loadIfVar(n.Left, m, f, s), loadIfVar(n.Right, m, f, s)
-	hasF := hasFloatType(l, r)
+	l, r := loadIfVar(n.Left.calc(m, f, s), s), loadIfVar(n.Right.calc(m, f, s), s)
+	hasF, re := hasFloatType(s.block, l, r)
+	l, r = re[0], re[1]
 	if hasF {
 		return s.block.NewFCmp(comparedic[n.Op].FloatE, l, r)
 	} else {
@@ -436,7 +500,7 @@ type BoolExpNode struct {
 }
 
 func (n *BoolExpNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
-	l, r := loadIfVar(n.Left, m, f, s), loadIfVar(n.Right, m, f, s)
+	l, r := loadIfVar(n.Left.calc(m, f, s), s), loadIfVar(n.Right.calc(m, f, s), s)
 	if n.Op == lexer.TYPE_AND {
 		return s.block.NewAnd(l, r)
 	} else {
@@ -449,7 +513,7 @@ type NotNode struct {
 }
 
 func (n *NotNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
-	return s.block.NewICmp(enum.IPredEQ, loadIfVar(n.Bool, m, f, s), constant.False)
+	return s.block.NewICmp(enum.IPredEQ, loadIfVar(n.Bool.calc(m, f, s), s), constant.False)
 }
 
 type IfNode struct {
@@ -516,8 +580,24 @@ func (n *DefAndAssignNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value 
 		panic("unexpected '.'")
 	}
 	if f != nil {
-		val := loadIfVar(n.Val, m, f, s)
-		v := s.block.NewAlloca(val.Type())
+		val := loadIfVar(n.Val.calc(m, f, s), s)
+		var v *ir.InstAlloca
+		switch val.Type().(type) {
+		case *types.FloatType:
+			v = s.block.NewAlloca(lexer.DefaultFloatType())
+		case *types.IntType:
+			if val.Type().(*types.IntType).BitSize == 1 {
+				v = s.block.NewAlloca(val.Type())
+			} else {
+				v = s.block.NewAlloca(lexer.DefaultIntType())
+			}
+		default:
+			v = s.block.NewAlloca(val.Type())
+		}
+		val, err := implicitCast(val, v.ElemType, s)
+		if err != nil {
+			panic(err)
+		}
 		s.addVar(n.ID, v)
 		s.block.NewStore(val, v)
 		return v
@@ -550,7 +630,7 @@ func (n *ForNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 		name = n.DefineAssign.(*DefAndAssignNode).ID
 	}
 	if n.Bool != nil {
-		s.block.NewCondBr(loadIfVar(n.Bool, m, f, s), body, end)
+		s.block.NewCondBr(loadIfVar(n.Bool.calc(m, f, s), s), body, end)
 	} else {
 		s.block.NewBr(body)
 	}
@@ -560,7 +640,7 @@ func (n *ForNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 		n.Assign.calc(m, f, condScope)
 	}
 	if n.Bool != nil {
-		cond.NewCondBr(loadIfVar(n.Bool, m, f, condScope), body, end)
+		cond.NewCondBr(loadIfVar(n.Bool.calc(m, f, condScope), condScope), body, end)
 	} else {
 		cond.NewBr(body)
 	}
@@ -638,6 +718,30 @@ type StructInitNode struct {
 	Fields map[string]Node
 }
 
+func implicitCast(v value.Value, target types.Type, s *scope) (value.Value, error) {
+	if v.Type().Equal(target) {
+		return v, nil
+	}
+	switch v.Type().(type) {
+	case *types.FloatType:
+		tp := v.Type().(*types.FloatType)
+		targetTp := target.(*types.FloatType)
+		if targetTp.Kind < tp.Kind {
+			return nil, fmt.Errorf("failed to perform impliciot cast from %T to %v", v, target)
+		}
+		return s.block.NewFPExt(v, targetTp), nil
+	case *types.IntType:
+		tp := v.Type().(*types.IntType)
+		targetTp := target.(*types.IntType)
+		if targetTp.BitSize < tp.BitSize {
+			return nil, fmt.Errorf("failed to perform impliciot cast from %T to %v", v, target)
+		}
+		return s.block.NewZExt(v, targetTp), nil
+	default:
+		return nil, fmt.Errorf("failed to cast %T to %v", v, target)
+	}
+}
+
 func (n *StructInitNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 	if len(n.ID) > 1 {
 		panic("not impl yet")
@@ -649,7 +753,11 @@ func (n *StructInitNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 			ptr := s.block.NewGetElementPtr(tp.structType, alloca,
 				constant.NewIndex(zero),
 				constant.NewIndex(constant.NewInt(types.I32, int64(fi.idx))))
-			s.block.NewStore(loadIfVar(v, m, f, s), ptr)
+			va, err := implicitCast(loadIfVar(v.calc(m, f, s), s), fi.ftype, s)
+			if err != nil {
+				panic(err)
+			}
+			s.block.NewStore(va, ptr)
 		}
 		return alloca
 	}
@@ -731,7 +839,7 @@ func (n *ArrayInitNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 		ptr := s.block.NewGetElementPtr(atype, alloca,
 			constant.NewIndex(zero),
 			constant.NewIndex(constant.NewInt(types.I32, int64(k))))
-		s.block.NewStore(loadIfVar(v, m, f, s), ptr)
+		s.block.NewStore(loadIfVar(v.calc(m, f, s), s), ptr)
 	}
 	return alloca
 }
