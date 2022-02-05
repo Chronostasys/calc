@@ -12,7 +12,7 @@
 ## Rules
 ```
 program: P->(FN|NL|T)+
-call_func: CF->var LP (RP|(E(COMMA AE)* RP))
+call_func: CF->VC LP (RP|(E(COMMA AE)* RP))
 function: FN->FUNC var FPS TYPE SB
 func_params: FPS->LP (RP|(FP(COMMA FP)* RP))
 func_param: FP->var TYPE
@@ -24,7 +24,7 @@ define: D->VAR var TYPE NL
 all_types: TYPE->MUL*  BTYPE|AT
 basic_types: BTYPE->tp
 array_types: AT->LSB n RSB TYPE
-asssign: A->MUL* var ASSIGN AE
+asssign: A->MUL* VC ASSIGN AE
 all_exp: AE->E|BE|TPE|TVE
 exp: E->F|F((ADD|MIN)F)*
 factor: F->S|S((MUL|DIV)S)*
@@ -42,7 +42,9 @@ continue_statement: CS->CT NL
 struct_def: T->TP var STRUCT LB ((var TYPE NL)|NL)* RB
 struct_init_exp: SI->(var LB ((var COLON AE COMMA)|NL)* RB)
 array_init_exp: AI->AT LB ((AE COMMA)|NL)* RB
-take_ptr_exp: TPE->ESP AI|SI|var
-take_val_exp: TVE->MUL* AI|SI|var|CF
+take_ptr_exp: TPE->ESP AI|SI|VC
+take_val_exp: TVE->MUL* AI|SI|VC|CF
+var_chain: VC->VB (DOT VB)*
+var_block: VB->var (LSB AE RSB)*
 ```
 一般`$`指句尾，但是我这里指任意空格或者制表符

@@ -17,7 +17,7 @@ const (
 	TYPE_RES_VAR     // "var"
 	TYPE_RES_INT     // "int"
 	TYPE_NL          // "\n"
-	TYPE_VAR         // "([a-z]|[A-Z])([a-z]|[A-Z]|[0-9])*(\.([a-z]|[A-Z]|[0-9])*)*"
+	TYPE_VAR         // "([a-z]|[A-Z])([a-z]|[A-Z]|[0-9])*"
 	TYPE_FLOAT       // 小数，x.y这种
 	TYPE_RES_FLOAT   // "float"
 	TYPE_RES_FUNC    // "func"
@@ -56,6 +56,7 @@ const (
 	TYPE_RES_INT64   // "int64"
 	TYPE_RES_FLOAT64 // "float64"
 	TYPE_RES_BYTE    // "byte"
+	TYPE_DOT         // "."
 )
 
 var (
@@ -199,16 +200,16 @@ func Scan() (code int, token string, eos bool) {
 			if end {
 				break
 			}
-			if c == '.' {
-				// handle xxx.XXX
-				i = append(i, c)
-				continue
-			}
-			if c == '[' || c == ']' {
-				// handle indexing (xxx[X])
-				i = append(i, c)
-				continue
-			}
+			// if c == '.' {
+			// 	// handle xxx.XXX
+			// 	i = append(i, c)
+			// 	continue
+			// }
+			// if c == '[' || c == ']' {
+			// 	// handle indexing (xxx[X])
+			// 	i = append(i, c)
+			// 	continue
+			// }
 			if !isLetterOrUnderscore(c) && !isNum(c) {
 				pos--
 				break
@@ -316,6 +317,8 @@ func Scan() (code int, token string, eos bool) {
 		return TYPE_LSB, "[", end
 	case ']':
 		return TYPE_RSB, "]", end
+	case '.':
+		return TYPE_DOT, ".", end
 	}
 	log.Fatalf("unrecognized letter %c in pos %d", ch, pos)
 	return

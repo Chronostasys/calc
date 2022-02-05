@@ -179,10 +179,6 @@ func (n *UnaryNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 	}
 }
 
-type VarNode struct {
-	ID []string
-}
-
 func getElmType(v interface{}) types.Type {
 	return reflect.Indirect(reflect.ValueOf(v).Elem()).FieldByName("ElemType").Interface().(types.Type)
 }
@@ -191,32 +187,50 @@ func getTypeName(v interface{}) string {
 	return reflect.Indirect(reflect.ValueOf(v).Elem()).FieldByName("ElemType").MethodByName("Name").Call([]reflect.Value{})[0].String()
 }
 
-func (n *VarNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
-	vid := n.ID[0]
-	idx := strings.Index(vid, "[")
-	var idxs []string
-	if idx != -1 {
-		vid = vid[:idx]
-		idxs = strings.Split(n.ID[0][idx+1:len(n.ID[0])-1], "][")
-	}
-	va, err := s.searchVar(vid)
-	if err != nil {
-		// TODO module
-		panic(fmt.Errorf("variable %s not defined", n.ID))
-	}
-	if len(idxs) != 0 && len(idxs[0]) != 0 {
-		for _, v := range idxs {
-			id, _ := strconv.Atoi(v)
-			tp := getElmType(va.Type())
-			va = s.block.NewGetElementPtr(tp, va,
-				constant.NewIndex(zero),
-				constant.NewIndex(constant.NewInt(types.I32, int64(id))))
-		}
+type VarBlockNode struct {
+	Token  string
+	Idxs   []Node
+	parent value.Value
+	Next   *VarBlockNode
+}
 
+func (n *VarBlockNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
+	var va value.Value
+	if n.parent == nil {
+		// head node
+		var err error
+		va, err = s.searchVar(n.Token)
+		if err != nil {
+			// TODO module
+			panic(fmt.Errorf("variable %s not defined", n.Token))
+		}
+	} else {
+		va = n.parent
+		s1 := getTypeName(va.Type())
+		tp := globalScope.getStruct(s1)
+		fi := tp.fieldsIdx[n.Token]
+		va = s.block.NewGetElementPtr(tp.structType, va,
+			constant.NewIndex(zero),
+			constant.NewIndex(constant.NewInt(types.I32, int64(fi.idx))))
 	}
-	if len(n.ID) == 1 {
+	idxs := n.Idxs
+	for _, v := range idxs {
+		tp := getElmType(va.Type())
+		idx := loadIfVar(v.calc(m, f, s), s)
+		if _, ok := idx.Type().(*types.IntType); !ok {
+			// TODO indexer reload
+			panic("not impl")
+		}
+		va = s.block.NewGetElementPtr(tp, va,
+			constant.NewIndex(zero),
+			idx,
+		)
+	}
+	if n.Next == nil {
 		return va
 	}
+
+	// dereference the pointer
 	tpptr := va.Type()
 	for {
 		if ptr, ok := tpptr.(*types.PointerType); ok {
@@ -228,16 +242,8 @@ func (n *VarNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 			}
 		}
 	}
-	s1 := getTypeName(va.Type())
-	for _, v := range n.ID[1:] {
-		tp := globalScope.getStruct(s1)
-		fi := tp.fieldsIdx[v]
-		va = s.block.NewGetElementPtr(tp.structType, va,
-			constant.NewIndex(zero),
-			constant.NewIndex(constant.NewInt(types.I32, int64(fi.idx))))
-		s1 = fi.ftype.Name()
-	}
-	return va
+	n.Next.parent = va
+	return n.Next.calc(m, f, s)
 }
 
 // SLNode statement list node
@@ -419,14 +425,11 @@ func (n *FuncNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 
 type CallFuncNode struct {
 	Params []Node
-	ID     string
+	FnNode Node
 }
 
 func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
-	fn, err := s.searchVar(n.ID)
-	if err != nil {
-		panic(err)
-	}
+	fn := n.FnNode.calc(m, f, s)
 	params := []value.Value{}
 	for i, v := range n.Params {
 		tp := fn.(*ir.Func).Params[i].Typ
