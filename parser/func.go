@@ -73,6 +73,7 @@ func function() ast.Node {
 		panic(err)
 	}
 	fn := &ast.FuncNode{ID: id}
+	fn.Generics, _ = genericParams()
 	fn.Params = funcParams()
 	if fn.Params.Ext {
 		fn.ID = fn.Params.Params[0].TP.String() + "." + fn.ID
@@ -96,6 +97,7 @@ func callFunc() ast.Node {
 		panic(err)
 	}
 	fn := &ast.CallFuncNode{FnNode: fnnode}
+	fn.Generics, _ = genericCallParams()
 	_, err = lexer.ScanType(lexer.TYPE_LP)
 	if err != nil {
 		panic(err)
@@ -134,4 +136,68 @@ func returnST() (n ast.Node, err error) {
 		return &ast.RetNode{}, nil
 	}
 	return &ast.RetNode{Exp: allexp()}, nil
+}
+
+func genericParams() (n []string, err error) {
+	ch := lexer.SetCheckpoint()
+	defer func() {
+		if err != nil {
+			lexer.GobackTo(ch)
+		}
+	}()
+	_, err = lexer.ScanType(lexer.TYPE_SM)
+	if err != nil {
+		return nil, err
+	}
+	t, err := lexer.ScanType(lexer.TYPE_VAR)
+	if err != nil {
+		return nil, err
+	}
+	n = append(n, t)
+
+	for {
+		_, err = lexer.ScanType(lexer.TYPE_LG)
+		if err == nil {
+			return n, nil
+		}
+		t, err := lexer.ScanType(lexer.TYPE_VAR)
+		if err != nil {
+			return nil, err
+		}
+		n = append(n, t)
+	}
+}
+
+func genericCallParams() (n []ast.TypeNode, err error) {
+	ch := lexer.SetCheckpoint()
+	defer func() {
+		if err != nil {
+			lexer.GobackTo(ch)
+		}
+	}()
+	_, err = lexer.ScanType(lexer.TYPE_SM)
+	if err != nil {
+		return nil, err
+	}
+	t, err := allTypes()
+	if err != nil {
+		return nil, err
+	}
+	n = append(n, t)
+
+	for {
+		_, err = lexer.ScanType(lexer.TYPE_LG)
+		if err == nil {
+			return n, nil
+		}
+		_, err = lexer.ScanType(lexer.TYPE_COMMA)
+		if err != nil {
+			return nil, err
+		}
+		t, err := allTypes()
+		if err != nil {
+			return nil, err
+		}
+		n = append(n, t)
+	}
 }

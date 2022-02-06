@@ -1,4 +1,5 @@
 func main() int {
+    testBasicGeneric()
     testInterface()
     var a4 byte
     a4 = 1
@@ -51,6 +52,21 @@ func main() int {
     add(1,2)
     return 0
 }
+func testBasicGeneric() int {
+    m := malloc(64)
+    n := unsafecast<*byte,*int64>(m)
+    *n = 100
+    printIntln(*n)
+    free(m)
+    genericTest<int>(100)
+    return 0
+}
+
+
+func genericTest<T>(v T) int {
+    return 0
+}
+
 
 func testInterface() int {
     var a any

@@ -187,8 +187,15 @@ func ScanType(code int) (token string, err error) {
 	return "", ErrTYPE
 }
 
-func PrintPos() {
-	println(pos)
+func PrintCurrent() {
+	start, end := pos-10, pos+10
+	if start < 0 {
+		start = 0
+	}
+	if end > len(input) {
+		end = len(input)
+	}
+	fmt.Println(input[start:end])
 }
 
 func Scan() (code int, token string, eos bool) {

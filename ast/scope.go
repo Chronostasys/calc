@@ -19,6 +19,7 @@ type scope struct {
 	defFuncs          []func(m *ir.Module) error
 	interfaceDefFuncs []func()
 	funcDefFuncs      []func()
+	genericFuncs      map[string]func(m *ir.Module, gens ...TypeNode) value.Value
 }
 
 type typedef struct {
@@ -35,9 +36,10 @@ type field struct {
 
 func newScope(block *ir.Block) *scope {
 	return &scope{
-		vartable: make(map[string]value.Value),
-		block:    block,
-		types:    map[string]*typedef{},
+		vartable:     make(map[string]value.Value),
+		block:        block,
+		types:        map[string]*typedef{},
+		genericFuncs: make(map[string]func(m *ir.Module, gens ...TypeNode) value.Value),
 	}
 }
 
@@ -58,6 +60,14 @@ func (s *scope) addVar(id string, val value.Value) error {
 		return errRedef
 	}
 	s.vartable[id] = val
+	return nil
+}
+func (s *scope) addGeneric(id string, val func(m *ir.Module, gens ...TypeNode) value.Value) error {
+	_, ok := s.genericFuncs[id]
+	if ok {
+		return errRedef
+	}
+	s.genericFuncs[id] = val
 	return nil
 }
 

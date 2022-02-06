@@ -12,8 +12,9 @@
 ## Rules
 ```
 program: P->(FN|NL|T|INTER)+
-call_func: CF->VC GP? LP (RP|(E(COMMA AE)* RP))
-generic_params: GP->LAB TYPE (COMMA TYPE)* RAB
+call_func: CF->VC GPC? LP (RP|(E(COMMA AE)* RP))
+generic_params: GP->SM TYPE (COMMA var)* LG
+generic_call_params: GPC->SM TYPE (COMMA TYPE)* LG
 function: FN->FUNC var GP? FPS TYPE SB
 func_params: FPS->LP (RP|(EFP? FP(COMMA FP)* RP))
 ext_func_param: EFP->THIS FP

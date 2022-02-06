@@ -189,35 +189,35 @@ func define() (n ast.Node, err error) {
 }
 
 func statement() ast.Node {
-	ast, err := continueST()
+	ast, err := runWithCatch2(continueST)
 	if err == nil {
 		return ast
 	}
-	ast, err = breakST()
+	ast, err = runWithCatch2(breakST)
 	if err == nil {
 		return ast
 	}
-	ast, err = forloop()
+	ast, err = runWithCatch2(forloop)
 	if err == nil {
 		return ast
 	}
-	ast, err = defineAndAssign()
+	ast, err = runWithCatch2(defineAndAssign)
 	if err == nil {
 		return ast
 	}
-	ast, err = ifstatement()
+	ast, err = runWithCatch2(ifstatement)
 	if err == nil {
 		return ast
 	}
-	ast, err = assign()
+	ast, err = runWithCatch2(assign)
 	if err == nil {
 		return ast
 	}
-	ast, err = define()
+	ast, err = runWithCatch2(define)
 	if err == nil {
 		return ast
 	}
-	ast, err = returnST()
+	ast, err = runWithCatch2(returnST)
 	if err == nil {
 		return ast
 	}
@@ -775,16 +775,14 @@ func takeValExp() (n ast.Node, err error) {
 	if err == nil {
 		return &ast.TakeValNode{Node: node, Level: level}, nil
 	}
-	ch := lexer.SetCheckpoint()
+
+	node, err = runWithCatch(callFunc)
+	if err == nil {
+		return &ast.TakeValNode{Node: node, Level: level}, nil
+	}
 	node, err = runWithCatch2(varChain)
 	if err != nil {
 		return nil, err
-	}
-	_, err = lexer.ScanType(lexer.TYPE_LP)
-	if err == nil {
-		lexer.GobackTo(ch)
-		node = callFunc()
-		return &ast.TakeValNode{Node: node, Level: level}, nil
 	}
 	return &ast.TakeValNode{Node: node, Level: level}, nil
 
@@ -839,6 +837,13 @@ func Parse(s string) string {
 	return m.String()
 }
 func ParseAST(s string) *ast.ProgramNode {
+	defer func() {
+		err := recover()
+		if err != nil {
+			lexer.PrintCurrent()
+			panic(err)
+		}
+	}()
 	lexer.SetInput(s)
 
 	return program()

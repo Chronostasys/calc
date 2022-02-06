@@ -380,13 +380,47 @@ type FuncNode struct {
 	Statements   Node
 	Fn           *ir.Func
 	DefaultBlock *ir.Block
+	Generics     []string
 }
 
 func (n *FuncNode) AddtoScope() {
+	if len(n.Generics) > 0 {
+		globalScope.addGeneric(n.ID, func(m *ir.Module, gens ...TypeNode) value.Value {
+			sig := fmt.Sprintf("%s<", n.ID)
+			genericMap := map[string]types.Type{}
+			for i, v := range n.Generics {
+				sig += "," + v
+				genericMap[v], _ = gens[i].calc()
+			}
+			sig += ">"
+			fn, err := globalScope.searchVar(sig)
+			if err == nil {
+				return fn
+			}
+			psn := n.Params
+			ps := []*ir.Param{}
+			for _, v := range psn.Params {
+				p := v
+				p.TP.SetGenericMap(genericMap)
+				tp, err := p.TP.calc()
+				if err != nil {
+					panic(err)
+				}
+				param := ir.NewParam(p.ID, tp)
+				ps = append(ps, param)
+			}
+			n.RetType.SetGenericMap(genericMap)
+			tp, err := n.RetType.calc()
+			if err != nil {
+				panic(err)
+			}
+			fn = ir.NewFunc(n.ID, tp, ps...)
+			globalScope.addVar(n.ID, fn)
+			return fn
+		})
+		return
+	}
 	globalScope.funcDefFuncs = append(globalScope.funcDefFuncs, func() {
-		// if strings.Contains(n.ID, ".") {
-		// 	panic("unexpected '.' in funcname")
-		// }
 		psn := n.Params
 		ps := []*ir.Param{}
 		for _, v := range psn.Params {
@@ -446,8 +480,9 @@ func (n *FuncNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 }
 
 type CallFuncNode struct {
-	Params []Node
-	FnNode Node
+	Params   []Node
+	FnNode   Node
+	Generics []TypeNode
 }
 
 func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
@@ -469,9 +504,20 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 	if fnNode != varNode {
 		alloca := deReference(varNode.calc(m, f, s), s)
 		name := strings.Trim(alloca.Type().String(), "*%")
-		fnv, err := s.searchVar(name + "." + fnNode.Token)
-		if err != nil {
-			panic(err)
+		name = name + "." + fnNode.Token
+		var err error
+		var fnv value.Value
+		if len(n.Generics) > 0 {
+			if gfn, ok := globalScope.genericFuncs[name]; ok {
+				fnv = gfn(m, n.Generics...)
+			} else {
+				panic(fmt.Errorf("cannot find generic method %s", name))
+			}
+		} else {
+			fnv, err = s.searchVar(name)
+			if err != nil {
+				panic(err)
+			}
 		}
 		fn = fnv.(*ir.Func)
 		if _, ok := fn.Sig.Params[0].(*types.PointerType); ok {
@@ -489,7 +535,15 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 		params = append(params, alloca)
 		poff = 1
 	} else {
-		fn = fnNode.calc(m, f, s).(*ir.Func)
+		if len(n.Generics) > 0 {
+			if gfn, ok := globalScope.genericFuncs[fnNode.Token]; ok {
+				fn = gfn(m, n.Generics...).(*ir.Func)
+			} else {
+				panic(fmt.Errorf("cannot find generic method %s", fnNode.Token))
+			}
+		} else {
+			fn = fnNode.calc(m, f, s).(*ir.Func)
+		}
 	}
 	for i, v := range n.Params {
 		tp := fn.Params[i+poff].Typ
@@ -874,15 +928,17 @@ func (n *StructInitNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 }
 
 type BasicTypeNode struct {
-	ResType  int
-	CustomTp []string
-	PtrLevel int
+	ResType    int
+	CustomTp   []string
+	PtrLevel   int
+	genericMap map[string]types.Type
 }
 
 type TypeNode interface {
 	calc() (types.Type, error)
 	SetPtrLevel(int)
 	String() string
+	SetGenericMap(map[string]types.Type)
 }
 
 type ArrayTypeNode struct {
@@ -896,6 +952,12 @@ func (v *ArrayTypeNode) SetPtrLevel(i int) {
 }
 func (v *BasicTypeNode) SetPtrLevel(i int) {
 	v.PtrLevel = i
+}
+func (v *ArrayTypeNode) SetGenericMap(m map[string]types.Type) {
+	v.ElmType.SetGenericMap(m)
+}
+func (v *BasicTypeNode) SetGenericMap(m map[string]types.Type) {
+	v.genericMap = m
 }
 func (v *ArrayTypeNode) String() string {
 	t, err := v.calc()
@@ -941,6 +1003,8 @@ func (v *BasicTypeNode) calc() (types.Type, error) {
 					name:           v.CustomTp[0],
 				}
 
+			} else if v.genericMap != nil && v.genericMap[v.CustomTp[0]] != nil {
+				s = v.genericMap[v.CustomTp[0]]
 			} else {
 				st.TypeName = v.CustomTp[0]
 				s = st
