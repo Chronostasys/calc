@@ -12,9 +12,10 @@
 ## Rules
 ```
 program: P->(FN|NL|T|INTER)+
-call_func: CF->VC LP (RP|(E(COMMA AE)* RP))
-function: FN->FUNC var FPS TYPE SB
-func_params: FPS->LP (RP|(($|EFP) FP(COMMA FP)* RP))
+call_func: CF->VC GP? LP (RP|(E(COMMA AE)* RP))
+generic_params: GP->LAB TYPE (COMMA TYPE)* RAB
+function: FN->FUNC var GP? FPS TYPE SB
+func_params: FPS->LP (RP|(EFP? FP(COMMA FP)* RP))
 ext_func_param: EFP->THIS FP
 func_param: FP->var TYPE
 statemnt_list: SL->S|(S SL)
@@ -36,8 +37,8 @@ boolean: B->TRUE|FALSE|C|(NOT B)|(LP BE RP)|TVE
 compare_exp: C->exp (EQ|NEQ|LG|SM|LEQ|SEQ) exp
 statement_block:SB->LB SL RB NL
 def_ass: DA->var DEFA exp|VAR var ASSIGN exp
-if_st: I->IF BE SB($|(EL SB|I))
-for_st: F->FOR (DA|$ SEMI BE SEMI A|$)|$ SB
+if_st: I->IF BE SB((EL SB|I)?)
+for_st: F->FOR (DA? SEMI BE SEMI A?)? SB
 break_statement: BS->BR NL
 continue_statement: CS->CT NL
 struct_def: T->TP var STRUCT LB ((var TYPE NL)|NL)* RB
@@ -49,4 +50,3 @@ var_chain: VC->VB (DOT VB)*
 var_block: VB->var (LSB AE RSB)*
 interface_def: INTER->TP var INTERFACE LB ((var FPS TYPE NL)|NL)* RB
 ```
-一般`$`指句尾，但是我这里指任意空格或者制表符
