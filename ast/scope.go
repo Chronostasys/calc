@@ -19,7 +19,8 @@ type scope struct {
 	defFuncs          []func(m *ir.Module) error
 	interfaceDefFuncs []func()
 	funcDefFuncs      []func()
-	genericFuncs      map[string]func(m *ir.Module, gens ...TypeNode) value.Value
+	genericFuncs      map[string]func(m *ir.Module, s *scope, gens ...TypeNode) value.Value
+	genericMap        map[string]types.Type
 }
 
 type typedef struct {
@@ -39,7 +40,8 @@ func newScope(block *ir.Block) *scope {
 		vartable:     make(map[string]value.Value),
 		block:        block,
 		types:        map[string]*typedef{},
-		genericFuncs: make(map[string]func(m *ir.Module, gens ...TypeNode) value.Value),
+		genericFuncs: make(map[string]func(m *ir.Module, s *scope, gens ...TypeNode) value.Value),
+		genericMap:   make(map[string]types.Type),
 	}
 }
 
@@ -48,6 +50,7 @@ func (s *scope) addChildScope(block *ir.Block) *scope {
 	child.parent = s
 	child.continueBlock = s.continueBlock
 	child.breakBlock = s.breakBlock
+	// child.genericMap = s.genericMap
 	s.childrenScopes = append(s.childrenScopes, child)
 	return child
 }
@@ -62,7 +65,7 @@ func (s *scope) addVar(id string, val value.Value) error {
 	s.vartable[id] = val
 	return nil
 }
-func (s *scope) addGeneric(id string, val func(m *ir.Module, gens ...TypeNode) value.Value) error {
+func (s *scope) addGeneric(id string, val func(m *ir.Module, s *scope, gens ...TypeNode) value.Value) error {
 	_, ok := s.genericFuncs[id]
 	if ok {
 		return errRedef
@@ -98,5 +101,31 @@ func (s *scope) addStruct(id string, structT *typedef) error {
 }
 
 func (s *scope) getStruct(id string) *typedef {
-	return s.types[id]
+	scope := s
+	for {
+		if scope == nil {
+			break
+		}
+		val, ok := scope.types[id]
+		if ok {
+			return val
+		}
+		scope = scope.parent
+	}
+	return nil
+}
+
+func (s *scope) getGenericType(id string) types.Type {
+	scope := s
+	for {
+		if scope == nil {
+			break
+		}
+		val, ok := scope.genericMap[id]
+		if ok {
+			return val
+		}
+		scope = scope.parent
+	}
+	return nil
 }

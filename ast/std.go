@@ -47,10 +47,10 @@ func AddSTDFunc(m *ir.Module) {
 	f = m.NewFunc("free", types.Void, p)
 	globalScope.addVar(f.Name(), f)
 
-	globalScope.addGeneric("unsafecast", func(m *ir.Module, gens ...TypeNode) value.Value {
-		fnname := fmt.Sprintf("unsafecast<%s,%s>", gens[0].String(), gens[1].String())
-		tpin, _ := gens[0].calc()
-		tpout, _ := gens[1].calc()
+	globalScope.addGeneric("unsafecast", func(m *ir.Module, s *scope, gens ...TypeNode) value.Value {
+		tpin, _ := gens[0].calc(s)
+		tpout, _ := gens[1].calc(s)
+		fnname := fmt.Sprintf("unsafecast<%s,%s>", tpin.String(), tpout.String())
 		fn, err := globalScope.searchVar(fnname)
 		if err != nil {
 			p = ir.NewParam("i", tpin)
@@ -58,6 +58,24 @@ func AddSTDFunc(m *ir.Module) {
 			b = f.NewBlock("")
 			cast := b.NewBitCast(p, tpout)
 			b.NewRet(cast)
+			globalScope.addVar(f.Name(), f)
+			fn = f
+		}
+		return fn
+
+	})
+
+	// sizeof see https://stackoverflow.com/questions/14608250/how-can-i-find-the-size-of-a-type
+	globalScope.addGeneric("sizeof", func(m *ir.Module, s *scope, gens ...TypeNode) value.Value {
+		tp, _ := gens[0].calc(s)
+		fnname := fmt.Sprintf("sizeof<%s>", tp.String())
+		fn, err := globalScope.searchVar(fnname)
+		if err != nil {
+			f = m.NewFunc(fnname, lexer.DefaultIntType())
+			b = f.NewBlock("")
+			sizePtr := b.NewGetElementPtr(tp, constant.NewNull(types.NewPointer(tp)), constant.NewInt(lexer.DefaultIntType(), 1))
+			size := b.NewPtrToInt(sizePtr, lexer.DefaultIntType())
+			b.NewRet(size)
 			globalScope.addVar(f.Name(), f)
 			fn = f
 		}
