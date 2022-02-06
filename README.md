@@ -14,7 +14,8 @@
 program: P->(FN|NL|T)+
 call_func: CF->VC LP (RP|(E(COMMA AE)* RP))
 function: FN->FUNC var FPS TYPE SB
-func_params: FPS->LP (RP|(FP(COMMA FP)* RP))
+func_params: FPS->LP (RP|(($|EFP) FP(COMMA FP)* RP))
+ext_func_param: EFP->THIS FP
 func_param: FP->var TYPE
 statemnt_list: SL->S|(S SL)
 statement: S->CS|BS|EM|D|A|R|(CF NL)|I|(DA NL)

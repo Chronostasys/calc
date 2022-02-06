@@ -231,6 +231,12 @@ func (n *VarBlockNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 	}
 
 	// dereference the pointer
+	va = deReference(va, s)
+	n.Next.parent = va
+	return n.Next.calc(m, f, s)
+}
+
+func deReference(va value.Value, s *scope) value.Value {
 	tpptr := va.Type()
 	for {
 		if ptr, ok := tpptr.(*types.PointerType); ok {
@@ -242,8 +248,7 @@ func (n *VarBlockNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 			}
 		}
 	}
-	n.Next.parent = va
-	return n.Next.calc(m, f, s)
+	return va
 }
 
 // SLNode statement list node
@@ -348,7 +353,8 @@ func (n *ParamNode) V() value.Value {
 }
 
 type ParamsNode struct {
-	Params []Node
+	Params []*ParamNode
+	Ext    bool
 }
 
 func (n *ParamsNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
@@ -357,7 +363,7 @@ func (n *ParamsNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 }
 
 type FuncNode struct {
-	Params       Node
+	Params       *ParamsNode
 	ID           string
 	RetType      TypeNode
 	Statements   Node
@@ -367,13 +373,13 @@ type FuncNode struct {
 
 func (n *FuncNode) AddtoScope() {
 	globalScope.funcDefFuncs = append(globalScope.funcDefFuncs, func() {
-		if strings.Contains(n.ID, ".") {
-			panic("unexpected '.' in funcname")
-		}
-		psn := n.Params.(*ParamsNode)
+		// if strings.Contains(n.ID, ".") {
+		// 	panic("unexpected '.' in funcname")
+		// }
+		psn := n.Params
 		ps := []*ir.Param{}
 		for _, v := range psn.Params {
-			p := v.(*ParamNode)
+			p := v
 			tp, err := p.TP.calc()
 			if err != nil {
 				panic(err)
@@ -394,7 +400,7 @@ func (n *FuncNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 	// if err == nil {
 	// 	panic(fmt.Sprintf("re defination of func %s", n.ID))
 	// }
-	psn := n.Params.(*ParamsNode)
+	psn := n.Params
 	ps := []*ir.Param{}
 	childScope := s.addChildScope(nil)
 	for _, v := range psn.Params {
@@ -414,7 +420,7 @@ func (n *FuncNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 	for i, v := range ps {
 		ptr := b.NewAlloca(v.Type())
 		b.NewStore(v, ptr)
-		childScope.addVar(psn.Params[i].(*ParamNode).ID, ptr)
+		childScope.addVar(psn.Params[i].ID, ptr)
 	}
 
 	s.addVar(n.ID, n.Fn)
@@ -429,10 +435,48 @@ type CallFuncNode struct {
 }
 
 func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
-	fn := n.FnNode.calc(m, f, s)
+	varNode := n.FnNode.(*VarBlockNode)
+	fnNode := varNode
+	prev := fnNode
+	for {
+		if fnNode.Next == nil {
+			prev.Next = nil
+			break
+		}
+		prev = fnNode
+		fnNode = fnNode.Next
+	}
+	var fn *ir.Func
+
 	params := []value.Value{}
+	poff := 0
+	if fnNode != varNode {
+		alloca := deReference(varNode.calc(m, f, s), s)
+		name := strings.Trim(alloca.Type().String(), "*%")
+		fnv, err := s.searchVar(name + "." + fnNode.Token)
+		if err != nil {
+			panic(err)
+		}
+		fn = fnv.(*ir.Func)
+		if _, ok := fn.Sig.Params[0].(*types.PointerType); ok {
+			for {
+				if fn.Sig.Params[0].Equal(alloca.Type()) {
+					break
+				}
+				alloca1 := s.block.NewAlloca(alloca.Type())
+				s.block.NewStore(alloca, alloca1)
+				alloca = alloca1
+			}
+		} else {
+			alloca = loadIfVar(alloca, s)
+		}
+		params = append(params, alloca)
+		poff = 1
+	} else {
+		fn = fnNode.calc(m, f, s).(*ir.Func)
+	}
 	for i, v := range n.Params {
-		tp := fn.(*ir.Func).Params[i].Typ
+		tp := fn.Params[i+poff].Typ
 		p, err := implicitCast(loadIfVar(v.calc(m, f, s), s), tp, s)
 		if err != nil {
 			panic(err)
@@ -453,6 +497,10 @@ type RetNode struct {
 }
 
 func (n *RetNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
+	if n.Exp == nil {
+		s.block.NewRet(nil)
+		return zero
+	}
 	v, err := implicitCast(loadIfVar(n.Exp.calc(m, f, s), s), f.Sig.RetType, s)
 	if err != nil {
 		panic(err)
@@ -778,6 +826,7 @@ type BasicTypeNode struct {
 type TypeNode interface {
 	calc() (types.Type, error)
 	SetPtrLevel(int)
+	String() string
 }
 
 type ArrayTypeNode struct {
@@ -791,6 +840,22 @@ func (v *ArrayTypeNode) SetPtrLevel(i int) {
 }
 func (v *BasicTypeNode) SetPtrLevel(i int) {
 	v.PtrLevel = i
+}
+func (v *ArrayTypeNode) String() string {
+	t, err := v.calc()
+	if err != nil {
+		panic(err)
+	}
+	tp := strings.Trim(t.String(), "%*")
+	return tp
+}
+func (v *BasicTypeNode) String() string {
+	t, err := v.calc()
+	if err != nil {
+		panic(err)
+	}
+	tp := strings.Trim(t.String(), "%*")
+	return tp
 }
 func (v *ArrayTypeNode) calc() (types.Type, error) {
 	elm, err := v.ElmType.calc()
@@ -811,11 +876,12 @@ func (v *BasicTypeNode) calc() (types.Type, error) {
 		s = typedic[v.ResType]
 	} else {
 		if len(v.CustomTp) == 1 {
-			st := globalScope.getStruct(v.CustomTp[0])
+			st := types.NewStruct()
+			st.TypeName = v.CustomTp[0]
 			if st == nil {
 				return nil, errVarNotFound
 			}
-			s = st.structType
+			s = st
 		} else {
 			panic("not impl")
 		}

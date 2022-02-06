@@ -57,6 +57,7 @@ const (
 	TYPE_RES_FLOAT64 // "float64"
 	TYPE_RES_BYTE    // "byte"
 	TYPE_DOT         // "."
+	TYPE_RES_THIS    // "this"
 )
 
 var (
@@ -84,6 +85,7 @@ var (
 		"float32":  TYPE_RES_FLOAT32,
 		"float64":  TYPE_RES_FLOAT64,
 		"byte":     TYPE_RES_BYTE,
+		"this":     TYPE_RES_THIS,
 	}
 	reservedTypes = map[string]int{
 		"int":     TYPE_RES_INT,
