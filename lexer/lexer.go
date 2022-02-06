@@ -6,86 +6,88 @@ import (
 )
 
 const (
-	TYPE_INT         = iota
-	TYPE_PLUS        // "+"
-	TYPE_SUB         // "-"
-	TYPE_MUL         // "*"
-	TYPE_DIV         // "/"
-	TYPE_LP          // "("
-	TYPE_RP          // ")"
-	TYPE_ASSIGN      // "="
-	TYPE_RES_VAR     // "var"
-	TYPE_RES_INT     // "int"
-	TYPE_NL          // "\n"
-	TYPE_VAR         // "([a-z]|[A-Z])([a-z]|[A-Z]|[0-9])*"
-	TYPE_FLOAT       // 小数，x.y这种
-	TYPE_RES_FLOAT   // "float"
-	TYPE_RES_FUNC    // "func"
-	TYPE_LB          // "{"
-	TYPE_RB          // "}"
-	TYPE_COMMA       // ","
-	TYPE_RES_RET     // "return"
-	TYPE_RES_VOID    // "void"
-	TYPE_RES_TRUE    // "true"
-	TYPE_RES_FALSE   // "false"
-	TYPE_AND         // "&&"
-	TYPE_OR          // "||"
-	TYPE_EQ          // "=="
-	TYPE_RES_BOOL    // "bool"
-	TYPE_LG          // ">"
-	TYPE_SM          // "<"
-	TYPE_LEQ         // ">="
-	TYPE_SEQ         // "<="
-	TYPE_NOT         // "!"
-	TYPE_NEQ         // "!="
-	TYPE_RES_IF      // "if"
-	TYPE_RES_EL      // "else"
-	TYPE_DEAS        // ":="
-	TYPE_RES_FOR     // "for"
-	TYPE_SEMI        // ";"
-	TYPE_RES_BR      // "break"
-	TYPE_RES_CO      // "continue"
-	TYPE_RES_TYPE    // "type"
-	TYPE_RES_STRUCT  // "struct"
-	TYPE_COLON       // ":"
-	TYPE_LSB         // "["
-	TYPE_RSB         // "]"
-	TYPE_ESP         // "&"
-	TYPE_RES_INT32   // "int32"
-	TYPE_RES_FLOAT32 // "float32"
-	TYPE_RES_INT64   // "int64"
-	TYPE_RES_FLOAT64 // "float64"
-	TYPE_RES_BYTE    // "byte"
-	TYPE_DOT         // "."
-	TYPE_RES_THIS    // "this"
+	TYPE_INT           = iota
+	TYPE_PLUS          // "+"
+	TYPE_SUB           // "-"
+	TYPE_MUL           // "*"
+	TYPE_DIV           // "/"
+	TYPE_LP            // "("
+	TYPE_RP            // ")"
+	TYPE_ASSIGN        // "="
+	TYPE_RES_VAR       // "var"
+	TYPE_RES_INT       // "int"
+	TYPE_NL            // "\n"
+	TYPE_VAR           // "([a-z]|[A-Z])([a-z]|[A-Z]|[0-9])*"
+	TYPE_FLOAT         // 小数，x.y这种
+	TYPE_RES_FLOAT     // "float"
+	TYPE_RES_FUNC      // "func"
+	TYPE_LB            // "{"
+	TYPE_RB            // "}"
+	TYPE_COMMA         // ","
+	TYPE_RES_RET       // "return"
+	TYPE_RES_VOID      // "void"
+	TYPE_RES_TRUE      // "true"
+	TYPE_RES_FALSE     // "false"
+	TYPE_AND           // "&&"
+	TYPE_OR            // "||"
+	TYPE_EQ            // "=="
+	TYPE_RES_BOOL      // "bool"
+	TYPE_LG            // ">"
+	TYPE_SM            // "<"
+	TYPE_LEQ           // ">="
+	TYPE_SEQ           // "<="
+	TYPE_NOT           // "!"
+	TYPE_NEQ           // "!="
+	TYPE_RES_IF        // "if"
+	TYPE_RES_EL        // "else"
+	TYPE_DEAS          // ":="
+	TYPE_RES_FOR       // "for"
+	TYPE_SEMI          // ";"
+	TYPE_RES_BR        // "break"
+	TYPE_RES_CO        // "continue"
+	TYPE_RES_TYPE      // "type"
+	TYPE_RES_STRUCT    // "struct"
+	TYPE_COLON         // ":"
+	TYPE_LSB           // "["
+	TYPE_RSB           // "]"
+	TYPE_ESP           // "&"
+	TYPE_RES_INT32     // "int32"
+	TYPE_RES_FLOAT32   // "float32"
+	TYPE_RES_INT64     // "int64"
+	TYPE_RES_FLOAT64   // "float64"
+	TYPE_RES_BYTE      // "byte"
+	TYPE_DOT           // "."
+	TYPE_RES_THIS      // "this"
+	TYPE_RES_INTERFACE // "interface"
 )
 
 var (
 	input    string
 	pos      int
 	reserved = map[string]int{
-		"var":      TYPE_RES_VAR,
-		"int":      TYPE_RES_INT,
-		"float":    TYPE_RES_FLOAT,
-		"func":     TYPE_RES_FUNC,
-		"return":   TYPE_RES_RET,
-		"void":     TYPE_RES_VOID,
-		"true":     TYPE_RES_TRUE,
-		"false":    TYPE_RES_FALSE,
-		"bool":     TYPE_RES_BOOL,
-		"if":       TYPE_RES_IF,
-		"else":     TYPE_RES_EL,
-		"for":      TYPE_RES_FOR,
-		"break":    TYPE_RES_BR,
-		"continue": TYPE_RES_CO,
-		"type":     TYPE_RES_TYPE,
-		"struct":   TYPE_RES_STRUCT,
-		"int32":    TYPE_RES_INT32,
-		"int64":    TYPE_RES_INT64,
-		"float32":  TYPE_RES_FLOAT32,
-		"float64":  TYPE_RES_FLOAT64,
-		"byte":     TYPE_RES_BYTE,
-		"this":     TYPE_RES_THIS,
+		"var":       TYPE_RES_VAR,
+		"int":       TYPE_RES_INT,
+		"float":     TYPE_RES_FLOAT,
+		"func":      TYPE_RES_FUNC,
+		"return":    TYPE_RES_RET,
+		"void":      TYPE_RES_VOID,
+		"true":      TYPE_RES_TRUE,
+		"false":     TYPE_RES_FALSE,
+		"bool":      TYPE_RES_BOOL,
+		"if":        TYPE_RES_IF,
+		"else":      TYPE_RES_EL,
+		"for":       TYPE_RES_FOR,
+		"break":     TYPE_RES_BR,
+		"continue":  TYPE_RES_CO,
+		"type":      TYPE_RES_TYPE,
+		"struct":    TYPE_RES_STRUCT,
+		"int32":     TYPE_RES_INT32,
+		"int64":     TYPE_RES_INT64,
+		"float32":   TYPE_RES_FLOAT32,
+		"float64":   TYPE_RES_FLOAT64,
+		"byte":      TYPE_RES_BYTE,
+		"this":      TYPE_RES_THIS,
+		"interface": TYPE_RES_INTERFACE,
 	}
 	reservedTypes = map[string]int{
 		"int":     TYPE_RES_INT,

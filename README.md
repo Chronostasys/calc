@@ -11,7 +11,7 @@
 - golang 1.17.1
 ## Rules
 ```
-program: P->(FN|NL|T)+
+program: P->(FN|NL|T|INTER)+
 call_func: CF->VC LP (RP|(E(COMMA AE)* RP))
 function: FN->FUNC var FPS TYPE SB
 func_params: FPS->LP (RP|(($|EFP) FP(COMMA FP)* RP))
@@ -47,5 +47,6 @@ take_ptr_exp: TPE->ESP AI|SI|VC
 take_val_exp: TVE->MUL* AI|SI|VC|CF
 var_chain: VC->VB (DOT VB)*
 var_block: VB->var (LSB AE RSB)*
+interface_def: INTER->TP var INTERFACE LB ((var FPS TYPE NL)|NL)* RB
 ```
 一般`$`指句尾，但是我这里指任意空格或者制表符

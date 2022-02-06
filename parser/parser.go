@@ -261,12 +261,18 @@ func program() *ast.ProgramNode {
 		if eos {
 			break
 		}
-		ast, err := structDef()
+		ast, err := runWithCatch2(structDef)
 		if err == nil {
 			n.Children = append(n.Children, ast)
-		} else {
-			n.Children = append(n.Children, function())
+			continue
 		}
+		ast, err = runWithCatch2(interfaceDef)
+		if err == nil {
+			n.Children = append(n.Children, ast)
+			continue
+		}
+
+		n.Children = append(n.Children, function())
 	}
 	return n
 }
@@ -557,49 +563,6 @@ func forloop() (n ast.Node, err error) {
 		return nil, err
 	}
 	return fn, nil
-}
-
-func structDef() (n ast.Node, err error) {
-	_, err = lexer.ScanType(lexer.TYPE_RES_TYPE)
-	if err != nil {
-		return nil, err
-	}
-	t, err := lexer.ScanType(lexer.TYPE_VAR)
-	if err != nil {
-		return nil, err
-	}
-	if strings.Contains(t, ".") {
-		panic("unexpected '.'")
-	}
-	fields := make(map[string]ast.TypeNode)
-	_, err = lexer.ScanType(lexer.TYPE_RES_STRUCT)
-	if err != nil {
-		return nil, err
-	}
-	_, err = lexer.ScanType(lexer.TYPE_LB)
-	if err != nil {
-		return nil, err
-	}
-	for {
-		_, err = lexer.ScanType(lexer.TYPE_RB)
-		if err == nil {
-			break
-		}
-		t, err := lexer.ScanType(lexer.TYPE_VAR)
-		if err != nil {
-			empty()
-			continue
-		}
-		if strings.Contains(t, ".") {
-			panic("unexpected '.'")
-		}
-		fields[t], err = allTypes()
-		if err != nil {
-			panic(err)
-		}
-		empty()
-	}
-	return ast.NewStructDefNode(t, fields), nil
 }
 
 func allTypes() (n ast.TypeNode, err error) {

@@ -138,9 +138,15 @@ func (n *BinNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 		return s.block.NewSub(l, r)
 	case lexer.TYPE_ASSIGN:
 		val := rawL
-		// if _, ok := n.Right.(*NumNode); ok {
-
-		// }
+		r, err := implicitCast(r, l.Type(), s)
+		if err != nil {
+			panic(err)
+		}
+		if _, ok := l.Type().(*interf); ok {
+			store := &ir.InstStore{Src: r, Dst: val}
+			s.block.Insts = append(s.block.Insts, store)
+			return val
+		}
 		s.block.NewStore(r, val)
 		return val
 	default:
@@ -244,6 +250,12 @@ func deReference(va value.Value, s *scope) value.Value {
 			if _, ok := tpptr.(*types.PointerType); ok {
 				va = s.block.NewLoad(tpptr, va)
 			} else {
+				if inter, ok := tpptr.(*interf); ok {
+					// interface type, return it's real type
+					realTP := inter.innerType
+
+					return s.block.NewIntToPtr(s.block.NewLoad(tpptr, va), types.NewPointer(realTP))
+				}
 				break
 			}
 		}
@@ -272,6 +284,10 @@ func (n *ProgramNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 	return zero
 }
 func (n *ProgramNode) Emit(m *ir.Module) value.Value {
+	// define all interfaces
+	for _, v := range globalScope.interfaceDefFuncs {
+		v()
+	}
 
 	// define all structs
 	for {
@@ -315,14 +331,12 @@ func (n *DefineNode) V() value.Value {
 }
 
 func (n *DefineNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
-	if strings.Contains(n.ID, ".") {
-		panic("unexpected '.' in varname")
-	}
 	tp, err := n.TP.calc()
 	if err != nil {
 		panic(err)
 	}
 	if f == nil {
+		// TODO global
 		n.Val = m.NewGlobal(n.ID, tp)
 	} else {
 		n.Val = s.block.NewAlloca(tp)
@@ -338,9 +352,6 @@ type ParamNode struct {
 }
 
 func (n *ParamNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
-	if strings.Contains(n.ID, ".") {
-		panic("unexpected '.' in paramname")
-	}
 	tp, err := n.TP.calc()
 	if err != nil {
 		panic(err)
@@ -419,7 +430,12 @@ func (n *FuncNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 	n.DefaultBlock = b
 	for i, v := range ps {
 		ptr := b.NewAlloca(v.Type())
-		b.NewStore(v, ptr)
+		if _, ok := v.Type().(*interf); ok {
+			store := &ir.InstStore{Src: v, Dst: ptr}
+			b.Insts = append(b.Insts, store)
+		} else {
+			b.NewStore(v, ptr)
+		}
 		childScope.addVar(psn.Params[i].ID, ptr)
 	}
 
@@ -776,6 +792,11 @@ func implicitCast(v value.Value, target types.Type, s *scope) (value.Value, erro
 	if v.Type().Equal(target) {
 		return v, nil
 	}
+	if t, ok := target.(*interf); ok {
+		if v.Type().Equal(t.IntType) {
+			return v, nil
+		}
+	}
 	switch v.Type().(type) {
 	case *types.FloatType:
 		tp := v.Type().(*types.FloatType)
@@ -791,8 +812,43 @@ func implicitCast(v value.Value, target types.Type, s *scope) (value.Value, erro
 			return nil, fmt.Errorf("failed to perform impliciot cast from %T to %v", v, target)
 		}
 		return s.block.NewZExt(v, targetTp), nil
+	case *types.PointerType:
+		v = deReference(v, s)
+		tp, ok := target.(*interf)
+		src := strings.Trim(v.Type().String(), "%*")
+		if ok { // turn to interface
+			for k, v1 := range tp.interfaceFuncs {
+				fnv, err := s.searchVar(src + "." + k)
+				if err != nil {
+					goto FAIL
+				}
+				fn := fnv.(*ir.Func)
+				for i, u := range v1.Params.Params {
+					ptp, err := u.TP.calc()
+					if err != nil {
+						goto FAIL
+					}
+					if !fn.Sig.Params[i+1].Equal(ptp) {
+						goto FAIL
+					}
+				}
+				rtp, err := v1.RetType.calc()
+				if err != nil {
+					goto FAIL
+				}
+				if !fn.Sig.RetType.Equal(rtp) {
+					goto FAIL
+				}
+			}
+			// cast
+			inst := s.block.NewPtrToInt(v, lexer.DefaultIntType())
+			tp.innerType = v.Type().(*types.PointerType).ElemType
+			return inst, nil
+		}
+	FAIL:
+		return nil, fmt.Errorf("failed to cast %v to interface %v", v, tp.name)
 	default:
-		return nil, fmt.Errorf("failed to cast %T to %v", v, target)
+		return nil, fmt.Errorf("failed to cast %v to %v", v, target)
 	}
 }
 
@@ -877,11 +933,18 @@ func (v *BasicTypeNode) calc() (types.Type, error) {
 	} else {
 		if len(v.CustomTp) == 1 {
 			st := types.NewStruct()
-			st.TypeName = v.CustomTp[0]
-			if st == nil {
-				return nil, errVarNotFound
+			def := globalScope.getStruct(v.CustomTp[0])
+			if def != nil && def.interf {
+				s = &interf{
+					IntType:        lexer.DefaultIntType(),
+					interfaceFuncs: def.funcs,
+					name:           v.CustomTp[0],
+				}
+
+			} else {
+				st.TypeName = v.CustomTp[0]
+				s = st
 			}
-			s = st
 		} else {
 			panic("not impl")
 		}
@@ -940,4 +1003,26 @@ func (n *TakeValNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 	}
 	return v
 
+}
+
+type interfaceDefNode struct {
+	id    string
+	funcs map[string]*FuncNode
+}
+
+func NewSInterfaceDefNode(id string, funcsMap map[string]*FuncNode) Node {
+	n := &interfaceDefNode{id: id, funcs: funcsMap}
+	defFunc := func() {
+		globalScope.addStruct(n.id, &typedef{
+			interf: true,
+			funcs:  funcsMap,
+		})
+	}
+	globalScope.interfaceDefFuncs = append(globalScope.interfaceDefFuncs, defFunc)
+	return n
+
+}
+
+func (n *interfaceDefNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
+	return zero
 }

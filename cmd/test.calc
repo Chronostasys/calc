@@ -1,4 +1,5 @@
 func main() int {
+    testInterface()
     var a4 byte
     a4 = 1
     printIntln(a4)
@@ -51,6 +52,29 @@ func main() int {
     return 0
 }
 
+func testInterface() int {
+    var a any
+    b := 1
+    a = &b
+    var c adder
+    c = &b
+    a = c
+    printIntln(c.add())
+    a.add()
+    return 0
+}
+func add(this x any) int {
+    return 0
+}
+func add(this a *int) int {
+    return *a
+}
+type any interface {
+
+}
+type adder interface {
+    add() int
+}
 
 
 func Add1(v **int) int {

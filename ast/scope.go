@@ -9,20 +9,23 @@ import (
 )
 
 type scope struct {
-	parent         *scope
-	vartable       map[string]value.Value
-	childrenScopes []*scope
-	block          *ir.Block
-	continueBlock  *ir.Block
-	breakBlock     *ir.Block
-	types          map[string]*typedef
-	defFuncs       []func(m *ir.Module) error
-	funcDefFuncs   []func()
+	parent            *scope
+	vartable          map[string]value.Value
+	childrenScopes    []*scope
+	block             *ir.Block
+	continueBlock     *ir.Block
+	breakBlock        *ir.Block
+	types             map[string]*typedef
+	defFuncs          []func(m *ir.Module) error
+	interfaceDefFuncs []func()
+	funcDefFuncs      []func()
 }
 
 type typedef struct {
 	structType types.Type
 	fieldsIdx  map[string]*field
+	interf     bool
+	funcs      map[string]*FuncNode
 }
 
 type field struct {
