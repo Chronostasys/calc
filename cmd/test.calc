@@ -1,7 +1,9 @@
 func main() int {
+    AAA()
     t := heapalloc<Test>()
     t.A = 888
     printIntln(t.A)
+    heapfree<Test>(t)
     testBasicGeneric()
     testInterface()
     var a4 byte
@@ -64,7 +66,14 @@ func testBasicGeneric() int {
     genericTest<int>(100)
     return 0
 }
-
+func AAA() void {
+    printIntln(997)
+    return
+}
+func heapfree<T>(t *T) void {
+    free(unsafecast<*T,*byte>(t))
+    return
+}
 
 func genericTest<T>(v T) int {
     return 0

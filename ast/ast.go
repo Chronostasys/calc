@@ -25,6 +25,7 @@ var (
 		lexer.TYPE_RES_FLOAT64: types.Double,
 		lexer.TYPE_RES_INT64:   types.I64,
 		lexer.TYPE_RES_BYTE:    types.I8,
+		lexer.TYPE_RES_VOID:    types.Void,
 	}
 )
 
