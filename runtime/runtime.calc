@@ -1,8 +1,9 @@
 func heapalloc<T>() *T {
-    return unsafecast<*byte,*T>(malloc(sizeof<T>()))
+    return unsafecast<*byte,*T>(malloc(sizeofwraped<T>()))
 }
 
 func heapfree<T>(t *T) void {
     free(unsafecast<*T,*byte>(t))
     return
 }
+

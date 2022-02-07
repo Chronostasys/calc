@@ -10,7 +10,7 @@ import (
 
 type scope struct {
 	parent            *scope
-	vartable          map[string]value.Value
+	vartable          map[string]*variable
 	childrenScopes    []*scope
 	block             *ir.Block
 	continueBlock     *ir.Block
@@ -21,6 +21,11 @@ type scope struct {
 	funcDefFuncs      []func()
 	genericFuncs      map[string]func(m *ir.Module, s *scope, gens ...TypeNode) value.Value
 	genericMap        map[string]types.Type
+}
+
+type variable struct {
+	v    value.Value
+	heap bool
 }
 
 type typedef struct {
@@ -37,7 +42,7 @@ type field struct {
 
 func newScope(block *ir.Block) *scope {
 	return &scope{
-		vartable:     make(map[string]value.Value),
+		vartable:     make(map[string]*variable),
 		block:        block,
 		types:        map[string]*typedef{},
 		genericFuncs: make(map[string]func(m *ir.Module, s *scope, gens ...TypeNode) value.Value),
@@ -57,7 +62,7 @@ func (s *scope) addChildScope(block *ir.Block) *scope {
 
 var errRedef = fmt.Errorf("variable redefination in same scope")
 
-func (s *scope) addVar(id string, val value.Value) error {
+func (s *scope) addVar(id string, val *variable) error {
 	_, ok := s.vartable[id]
 	if ok {
 		return errRedef
@@ -76,7 +81,7 @@ func (s *scope) addGeneric(id string, val func(m *ir.Module, s *scope, gens ...T
 
 var errVarNotFound = fmt.Errorf("variable defination not found")
 
-func (s *scope) searchVar(id string) (value.Value, error) {
+func (s *scope) searchVar(id string) (*variable, error) {
 	scope := s
 	for {
 		if scope == nil {

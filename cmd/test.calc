@@ -5,9 +5,9 @@ func main() int {
     printIntln(t.A)
     heapfree<Test>(t)
     testBasicGeneric()
-    testInterface()
     var a4 byte
     a4 = 1
+    testInterface(&a4)
     printIntln(a4)
     a2 :=  &Test{
         A:100,
@@ -80,11 +80,11 @@ func genericTest<T>(v T) int {
 }
 
 func heapalloc<T>() *T {
-    return unsafecast<*byte,*T>(malloc(sizeof<T>()))
+    return unsafecast<*byte,*T>(malloc(sizeofwrap<T>()))
 }
 
 
-func testInterface() int {
+func testInterface(x any) int {
     var a any
     b := 1
     a = &b

@@ -20,7 +20,7 @@ func AddSTDFunc(m *ir.Module) {
 	zero := constant.NewInt(types.I32, 0)
 	b.NewCall(printf, constant.NewGetElementPtr(gi.Typ.ElemType, gi, zero, zero), p)
 	b.NewRet(nil)
-	globalScope.addVar(f.Name(), f)
+	globalScope.addVar(f.Name(), &variable{f, false})
 
 	gf := m.NewGlobalDef("strf", constant.NewCharArrayFromString("%f\n\x00"))
 	p = ir.NewParam("i", types.Double)
@@ -29,7 +29,7 @@ func AddSTDFunc(m *ir.Module) {
 	// d := b.NewFPExt(p, types.Double)
 	b.NewCall(printf, constant.NewGetElementPtr(gf.Typ.ElemType, gf, zero, zero), p)
 	b.NewRet(nil)
-	globalScope.addVar(f.Name(), f)
+	globalScope.addVar(f.Name(), &variable{f, false})
 
 	p = ir.NewParam("i", types.I1)
 	f = m.NewFunc("printBoolln", types.Void, p)
@@ -37,15 +37,15 @@ func AddSTDFunc(m *ir.Module) {
 	i := b.NewZExt(p, lexer.DefaultIntType())
 	b.NewCall(printf, constant.NewGetElementPtr(gi.Typ.ElemType, gi, zero, zero), i)
 	b.NewRet(nil)
-	globalScope.addVar(f.Name(), f)
+	globalScope.addVar(f.Name(), &variable{f, false})
 
 	p = ir.NewParam("i", lexer.DefaultIntType())
 	f = m.NewFunc("malloc", types.I8Ptr, p)
-	globalScope.addVar(f.Name(), f)
+	globalScope.addVar(f.Name(), &variable{f, false})
 
 	p = ir.NewParam("i", types.I8Ptr)
 	f = m.NewFunc("free", types.Void, p)
-	globalScope.addVar(f.Name(), f)
+	globalScope.addVar(f.Name(), &variable{f, false})
 
 	globalScope.addGeneric("unsafecast", func(m *ir.Module, s *scope, gens ...TypeNode) value.Value {
 		tpin, _ := gens[0].calc(s)
@@ -58,10 +58,10 @@ func AddSTDFunc(m *ir.Module) {
 			b = f.NewBlock("")
 			cast := b.NewBitCast(p, tpout)
 			b.NewRet(cast)
-			globalScope.addVar(f.Name(), f)
-			fn = f
+			fn = &variable{f, false}
+			globalScope.addVar(f.Name(), fn)
 		}
-		return fn
+		return fn.v
 
 	})
 
@@ -76,10 +76,28 @@ func AddSTDFunc(m *ir.Module) {
 			sizePtr := b.NewGetElementPtr(tp, constant.NewNull(types.NewPointer(tp)), constant.NewInt(lexer.DefaultIntType(), 1))
 			size := b.NewPtrToInt(sizePtr, lexer.DefaultIntType())
 			b.NewRet(size)
-			globalScope.addVar(f.Name(), f)
-			fn = f
+			fn = &variable{f, false}
+			globalScope.addVar(f.Name(), fn)
 		}
-		return fn
+		return fn.v
+
+	})
+
+	globalScope.addGeneric("sizeofwrap", func(m *ir.Module, s *scope, gens ...TypeNode) value.Value {
+		tp, _ := gens[0].calc(s)
+		fnname := fmt.Sprintf("sizeofwrap<%s>", tp.String())
+		fn, err := globalScope.searchVar(fnname)
+		if err != nil {
+			f = m.NewFunc(fnname, lexer.DefaultIntType())
+			b = f.NewBlock("")
+			tp = types.NewStruct(types.I8, tp)
+			sizePtr := b.NewGetElementPtr(tp, constant.NewNull(types.NewPointer(tp)), constant.NewInt(lexer.DefaultIntType(), 1))
+			size := b.NewPtrToInt(sizePtr, lexer.DefaultIntType())
+			b.NewRet(size)
+			fn = &variable{f, false}
+			globalScope.addVar(f.Name(), fn)
+		}
+		return fn.v
 
 	})
 

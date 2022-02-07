@@ -143,16 +143,25 @@ func (n *BinNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 		if err != nil {
 			panic(err)
 		}
-		if _, ok := l.Type().(*interf); ok {
-			store := &ir.InstStore{Src: r, Dst: val}
-			s.block.Insts = append(s.block.Insts, store)
-			return val
-		}
-		s.block.NewStore(r, val)
+		store(r, val, s)
 		return val
 	default:
 		panic("unexpected op")
 	}
+}
+
+func store(r, lptr value.Value, s *scope) value.Value {
+	if r.Type().Equal(lptr.Type().(*types.PointerType).ElemType) {
+		s.block.NewStore(r, lptr)
+		return lptr
+	}
+	if _, ok := lptr.Type().(*types.PointerType).ElemType.(*interf); ok {
+		store := &ir.InstStore{Src: r, Dst: lptr}
+		s.block.Insts = append(s.block.Insts, store)
+		return lptr
+	}
+
+	panic("store failed")
 }
 
 type NumNode struct {
@@ -206,7 +215,9 @@ func (n *VarBlockNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 	if n.parent == nil {
 		// head node
 		var err error
-		va, err = s.searchVar(n.Token)
+		var val *variable
+		val, err = s.searchVar(n.Token)
+		va = val.v
 		if err != nil {
 			// TODO module
 			panic(fmt.Errorf("variable %s not defined", n.Token))
@@ -341,7 +352,7 @@ func (n *DefineNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 		n.Val = m.NewGlobal(n.ID, tp)
 	} else {
 		n.Val = s.block.NewAlloca(tp)
-		s.addVar(n.ID, n.Val)
+		s.addVar(n.ID, &variable{n.Val, false})
 	}
 	return n.Val
 }
@@ -399,7 +410,7 @@ func (n *FuncNode) AddtoScope() {
 			sig += ">"
 			fn, err := globalScope.searchVar(sig)
 			if err == nil {
-				return fn
+				return fn.v
 			}
 			psn := n.Params
 			ps := []*ir.Param{}
@@ -418,19 +429,14 @@ func (n *FuncNode) AddtoScope() {
 			}
 			fun := m.NewFunc(sig, tp, ps...)
 			n.Fn = fun
-			globalScope.addVar(sig, fun)
+			globalScope.addVar(sig, &variable{fun, false})
 			b := fun.NewBlock("")
 			childScope := s.addChildScope(b)
 			n.DefaultBlock = b
 			for i, v := range ps {
 				ptr := b.NewAlloca(v.Type())
-				if _, ok := v.Type().(*interf); ok {
-					store := &ir.InstStore{Src: v, Dst: ptr}
-					b.Insts = append(b.Insts, store)
-				} else {
-					b.NewStore(v, ptr)
-				}
-				childScope.addVar(psn.Params[i].ID, ptr)
+				store(v, ptr, childScope)
+				childScope.addVar(psn.Params[i].ID, &variable{ptr, false})
 			}
 			n.Statements.calc(m, fun, childScope)
 			return fun
@@ -453,7 +459,7 @@ func (n *FuncNode) AddtoScope() {
 			if err != nil {
 				panic(err)
 			}
-			globalScope.addVar(n.ID, ir.NewFunc(n.ID, tp, ps...))
+			globalScope.addVar(n.ID, &variable{ir.NewFunc(n.ID, tp, ps...), false})
 		})
 	}
 }
@@ -482,16 +488,11 @@ func (n *FuncNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 	n.DefaultBlock = b
 	for i, v := range ps {
 		ptr := b.NewAlloca(v.Type())
-		if _, ok := v.Type().(*interf); ok {
-			store := &ir.InstStore{Src: v, Dst: ptr}
-			b.Insts = append(b.Insts, store)
-		} else {
-			b.NewStore(v, ptr)
-		}
-		childScope.addVar(psn.Params[i].ID, ptr)
+		store(v, ptr, childScope)
+		childScope.addVar(psn.Params[i].ID, &variable{ptr, false})
 	}
 
-	s.addVar(n.ID, n.Fn)
+	s.addVar(n.ID, &variable{n.Fn, false})
 
 	n.Statements.calc(m, fn, childScope)
 	return fn
@@ -532,21 +533,16 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 				panic(fmt.Errorf("cannot find generic method %s", name))
 			}
 		} else {
-			fnv, err = s.searchVar(name)
+			var va *variable
+			va, err = s.searchVar(name)
+			fnv = va.v
 			if err != nil {
 				panic(err)
 			}
 		}
 		fn = fnv.(*ir.Func)
 		if _, ok := fn.Sig.Params[0].(*types.PointerType); ok {
-			for {
-				if fn.Sig.Params[0].Equal(alloca.Type()) {
-					break
-				}
-				alloca1 := s.block.NewAlloca(alloca.Type())
-				s.block.NewStore(alloca, alloca1)
-				alloca = alloca1
-			}
+			alloca = deReference(alloca, s)
 		} else {
 			alloca = loadIfVar(alloca, s)
 		}
@@ -576,7 +572,7 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 		return re
 	}
 	alloc := s.block.NewAlloca(re.Type())
-	s.block.NewStore(re, alloc)
+	store(re, alloc, s)
 	return alloc
 }
 
@@ -740,8 +736,8 @@ func (n *DefAndAssignNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value 
 		if err != nil {
 			panic(err)
 		}
-		s.addVar(n.ID, v)
-		s.block.NewStore(val, v)
+		s.addVar(n.ID, &variable{v, false})
+		store(val, v, s)
 		return v
 	}
 	// TODO
@@ -894,7 +890,7 @@ func implicitCast(v value.Value, target types.Type, s *scope) (value.Value, erro
 				if err != nil {
 					goto FAIL
 				}
-				fn := fnv.(*ir.Func)
+				fn := fnv.v.(*ir.Func)
 				for i, u := range v1.Params.Params {
 					ptp, err := u.TP.calc(s)
 					if err != nil {
@@ -939,7 +935,7 @@ func (n *StructInitNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 			if err != nil {
 				panic(err)
 			}
-			s.block.NewStore(va, ptr)
+			store(va, ptr, s)
 		}
 		return alloca
 	}
@@ -1048,7 +1044,11 @@ func (n *ArrayInitNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 		ptr := s.block.NewGetElementPtr(atype, alloca,
 			constant.NewIndex(zero),
 			constant.NewIndex(constant.NewInt(types.I32, int64(k))))
-		s.block.NewStore(loadIfVar(v.calc(m, f, s), s), ptr)
+		cs, err := implicitCast(loadIfVar(v.calc(m, f, s), s), atype, s)
+		if err != nil {
+			panic(err)
+		}
+		store(cs, ptr, s)
 	}
 	return alloca
 }
