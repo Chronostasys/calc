@@ -245,6 +245,7 @@ type VarBlockNode struct {
 	Idxs   []Node
 	parent value.Value
 	Next   *VarBlockNode
+	heap   *varheap
 }
 type alloca interface {
 	getHeap(s *scope) (onheap bool)
@@ -296,6 +297,22 @@ func (n *VarBlockNode) setHeap(onheap bool, s *scope) {
 
 func (n *VarBlockNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 	var va value.Value
+	loadWraped := func() {
+		if n.heap != nil && n.heap.heap {
+			tp := va.Type()
+			if elm, ok := tp.(*types.PointerType); ok {
+				if _, ok := elm.ElemType.(*types.PointerType); !ok {
+					va = s.block.NewPtrToInt(va, lexer.DefaultIntType())
+					wrappertp := types.NewStruct(types.I8, tp)
+					va = s.block.NewIntToPtr(va, types.NewPointer(wrappertp))
+					va = s.block.NewGetElementPtr(wrappertp, va,
+						constant.NewIndex(zero),
+						constant.NewIndex(constant.NewInt(types.I32, int64(1))))
+				}
+			}
+
+		}
+	}
 	if n.parent == nil {
 		// head node
 		var err error
@@ -306,6 +323,7 @@ func (n *VarBlockNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 			// TODO module
 			panic(fmt.Errorf("variable %s not defined", n.Token))
 		}
+		n.heap = val.heap
 	} else {
 		va = n.parent
 		s1 := getTypeName(va.Type())
@@ -316,6 +334,11 @@ func (n *VarBlockNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 			constant.NewIndex(constant.NewInt(types.I32, int64(fi.idx))))
 	}
 	idxs := n.Idxs
+	if len(idxs) > 0 {
+		// dereference the pointer
+		va = deReference(va, s)
+	}
+	loadWraped()
 	for _, v := range idxs {
 		tp := getElmType(va.Type())
 		idx := loadIfVar(v.calc(m, f, s), s)
@@ -335,6 +358,9 @@ func (n *VarBlockNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 	// dereference the pointer
 	va = deReference(va, s)
 	n.Next.parent = va
+	if n.heap != nil && n.heap.innervar != nil && n.heap.innervar[n.Next.Token] != nil {
+		n.Next.heap = n.heap.innervar[n.Next.Token]
+	}
 	return n.Next.calc(m, f, s)
 }
 

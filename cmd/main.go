@@ -5,7 +5,6 @@ import (
 	"io/ioutil"
 	"log"
 
-	"github.com/Chronostasys/calculator_go/ast"
 	"github.com/Chronostasys/calculator_go/parser"
 )
 
@@ -24,7 +23,7 @@ func main() {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	ast.PrintTable()
+	// ast.PrintTable()
 	// ast := parser.ParseAST(code)
 	// fmt.Println(ast)
 }

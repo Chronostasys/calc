@@ -83,9 +83,9 @@ func AddSTDFunc(m *ir.Module) {
 
 	})
 
-	globalScope.addGeneric("sizeofwrap", func(m *ir.Module, s *scope, gens ...TypeNode) value.Value {
+	globalScope.addGeneric("sizeofwraped", func(m *ir.Module, s *scope, gens ...TypeNode) value.Value {
 		tp, _ := gens[0].calc(s)
-		fnname := fmt.Sprintf("sizeofwrap<%s>", tp.String())
+		fnname := fmt.Sprintf("sizeofwraped<%s>", tp.String())
 		fn, err := globalScope.searchVar(fnname)
 		if err != nil {
 			f = m.NewFunc(fnname, lexer.DefaultIntType())
