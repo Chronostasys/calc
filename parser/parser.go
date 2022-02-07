@@ -767,6 +767,14 @@ func takeValExp() (n ast.Node, err error) {
 		level++
 	}
 	var node ast.Node
+	defer func() {
+		if err != nil {
+			return
+		}
+		if level == 0 {
+			n = node
+		}
+	}()
 	node, err = runWithCatch2(arrayInit)
 	if err == nil {
 		return &ast.TakeValNode{Node: node, Level: level}, nil

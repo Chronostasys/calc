@@ -25,7 +25,26 @@ type scope struct {
 
 type variable struct {
 	v    value.Value
-	heap bool
+	heap *varheap
+}
+
+type varheap struct {
+	heap     bool
+	innervar map[string]*varheap
+}
+
+func (v *varheap) onheap() bool {
+	if v.heap {
+		return true
+	}
+	if v.innervar != nil {
+		for _, v := range v.innervar {
+			if v.onheap() {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 type typedef struct {

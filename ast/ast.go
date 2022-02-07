@@ -144,9 +144,46 @@ func (n *BinNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 			panic(err)
 		}
 		store(r, val, s)
+		switch n.Right.(type) {
+		case *VarBlockNode, *TakePtrNode:
+			getVarNode(n.Left).setHeap(getVarNode(n.Right).getHeap(s), s)
+		case *TakeValNode:
+			if strings.Contains(r.Type().String(), "*") {
+				getVarNode(n.Left).setHeap(getVarNode(n.Right).getHeap(s), s)
+			} else {
+				getVarNode(n.Left).setHeap(false, s)
+			}
+		default:
+			if all, ok := rawR.(*ir.InstAlloca); ok {
+				getVarNode(n.Left).setHeap(mallocTable[all], s)
+			} else {
+				getVarNode(n.Left).setHeap(false, s)
+			}
+		}
+		// if nd, ok := n.Right.(*VarBlockNode); ok {
+		// 	getVarNode(n.Left).setHeap(nd.getHeap(s), s)
+		// } else {
+		// 	if all, ok := rawR.(*ir.InstAlloca); ok {
+		// 		getVarNode(n.Left).setHeap(mallocTable[all], s)
+		// 	}
+		// 	getVarNode(n.Left).setHeap(false, s)
+		// }
 		return val
 	default:
 		panic("unexpected op")
+	}
+}
+
+func getVarNode(n Node) alloca {
+
+	for {
+		if node, ok := n.(*TakeValNode); ok {
+			n = node.Node
+		} else if node, ok := n.(*TakePtrNode); ok {
+			n = node.Node
+		} else {
+			return n.(alloca)
+		}
 	}
 }
 
@@ -208,6 +245,53 @@ type VarBlockNode struct {
 	Idxs   []Node
 	parent value.Value
 	Next   *VarBlockNode
+}
+type alloca interface {
+	getHeap(s *scope) (onheap bool)
+	setHeap(onheap bool, s *scope)
+}
+
+func (n *VarBlockNode) getHeap(s *scope) (onheap bool) {
+	if n.parent == nil {
+		// head node
+		var err error
+		var val *variable
+		val, err = s.searchVar(n.Token)
+		if err != nil {
+			// TODO module
+			panic(fmt.Errorf("variable %s not defined", n.Token))
+		}
+		return val.heap.onheap()
+	}
+	panic("this func shall only be called on root varblocknode")
+}
+func (n *VarBlockNode) setHeap(onheap bool, s *scope) {
+	if n.parent == nil {
+		// head node
+		var err error
+		var val *variable
+		val, err = s.searchVar(n.Token)
+		if err != nil {
+			// TODO module
+			panic(fmt.Errorf("variable %s not defined", n.Token))
+		}
+		heap := val.heap
+		for {
+			if n.Next == nil {
+				heap.heap = onheap
+				break
+			}
+			n = n.Next
+			if heap.innervar == nil {
+				heap.innervar = map[string]*varheap{}
+			}
+			heap.innervar[n.Token] = &varheap{}
+			heap = heap.innervar[n.Token]
+		}
+
+		return
+	}
+	panic("this func shall only be called on root varblocknode")
 }
 
 func (n *VarBlockNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
@@ -352,7 +436,7 @@ func (n *DefineNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 		n.Val = m.NewGlobal(n.ID, tp)
 	} else {
 		n.Val = s.block.NewAlloca(tp)
-		s.addVar(n.ID, &variable{n.Val, false})
+		s.addVar(n.ID, &variable{n.Val, &varheap{}})
 	}
 	return n.Val
 }
@@ -429,14 +513,14 @@ func (n *FuncNode) AddtoScope() {
 			}
 			fun := m.NewFunc(sig, tp, ps...)
 			n.Fn = fun
-			globalScope.addVar(sig, &variable{fun, false})
+			globalScope.addVar(sig, &variable{fun, &varheap{}})
 			b := fun.NewBlock("")
 			childScope := s.addChildScope(b)
 			n.DefaultBlock = b
 			for i, v := range ps {
 				ptr := b.NewAlloca(v.Type())
 				store(v, ptr, childScope)
-				childScope.addVar(psn.Params[i].ID, &variable{ptr, false})
+				childScope.addVar(psn.Params[i].ID, &variable{ptr, &varheap{}})
 			}
 			n.Statements.calc(m, fun, childScope)
 			return fun
@@ -459,7 +543,7 @@ func (n *FuncNode) AddtoScope() {
 			if err != nil {
 				panic(err)
 			}
-			globalScope.addVar(n.ID, &variable{ir.NewFunc(n.ID, tp, ps...), false})
+			globalScope.addVar(n.ID, &variable{ir.NewFunc(n.ID, tp, ps...), &varheap{}})
 		})
 	}
 }
@@ -489,10 +573,10 @@ func (n *FuncNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 	for i, v := range ps {
 		ptr := b.NewAlloca(v.Type())
 		store(v, ptr, childScope)
-		childScope.addVar(psn.Params[i].ID, &variable{ptr, false})
+		childScope.addVar(psn.Params[i].ID, &variable{ptr, &varheap{}})
 	}
 
-	s.addVar(n.ID, &variable{n.Fn, false})
+	s.addVar(n.ID, &variable{n.Fn, &varheap{}})
 
 	n.Statements.calc(m, fn, childScope)
 	return fn
@@ -573,8 +657,13 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 	}
 	alloc := s.block.NewAlloca(re.Type())
 	store(re, alloc, s)
+	if fnNode.Token == "heapalloc" {
+		mallocTable[alloc] = true
+	}
 	return alloc
 }
+
+var mallocTable = map[*ir.InstAlloca]bool{}
 
 type RetNode struct {
 	Exp Node
@@ -718,7 +807,8 @@ func (n *DefAndAssignNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value 
 		panic("unexpected '.'")
 	}
 	if f != nil {
-		val := loadIfVar(n.Val.calc(m, f, s), s)
+		rawval := n.Val.calc(m, f, s)
+		val := loadIfVar(rawval, s)
 		var v *ir.InstAlloca
 		switch val.Type().(type) {
 		case *types.FloatType:
@@ -736,8 +826,32 @@ func (n *DefAndAssignNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value 
 		if err != nil {
 			panic(err)
 		}
-		s.addVar(n.ID, &variable{v, false})
+		va := &variable{v, &varheap{}}
 		store(val, v, s)
+		// if nd, ok := n.Val.(*VarBlockNode); ok {
+		// 	va.heap = nd.getHeap(s)
+		// } else {
+		// 	if all, ok := rawval.(*ir.InstAlloca); ok {
+		// 		va.heap = mallocTable[all]
+		// 	}
+		// }
+		switch n.Val.(type) {
+		case *VarBlockNode, *TakePtrNode:
+			va.heap = &varheap{heap: getVarNode(n.Val).getHeap(s)}
+		case *TakeValNode:
+			if strings.Contains(val.Type().String(), "*") {
+				va.heap = &varheap{heap: getVarNode(n.Val).getHeap(s)}
+			} else {
+				va.heap = &varheap{heap: false}
+			}
+		default:
+			if all, ok := rawval.(*ir.InstAlloca); ok {
+				va.heap = &varheap{heap: mallocTable[all]}
+			} else {
+				va.heap = &varheap{heap: false}
+			}
+		}
+		s.addVar(n.ID, va)
 		return v
 	}
 	// TODO
@@ -920,6 +1034,13 @@ func implicitCast(v value.Value, target types.Type, s *scope) (value.Value, erro
 	}
 }
 
+func (n *StructInitNode) setHeap(onheap bool, s *scope) {
+	panic("not setable")
+}
+func (n *StructInitNode) getHeap(s *scope) (onheap bool) {
+	return false
+}
+
 func (n *StructInitNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 	if len(n.ID) > 1 {
 		panic("not impl yet")
@@ -1033,6 +1154,12 @@ type ArrayInitNode struct {
 	Vals []Node
 }
 
+func (n *ArrayInitNode) setHeap(onheap bool, s *scope) {
+	panic("not setable")
+}
+func (n *ArrayInitNode) getHeap(s *scope) (onheap bool) {
+	return false
+}
 func (n *ArrayInitNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 	tp := n.Type
 	atype, err := tp.calc(s)
