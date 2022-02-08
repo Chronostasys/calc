@@ -433,7 +433,13 @@ func compare() (node ast.Node, err error) {
 		}
 	}()
 	n := &ast.CompareNode{}
-	n.Left = allexp()
+	n.Left, err = runWithCatch(exp)
+	if err != nil {
+		n.Left, err = nilExp()
+		if err != nil {
+			return nil, err
+		}
+	}
 	code, _, eos := lexer.Scan()
 	if eos {
 		return nil, lexer.ErrEOS
@@ -446,7 +452,13 @@ func compare() (node ast.Node, err error) {
 	default:
 		return nil, fmt.Errorf("expect compare op")
 	}
-	n.Right = allexp()
+	n.Right, err = runWithCatch(exp)
+	if err != nil {
+		n.Right, err = nilExp()
+		if err != nil {
+			return nil, err
+		}
+	}
 	return n, nil
 }
 

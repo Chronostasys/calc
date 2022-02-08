@@ -28,14 +28,14 @@ all_types: TYPE->MUL*  BTYPE|AT
 basic_types: BTYPE->tp
 array_types: AT->LSB n RSB TYPE
 asssign: A->MUL* VC ASSIGN AE
-all_exp: AE->E|BE|TPE|TVE|NE
+all_exp: AE->E|BE|TPE|TVE
 exp: E->F|F((ADD|MIN)F)*
 factor: F->S|S((MUL|DIV)S)*
 symbol: S->N|((ADD|MIN) N)
 number: N->n|(LP E RP)|TVE
 bool_exp: BE->B|(B (AND|OR) BE)
 boolean: B->TRUE|FALSE|C|(NOT B)|(LP BE RP)|TVE
-compare_exp: C->AE (EQ|NEQ|LG|SM|LEQ|SEQ) AE
+compare_exp: C->(E|NE) (EQ|NEQ|LG|SM|LEQ|SEQ) (E|NE)
 statement_block:SB->LB SL RB NL
 def_ass: DA->var DEFA E|VAR var ASSIGN E
 if_st: I->IF BE SB((EL SB|I)?)
