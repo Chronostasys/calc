@@ -25,27 +25,7 @@ type scope struct {
 }
 
 type variable struct {
-	v    value.Value
-	heap *varheap
-}
-
-type varheap struct {
-	heap     bool
-	innervar map[string]*varheap
-}
-
-func (v *varheap) onheap() bool {
-	if v.heap {
-		return true
-	}
-	if v.innervar != nil {
-		for _, v := range v.innervar {
-			if v.onheap() {
-				return true
-			}
-		}
-	}
-	return false
+	v value.Value
 }
 
 type typedef struct {
@@ -109,12 +89,6 @@ func (s *scope) searchVar(id string) (*variable, error) {
 		}
 		val, ok := scope.vartable[id]
 		if ok {
-			if val.heap == nil {
-				val.heap = &varheap{}
-			}
-			if s.heapAllocTable[id] {
-				val.heap.heap = s.heapAllocTable[id]
-			}
 			return val, nil
 		}
 		scope = scope.parent
