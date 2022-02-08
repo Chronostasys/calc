@@ -21,6 +21,7 @@ type scope struct {
 	funcDefFuncs      []func()
 	genericFuncs      map[string]func(m *ir.Module, s *scope, gens ...TypeNode) value.Value
 	genericMap        map[string]types.Type
+	heapAllocTable    map[string]bool
 }
 
 type variable struct {

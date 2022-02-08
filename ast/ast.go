@@ -182,7 +182,8 @@ func getVarNode(n Node) alloca {
 		} else if node, ok := n.(*TakePtrNode); ok {
 			n = node.Node
 		} else {
-			return n.(alloca)
+			a, _ := n.(alloca)
+			return a
 		}
 	}
 }
@@ -241,15 +242,17 @@ func getTypeName(v interface{}) string {
 }
 
 type VarBlockNode struct {
-	Token  string
-	Idxs   []Node
-	parent value.Value
-	Next   *VarBlockNode
-	heap   *varheap
+	Token       string
+	Idxs        []Node
+	parent      value.Value
+	Next        *VarBlockNode
+	heap        *varheap
+	allocOnHeap bool
 }
 type alloca interface {
 	getHeap(s *scope) (onheap bool)
 	setHeap(onheap bool, s *scope)
+	setAlloc(onheap bool)
 }
 
 func (n *VarBlockNode) getHeap(s *scope) (onheap bool) {
@@ -265,6 +268,9 @@ func (n *VarBlockNode) getHeap(s *scope) (onheap bool) {
 		return val.heap.onheap()
 	}
 	panic("this func shall only be called on root varblocknode")
+}
+func (n *VarBlockNode) setAlloc(onheap bool) {
+	n.allocOnHeap = onheap
 }
 func (n *VarBlockNode) setHeap(onheap bool, s *scope) {
 	if n.parent == nil {
@@ -303,7 +309,7 @@ func (n *VarBlockNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 			if elm, ok := tp.(*types.PointerType); ok {
 				if _, ok := elm.ElemType.(*types.PointerType); !ok {
 					va = s.block.NewPtrToInt(va, lexer.DefaultIntType())
-					wrappertp := types.NewStruct(types.I8, tp)
+					wrappertp := types.NewStruct(types.I8, elm.ElemType)
 					va = s.block.NewIntToPtr(va, types.NewPointer(wrappertp))
 					va = s.block.NewGetElementPtr(wrappertp, va,
 						constant.NewIndex(zero),
@@ -390,11 +396,121 @@ type SLNode struct {
 	Children []Node
 }
 
+type escNode struct {
+	token    string
+	initNode alloca
+}
+
 func (n *SLNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
+	var escMap = map[string][]*escNode{}
+	var defMap = map[string]bool{}
+	var escPoint = []string{}
+	var heapAllocTable = map[string]bool{}
+	for _, v := range n.Children {
+		switch node := v.(type) {
+		case *BinNode:
+			if node.Op == lexer.TYPE_ASSIGN {
+				left := getVarNode(node.Left).(*VarBlockNode)
+				right := getVarNode(node.Right)
+				if right == nil {
+					continue
+				}
+				name := left.Token
+				if !defMap[left.Token] {
+					name = "extern.." + name
+				}
+				if r, ok := right.(*VarBlockNode); ok {
+					rname := r.Token
+					if !defMap[r.Token] {
+						rname = "extern.." + rname
+					}
+					escMap[name] = append(escMap[name], &escNode{token: rname})
+				} else {
+					escMap[name] = append(escMap[name], &escNode{initNode: right})
+				}
+			}
+		case *DefAndAssignNode:
+			defMap[node.ID] = true
+			name := node.ID
+			right := getVarNode(node.Val)
+			if right == nil {
+				continue
+			}
+			if r, ok := right.(*VarBlockNode); ok {
+				rname := r.Token
+				if !defMap[r.Token] {
+					rname = "extern.." + rname
+				}
+				escMap[name] = append(escMap[name], &escNode{token: rname})
+			} else {
+				escMap[name] = append(escMap[name], &escNode{initNode: right})
+			}
+		case *DefineNode:
+			defMap[node.ID] = true
+		case *RetNode:
+			right := getVarNode(node.Exp)
+			if right == nil {
+				continue
+			}
+			if r, ok := right.(*VarBlockNode); ok {
+				rname := r.Token
+				if !defMap[r.Token] {
+					rname = "extern.." + rname
+				}
+				escPoint = append(escPoint, rname)
+			} else {
+				right.setAlloc(true)
+			}
+		case *CallFuncNode:
+			for _, v := range node.Params {
+				right := getVarNode(v)
+				if right == nil {
+					continue
+				}
+				if r, ok := right.(*VarBlockNode); ok {
+					rname := r.Token
+					if !defMap[r.Token] {
+						rname = "extern.." + rname
+					}
+					escPoint = append(escPoint, rname)
+				} else {
+					right.setAlloc(true)
+				}
+			}
+
+		}
+	}
+	for _, v := range escPoint {
+		if defMap[v] {
+			heapAllocTable[v] = true
+		}
+		next := escMap[v]
+		delete(escMap, v)
+
+		findEsc(next, defMap, heapAllocTable, escMap)
+	}
+	if !strings.Contains(f.Ident(), "heapalloc") {
+		s.heapAllocTable = heapAllocTable
+	}
 	for _, v := range n.Children {
 		v.calc(m, f, s)
 	}
 	return zero
+}
+func findEsc(next []*escNode, defMap map[string]bool, heapAllocTable map[string]bool, escMap map[string][]*escNode) {
+	if next == nil {
+		return
+	}
+	for _, v := range next {
+		if v.initNode == nil && defMap[v.token] {
+			heapAllocTable[v.token] = true
+			next = escMap[v.token]
+			delete(escMap, v.token)
+			findEsc(next, defMap, heapAllocTable, escMap)
+		} else {
+			v.initNode.setAlloc(true)
+		}
+	}
 }
 
 type ProgramNode struct {
@@ -461,8 +577,15 @@ func (n *DefineNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 		// TODO global
 		n.Val = m.NewGlobal(n.ID, tp)
 	} else {
-		n.Val = s.block.NewAlloca(tp)
-		s.addVar(n.ID, &variable{n.Val, &varheap{}})
+		if s.heapAllocTable[n.ID] {
+			gfn := globalScope.genericFuncs["heapalloc"]
+			fnv := gfn(m, s, n.TP)
+			n.Val = s.block.NewCall(fnv)
+			s.addVar(n.ID, &variable{n.Val, &varheap{heap: true}})
+		} else {
+			n.Val = s.block.NewAlloca(tp)
+			s.addVar(n.ID, &variable{n.Val, &varheap{}})
+		}
 	}
 	return n.Val
 }
@@ -671,7 +794,9 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 	}
 	for i, v := range n.Params {
 		tp := fn.Params[i+poff].Typ
-		p, err := implicitCast(loadIfVar(v.calc(m, f, s), s), tp, s)
+		v2 := v.calc(m, f, s)
+		v1 := loadIfVar(v2, s)
+		p, err := implicitCast(v1, tp, s)
 		if err != nil {
 			panic(err)
 		}
@@ -681,6 +806,7 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 	if re.Type().Equal(types.Void) {
 		return re
 	}
+	// autoAlloc()
 	alloc := s.block.NewAlloca(re.Type())
 	store(re, alloc, s)
 	if fnNode.Token == "heapalloc" {
@@ -700,7 +826,8 @@ func (n *RetNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 		s.block.NewRet(nil)
 		return zero
 	}
-	v, err := implicitCast(loadIfVar(n.Exp.calc(m, f, s), s), f.Sig.RetType, s)
+	ret := n.Exp.calc(m, f, s)
+	v, err := implicitCast(loadIfVar(ret, s), f.Sig.RetType, s)
 	if err != nil {
 		panic(err)
 	}
@@ -828,6 +955,19 @@ type DefAndAssignNode struct {
 	ID  string
 }
 
+func autoAlloc(m *ir.Module, id string, gtp TypeNode, tp types.Type, s *scope) (v value.Value, heap bool) {
+	if s.heapAllocTable[id] {
+		gfn := globalScope.genericFuncs["heapalloc"]
+		fnv := gfn(m, s, gtp)
+		v = s.block.NewCall(fnv)
+		heap = true
+	} else {
+		v = s.block.NewAlloca(tp)
+	}
+	return
+
+}
+
 func (n *DefAndAssignNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 	if strings.Contains(n.ID, ".") {
 		panic("unexpected '.'")
@@ -835,32 +975,44 @@ func (n *DefAndAssignNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value 
 	if f != nil {
 		rawval := n.Val.calc(m, f, s)
 		val := loadIfVar(rawval, s)
-		var v *ir.InstAlloca
+		var v value.Value
+		var heap bool
+		var tp types.Type
 		switch val.Type().(type) {
 		case *types.FloatType:
-			v = s.block.NewAlloca(lexer.DefaultFloatType())
+			tp = lexer.DefaultFloatType()
+			v, heap = autoAlloc(m, n.ID,
+				&BasicTypeNode{ResType: lexer.TYPE_RES_FLOAT},
+				tp, s)
+
 		case *types.IntType:
 			if val.Type().(*types.IntType).BitSize == 1 {
-				v = s.block.NewAlloca(val.Type())
+				tp = val.Type()
+				v, heap = autoAlloc(m, n.ID,
+					&BasicTypeNode{ResType: lexer.TYPE_RES_BOOL},
+					tp, s)
 			} else {
-				v = s.block.NewAlloca(lexer.DefaultIntType())
+				tp = lexer.DefaultIntType()
+				v, heap = autoAlloc(m, n.ID,
+					&BasicTypeNode{ResType: lexer.TYPE_RES_INT},
+					tp, s)
 			}
 		default:
-			v = s.block.NewAlloca(val.Type())
+			tp = val.Type()
+			v, heap = autoAlloc(m, n.ID,
+				&calcedTypeNode{tp},
+				tp, s)
 		}
-		val, err := implicitCast(val, v.ElemType, s)
+		val, err := implicitCast(val, tp, s)
 		if err != nil {
 			panic(err)
 		}
-		va := &variable{v, &varheap{}}
+		va := &variable{v, &varheap{heap: heap}}
 		store(val, v, s)
-		// if nd, ok := n.Val.(*VarBlockNode); ok {
-		// 	va.heap = nd.getHeap(s)
-		// } else {
-		// 	if all, ok := rawval.(*ir.InstAlloca); ok {
-		// 		va.heap = mallocTable[all]
-		// 	}
-		// }
+		if heap {
+			s.addVar(n.ID, va)
+			return v
+		}
 		switch n.Val.(type) {
 		case *VarBlockNode, *TakePtrNode:
 			va.heap = &varheap{heap: getVarNode(n.Val).getHeap(s)}
@@ -992,8 +1144,9 @@ func (n *structDefNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 }
 
 type StructInitNode struct {
-	ID     []string
-	Fields map[string]Node
+	ID          []string
+	Fields      map[string]Node
+	allocOnHeap bool
 }
 
 func implicitCast(v value.Value, target types.Type, s *scope) (value.Value, error) {
@@ -1066,16 +1219,38 @@ func (n *StructInitNode) setHeap(onheap bool, s *scope) {
 func (n *StructInitNode) getHeap(s *scope) (onheap bool) {
 	return false
 }
-
+func (n *StructInitNode) setAlloc(onheap bool) {
+	n.allocOnHeap = onheap
+}
 func (n *StructInitNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 	if len(n.ID) > 1 {
 		panic("not impl yet")
 	} else {
 		tp := globalScope.getStruct(n.ID[0])
-		alloca := s.block.NewAlloca(tp.structType)
+		var alloca value.Value
+		if n.allocOnHeap {
+			gfn := globalScope.genericFuncs["heapalloc"]
+			fnv := gfn(m, s, &BasicTypeNode{CustomTp: n.ID})
+			alloca = s.block.NewCall(fnv)
+		} else {
+			alloca = s.block.NewAlloca(tp.structType)
+		}
+
+		var va value.Value = alloca
+		if n.allocOnHeap {
+			// unwrap
+			va = s.block.NewPtrToInt(alloca, lexer.DefaultIntType())
+			wrappertp := types.NewStruct(types.I8, tp.structType)
+			va = s.block.NewIntToPtr(va, types.NewPointer(wrappertp))
+			va = s.block.NewGetElementPtr(wrappertp, va,
+				constant.NewIndex(zero),
+				constant.NewIndex(constant.NewInt(types.I32, int64(1))))
+		}
+
+		// assign
 		for k, v := range n.Fields {
 			fi := tp.fieldsIdx[k]
-			ptr := s.block.NewGetElementPtr(tp.structType, alloca,
+			ptr := s.block.NewGetElementPtr(tp.structType, va,
 				constant.NewIndex(zero),
 				constant.NewIndex(constant.NewInt(types.I32, int64(fi.idx))))
 			va, err := implicitCast(loadIfVar(v.calc(m, f, s), s), fi.ftype, s)
@@ -1098,6 +1273,20 @@ type TypeNode interface {
 	calc(*scope) (types.Type, error)
 	SetPtrLevel(int)
 	String() string
+}
+
+type calcedTypeNode struct {
+	tp types.Type
+}
+
+func (v *calcedTypeNode) SetPtrLevel(i int) {
+	panic("not impl")
+}
+func (v *calcedTypeNode) calc(*scope) (types.Type, error) {
+	return v.tp, nil
+}
+func (v *calcedTypeNode) String() string {
+	panic("not impl")
 }
 
 type ArrayTypeNode struct {
@@ -1176,8 +1365,13 @@ func (v *BasicTypeNode) calc(sc *scope) (types.Type, error) {
 }
 
 type ArrayInitNode struct {
-	Type TypeNode
-	Vals []Node
+	Type        TypeNode
+	Vals        []Node
+	allocOnHeap bool
+}
+
+func (n *ArrayInitNode) setAlloc(onheap bool) {
+	n.allocOnHeap = onheap
 }
 
 func (n *ArrayInitNode) setHeap(onheap bool, s *scope) {
@@ -1192,9 +1386,26 @@ func (n *ArrayInitNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 	if err != nil {
 		panic(err)
 	}
-	alloca := s.block.NewAlloca(atype)
+	var alloca value.Value
+	if n.allocOnHeap {
+		gfn := globalScope.genericFuncs["heapalloc"]
+		fnv := gfn(m, s, n.Type)
+		alloca = s.block.NewCall(fnv)
+	} else {
+		alloca = s.block.NewAlloca(atype)
+	}
+	var va value.Value = alloca
+	if n.allocOnHeap {
+		// unwrap
+		va = s.block.NewPtrToInt(alloca, lexer.DefaultIntType())
+		wrappertp := types.NewStruct(types.I8, atype)
+		va = s.block.NewIntToPtr(va, types.NewPointer(wrappertp))
+		va = s.block.NewGetElementPtr(wrappertp, va,
+			constant.NewIndex(zero),
+			constant.NewIndex(constant.NewInt(types.I32, int64(1))))
+	}
 	for k, v := range n.Vals {
-		ptr := s.block.NewGetElementPtr(atype, alloca,
+		ptr := s.block.NewGetElementPtr(atype, va,
 			constant.NewIndex(zero),
 			constant.NewIndex(constant.NewInt(types.I32, int64(k))))
 		cs, err := implicitCast(loadIfVar(v.calc(m, f, s), s), atype, s)

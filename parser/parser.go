@@ -237,15 +237,15 @@ func statement() ast.Node {
 
 func statementList() ast.Node {
 	n := &ast.SLNode{}
-	n.Children = append(n.Children, statement())
-	ch := lexer.SetCheckpoint()
-	c, _, _ := lexer.Scan()
-	lexer.GobackTo(ch)
-	if c == lexer.TYPE_RB {
-		return n
+	for {
+		n.Children = append(n.Children, statement())
+		ch := lexer.SetCheckpoint()
+		c, _, _ := lexer.Scan()
+		lexer.GobackTo(ch)
+		if c == lexer.TYPE_RB {
+			return n
+		}
 	}
-	n.Children = append(n.Children, statementList())
-	return n
 }
 
 func program() *ast.ProgramNode {

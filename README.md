@@ -19,7 +19,7 @@ function: FN->FUNC var GP? FPS TYPE SB
 func_params: FPS->LP (RP|(EFP? FP(COMMA FP)* RP))
 ext_func_param: EFP->THIS FP
 func_param: FP->var TYPE
-statemnt_list: SL->S|(S SL)
+statemnt_list: SL->S+
 statement: S->CS|BS|EM|D|A|R|(CF NL)|I|(DA NL)
 return: R->RET|(RET AE)
 empty: EM->NL

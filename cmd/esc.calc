@@ -1,0 +1,29 @@
+func main() int {
+    d := esctest{}
+    g := 1
+    d.a = &g
+    stackEsp(d)
+    return 0
+}
+type esctest struct{
+    a *int
+}
+
+func stackEsp(c esctest) *int {
+    *c.a = 5
+    a := 1
+    return &a
+}
+
+func heapfree<T>(t *T) void {
+    free(unsafecast<*T,*byte>(t))
+    return
+}
+
+func heapalloc<T>() *T {
+    size := sizeofwraped<T>()
+    printIntln(size)
+    return unsafecast<*byte,*T>(malloc(size))
+}
+
+
