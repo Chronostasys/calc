@@ -4,7 +4,6 @@ func main() int {
     t := heapalloc<Test>()
     t.A = 888
     printIntln(t.A)
-    heapfree<Test>(t)
     testBasicGeneric()
     var a4 byte
     a4 = 1
@@ -80,10 +79,6 @@ func testBasicGeneric() int {
 }
 func AAA() void {
     printIntln(997)
-    return
-}
-func heapfree<T>(t *T) void {
-    free(unsafecast<*T,*byte>(t))
     return
 }
 
