@@ -11,7 +11,7 @@
 - golang 1.17.1
 ## Rules
 ```
-program: P->(FN|NL|T|INTER)+
+program: P->(FN|NL|T|INTER|D)+
 call_func: CF->VC GPC? LP (RP|(E(COMMA AE)* RP))
 generic_params: GP->SM TYPE (COMMA var)* LG
 generic_call_params: GPC->SM TYPE (COMMA TYPE)* LG
@@ -28,16 +28,16 @@ all_types: TYPE->MUL*  BTYPE|AT
 basic_types: BTYPE->tp
 array_types: AT->LSB n RSB TYPE
 asssign: A->MUL* VC ASSIGN AE
-all_exp: AE->E|BE|TPE|TVE
+all_exp: AE->E|BE|TPE|TVE|NE
 exp: E->F|F((ADD|MIN)F)*
 factor: F->S|S((MUL|DIV)S)*
 symbol: S->N|((ADD|MIN) N)
 number: N->n|(LP E RP)|TVE
 bool_exp: BE->B|(B (AND|OR) BE)
 boolean: B->TRUE|FALSE|C|(NOT B)|(LP BE RP)|TVE
-compare_exp: C->exp (EQ|NEQ|LG|SM|LEQ|SEQ) exp
+compare_exp: C->AE (EQ|NEQ|LG|SM|LEQ|SEQ) AE
 statement_block:SB->LB SL RB NL
-def_ass: DA->var DEFA exp|VAR var ASSIGN exp
+def_ass: DA->var DEFA E|VAR var ASSIGN E
 if_st: I->IF BE SB((EL SB|I)?)
 for_st: F->FOR (DA? SEMI BE SEMI A?)? SB
 break_statement: BS->BR NL
@@ -50,4 +50,5 @@ take_val_exp: TVE->MUL* AI|SI|VC|CF
 var_chain: VC->VB (DOT VB)*
 var_block: VB->var (LSB AE RSB)*
 interface_def: INTER->TP var INTERFACE LB ((var FPS TYPE NL)|NL)* RB
+null_exp: NE->NIL
 ```

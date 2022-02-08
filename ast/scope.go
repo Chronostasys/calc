@@ -109,6 +109,12 @@ func (s *scope) searchVar(id string) (*variable, error) {
 		}
 		val, ok := scope.vartable[id]
 		if ok {
+			if val.heap == nil {
+				val.heap = &varheap{}
+			}
+			if s.heapAllocTable[id] {
+				val.heap.heap = s.heapAllocTable[id]
+			}
 			return val, nil
 		}
 		scope = scope.parent

@@ -47,6 +47,10 @@ func AddSTDFunc(m *ir.Module) {
 	f = m.NewFunc("free", types.Void, p)
 	globalScope.addVar(f.Name(), &variable{f, &varheap{}})
 
+	p = ir.NewParam("i", types.I8Ptr)
+	f = m.NewFunc("memset", types.I8Ptr, p, ir.NewParam("v", lexer.DefaultIntType()), ir.NewParam("len", lexer.DefaultIntType()))
+	globalScope.addVar(f.Name(), &variable{f, &varheap{}})
+
 	globalScope.addGeneric("unsafecast", func(m *ir.Module, s *scope, gens ...TypeNode) value.Value {
 		tpin, _ := gens[0].calc(s)
 		tpout, _ := gens[1].calc(s)

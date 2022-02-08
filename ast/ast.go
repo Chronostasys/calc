@@ -138,6 +138,11 @@ func (n *BinNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 		}
 		return s.block.NewSub(l, r)
 	case lexer.TYPE_ASSIGN:
+		if _, ok := n.Right.(*NilNode); ok {
+			r = constant.NewNull(rawL.Type().(*types.PointerType).ElemType.(*types.PointerType))
+			store(r, rawL, s)
+			return rawL
+		}
 		val := rawL
 		r, err := implicitCast(r, l.Type(), s)
 		if err != nil {
@@ -215,7 +220,7 @@ type UnaryNode struct {
 	Child Node
 }
 
-var zero = constant.NewInt(types.I32, 0)
+var zero = constant.NewInt(lexer.DefaultIntType(), 0)
 
 func (n *UnaryNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 	c := loadIfVar(n.Child.calc(m, f, s), s)
@@ -406,6 +411,11 @@ func (n *SLNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 	var defMap = map[string]bool{}
 	var escPoint = []string{}
 	var heapAllocTable = map[string]bool{}
+	if strings.Contains(f.Ident(), "heapalloc") ||
+		strings.Contains(f.Ident(), "heapfree") ||
+		strings.Contains(f.Ident(), "MallocList") {
+		goto LOOP
+	}
 	for _, v := range n.Children {
 		switch node := v.(type) {
 		case *BinNode:
@@ -489,9 +499,8 @@ func (n *SLNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 
 		findEsc(next, defMap, heapAllocTable, escMap)
 	}
-	if !strings.Contains(f.Ident(), "heapalloc") {
-		s.heapAllocTable = heapAllocTable
-	}
+	s.heapAllocTable = heapAllocTable
+LOOP:
 	for _, v := range n.Children {
 		v.calc(m, f, s)
 	}
@@ -575,7 +584,12 @@ func (n *DefineNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 	}
 	if f == nil {
 		// TODO global
-		n.Val = m.NewGlobal(n.ID, tp)
+		if ptr, ok := tp.(*types.PointerType); ok {
+			n.Val = m.NewGlobalDef(n.ID, constant.NewNull(ptr))
+		} else {
+			// TODO
+		}
+		s.addVar(n.ID, &variable{n.Val, &varheap{heap: false}})
 	} else {
 		if s.heapAllocTable[n.ID] {
 			gfn := globalScope.genericFuncs["heapalloc"]
@@ -743,7 +757,11 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 	prev := fnNode
 	for {
 		if fnNode.Next == nil {
+			s := prev.Next
 			prev.Next = nil
+			defer func() {
+				prev.Next = s
+			}()
 			break
 		}
 		prev = fnNode
@@ -866,11 +884,41 @@ func (n *CompareNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 	l, r := loadIfVar(n.Left.calc(m, f, s), s), loadIfVar(n.Right.calc(m, f, s), s)
 	hasF, re := hasFloatType(s.block, l, r)
 	l, r = re[0], re[1]
-	if hasF {
+	_, ok1 := r.Type().(*types.PointerType)
+	if _, ok := l.Type().(*types.PointerType); ok || ok1 {
+		if ok {
+			l = s.block.NewPtrToInt(l, lexer.DefaultIntType())
+		} else {
+			_, ok := n.Left.(*NilNode)
+			if !ok {
+				panic("expect nil")
+			}
+		}
+		if ok1 {
+			r = s.block.NewPtrToInt(r, lexer.DefaultIntType())
+		} else {
+			_, ok := n.Right.(*NilNode)
+			if !ok {
+				panic("expect nil")
+			}
+		}
+		return s.block.NewICmp(comparedic[n.Op].IntE,
+			l,
+			r,
+		)
+	} else if hasF {
 		return s.block.NewFCmp(comparedic[n.Op].FloatE, l, r)
 	} else {
 		return s.block.NewICmp(comparedic[n.Op].IntE, l, r)
 	}
+
+}
+
+type NilNode struct {
+}
+
+func (n *NilNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
+	return zero
 }
 
 type BoolExpNode struct {
@@ -1003,12 +1051,21 @@ func (n *DefAndAssignNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value 
 				&calcedTypeNode{tp},
 				tp, s)
 		}
+		var val1 = v
+		if heap {
+			val1 = s.block.NewPtrToInt(v, lexer.DefaultIntType())
+			wrappertp := types.NewStruct(types.I8, tp)
+			val1 = s.block.NewIntToPtr(val1, types.NewPointer(wrappertp))
+			val1 = s.block.NewGetElementPtr(wrappertp, val1,
+				constant.NewIndex(zero),
+				constant.NewIndex(constant.NewInt(types.I32, int64(1))))
+		}
 		val, err := implicitCast(val, tp, s)
 		if err != nil {
 			panic(err)
 		}
 		va := &variable{v, &varheap{heap: heap}}
-		store(val, v, s)
+		store(val, val1, s)
 		if heap {
 			s.addVar(n.ID, va)
 			return v

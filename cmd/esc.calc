@@ -1,12 +1,17 @@
+var mlist *MallocList
+
 func main() int {
     d := esctest{}
-    g := 1
+    g := 100
     d.a = &g
     stackEsp(d)
+    mlist.removeWhite()
     return 0
 }
+
 type esctest struct{
     a *int
+    b int
 }
 
 func stackEsp(c esctest) *int {
@@ -22,8 +27,87 @@ func heapfree<T>(t *T) void {
 
 func heapalloc<T>() *T {
     size := sizeofwraped<T>()
-    printIntln(size)
-    return unsafecast<*byte,*T>(malloc(size))
+    bs := malloc(size)
+    if mlist==nil {
+        mlist = unsafe_heapalloc<MallocList>()
+    }
+    cst := unsafecast<*byte,*int>(bs)
+    seted := memset(bs,0,size)
+    mlist.add(cst)
+    printIntln(*cst)
+    return unsafecast<*byte,*T>(seted)
+}
+
+func unsafe_heapalloc<T>() *T {
+    size := sizeofwraped<T>()
+    bs := malloc(size)
+    return unsafecast<*byte,*T>(memset(bs,0,size))
+}
+
+
+type MallocList struct {
+    first *MallocListNode
+    last *MallocListNode
+    len  int
+}
+
+func add(this list *MallocList, ptr *int) void {
+    node := unsafe_heapalloc<MallocListNode>()
+    node.HeapPtr=ptr
+    if list.last==nil {
+        list.first = node
+        list.last = node
+    }else{
+        list.last.Next = node
+        node.Prev = list.last
+        list.last = node
+    }
+    list.len = list.len + 1
+    return
+}
+
+func remove(this list *MallocList, ptr *MallocListNode) void {
+    if ptr.Prev==nil{
+        list.first = ptr.Next
+        if list.first!=nil {
+            list.first.Prev = nil
+        }else {
+            list.last = nil
+        }
+    }else if ptr.Next == nil {
+        list.last = ptr.Prev
+        if list.last!=nil {
+            list.last.Next = nil
+        }
+    }else {
+        ptr.Prev.Next = ptr.Next
+        ptr.Next.Prev=ptr.Prev
+    }
+    list.len = list.len - 1
+    return
+}
+
+func removeWhite(this list *MallocList) void {
+    printIntln(1001)
+    elm := list.first
+    for {
+        if elm == nil {
+            break
+        }
+        printIntln(*elm.HeapPtr)
+        if *elm.HeapPtr==0 {
+            list.remove(elm)
+        }
+        elm = elm.Next
+    }
+    return
+}
+
+
+type MallocListNode struct {
+    HeapPtr *int
+    Next    *MallocListNode
+    Prev    *MallocListNode
 }
 
 

@@ -59,6 +59,7 @@ const (
 	TYPE_DOT           // "."
 	TYPE_RES_THIS      // "this"
 	TYPE_RES_INTERFACE // "interface"
+	TYPE_RES_NIL       // "nil"
 )
 
 var (
@@ -88,6 +89,7 @@ var (
 		"byte":      TYPE_RES_BYTE,
 		"this":      TYPE_RES_THIS,
 		"interface": TYPE_RES_INTERFACE,
+		"nil":       TYPE_RES_NIL,
 	}
 	reservedTypes = map[string]int{
 		"int":     TYPE_RES_INT,

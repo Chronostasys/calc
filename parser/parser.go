@@ -271,6 +271,11 @@ func program() *ast.ProgramNode {
 			n.Children = append(n.Children, ast)
 			continue
 		}
+		ast, err = runWithCatch2(define)
+		if err == nil {
+			n.Children = append(n.Children, ast)
+			continue
+		}
 
 		n.Children = append(n.Children, function())
 	}
@@ -282,12 +287,12 @@ func allexp() ast.Node {
 	if err == nil {
 		return ast
 	}
-	// ast, err = runWithCatch2(takeValExp)
-	// if err == nil {
-	// 	return ast
-	// }
+	ast, err = runWithCatch2(nilExp)
+	if err == nil {
+		return ast
+	}
 	ch1 := lexer.SetCheckpoint()
-	n, err := runWithCatch2(boolexp)
+	n, err := runWithCatch(exp)
 	if err == nil {
 		ch := lexer.SetCheckpoint()
 		code, _, eos := lexer.Scan()
@@ -296,14 +301,18 @@ func allexp() ast.Node {
 		}
 		lexer.GobackTo(ch)
 		switch code {
-		case lexer.TYPE_DIV, lexer.TYPE_MUL, lexer.TYPE_PLUS, lexer.TYPE_SUB:
+		case lexer.TYPE_AND, lexer.TYPE_OR, lexer.TYPE_LG, lexer.TYPE_SM, lexer.TYPE_LEQ, lexer.TYPE_SEQ:
 		default:
 			return n
 		}
 	}
 
 	lexer.GobackTo(ch1)
-	return exp()
+	n, err = boolexp()
+	if err != nil {
+		panic(err)
+	}
+	return n
 
 }
 
@@ -424,7 +433,7 @@ func compare() (node ast.Node, err error) {
 		}
 	}()
 	n := &ast.CompareNode{}
-	n.Left = exp()
+	n.Left = allexp()
 	code, _, eos := lexer.Scan()
 	if eos {
 		return nil, lexer.ErrEOS
@@ -437,7 +446,7 @@ func compare() (node ast.Node, err error) {
 	default:
 		return nil, fmt.Errorf("expect compare op")
 	}
-	n.Right = exp()
+	n.Right = allexp()
 	return n, nil
 }
 
@@ -835,6 +844,14 @@ func varBlock() (n *ast.VarBlockNode, err error) {
 		}
 	}
 	return n, nil
+}
+
+func nilExp() (n ast.Node, err error) {
+	_, err = lexer.ScanType(lexer.TYPE_RES_NIL)
+	if err != nil {
+		return nil, err
+	}
+	return &ast.NilNode{}, nil
 }
 
 func Parse(s string) string {
