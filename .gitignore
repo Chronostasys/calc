@@ -1,3 +1,6 @@
 *.asm
 *.exe
 *.ll
+*.lib
+*.dll
+*.log

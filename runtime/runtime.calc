@@ -1,9 +1,7 @@
+
 func heapalloc<T>() *T {
-    return unsafecast<*byte,*T>(malloc(sizeofwraped<T>()))
+    size := sizeof<T>()
+    bs := GC_malloc(size)
+    seted := memset(bs,0,size)
+    return unsafecast<*byte,*T>(seted)
 }
-
-func heapfree<T>(t *T) void {
-    free(unsafecast<*T,*byte>(t))
-    return
-}
-

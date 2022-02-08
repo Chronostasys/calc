@@ -1,113 +1,24 @@
-var mlist *MallocList
-
 func main() int {
-    d := esctest{}
-    g := 100
-    d.a = &g
-    stackEsp(d)
-    mlist.removeWhite()
+    for {
+        loop()
+    }
     return 0
 }
 
-type esctest struct{
-    a *int
-    b int
+func massiveAllocation() [100]int {
+    d := [100]int{}
+    return d
 }
-
-func stackEsp(c esctest) *int {
-    *c.a = 5
-    a := 1
-    return &a
-}
-
-func heapfree<T>(t *T) void {
-    free(unsafecast<*T,*byte>(t))
+func loop() void {
+    for i:=0;i<1000;i=i+1{
+        massiveAllocation()
+    }
     return
 }
 
 func heapalloc<T>() *T {
-    size := sizeofwraped<T>()
-    bs := malloc(size)
-    if mlist==nil {
-        mlist = unsafe_heapalloc<MallocList>()
-    }
-    cst := unsafecast<*byte,*int>(bs)
+    size := sizeof<T>()
+    bs := GC_malloc(size)
     seted := memset(bs,0,size)
-    mlist.add(cst)
-    printIntln(*cst)
     return unsafecast<*byte,*T>(seted)
 }
-
-func unsafe_heapalloc<T>() *T {
-    size := sizeofwraped<T>()
-    bs := malloc(size)
-    return unsafecast<*byte,*T>(memset(bs,0,size))
-}
-
-
-type MallocList struct {
-    first *MallocListNode
-    last *MallocListNode
-    len  int
-}
-
-func add(this list *MallocList, ptr *int) void {
-    node := unsafe_heapalloc<MallocListNode>()
-    node.HeapPtr=ptr
-    if list.last==nil {
-        list.first = node
-        list.last = node
-    }else{
-        list.last.Next = node
-        node.Prev = list.last
-        list.last = node
-    }
-    list.len = list.len + 1
-    return
-}
-
-func remove(this list *MallocList, ptr *MallocListNode) void {
-    if ptr.Prev==nil{
-        list.first = ptr.Next
-        if list.first!=nil {
-            list.first.Prev = nil
-        }else {
-            list.last = nil
-        }
-    }else if ptr.Next == nil {
-        list.last = ptr.Prev
-        if list.last!=nil {
-            list.last.Next = nil
-        }
-    }else {
-        ptr.Prev.Next = ptr.Next
-        ptr.Next.Prev=ptr.Prev
-    }
-    list.len = list.len - 1
-    return
-}
-
-func removeWhite(this list *MallocList) void {
-    printIntln(1001)
-    elm := list.first
-    for {
-        if elm == nil {
-            break
-        }
-        printIntln(*elm.HeapPtr)
-        if *elm.HeapPtr==0 {
-            list.remove(elm)
-        }
-        elm = elm.Next
-    }
-    return
-}
-
-
-type MallocListNode struct {
-    HeapPtr *int
-    Next    *MallocListNode
-    Prev    *MallocListNode
-}
-
-

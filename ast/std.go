@@ -40,7 +40,11 @@ func AddSTDFunc(m *ir.Module) {
 	globalScope.addVar(f.Name(), &variable{f})
 
 	p = ir.NewParam("i", lexer.DefaultIntType())
-	f = m.NewFunc("malloc", types.I8Ptr, p)
+	f = m.NewFunc("GC_malloc", types.I8Ptr, p)
+	globalScope.addVar(f.Name(), &variable{f})
+
+	p = ir.NewParam("i", lexer.DefaultIntType())
+	f = m.NewFunc("Sleep", lexer.DefaultIntType(), p)
 	globalScope.addVar(f.Name(), &variable{f})
 
 	p = ir.NewParam("i", types.I8Ptr)
@@ -87,17 +91,16 @@ func AddSTDFunc(m *ir.Module) {
 
 	})
 
-	globalScope.addGeneric("sizeofwraped", func(m *ir.Module, s *scope, gens ...TypeNode) value.Value {
+	globalScope.addGeneric("ptrtoint", func(m *ir.Module, s *scope, gens ...TypeNode) value.Value {
 		tp, _ := gens[0].calc(s)
-		fnname := fmt.Sprintf("sizeofwraped<%s>", tp.String())
+		fnname := fmt.Sprintf("ptrtoint<%s>", tp.String())
 		fn, err := globalScope.searchVar(fnname)
 		if err != nil {
-			f = m.NewFunc(fnname, lexer.DefaultIntType())
+			p := ir.NewParam("ptr", tp)
+			f = m.NewFunc(fnname, lexer.DefaultIntType(), p)
 			b = f.NewBlock("")
-			tp = types.NewStruct(types.I8, tp)
-			sizePtr := b.NewGetElementPtr(tp, constant.NewNull(types.NewPointer(tp)), constant.NewInt(lexer.DefaultIntType(), 1))
-			size := b.NewPtrToInt(sizePtr, lexer.DefaultIntType())
-			b.NewRet(size)
+			ptr := b.NewPtrToInt(p, lexer.DefaultIntType())
+			b.NewRet(ptr)
 			fn = &variable{f}
 			globalScope.addVar(f.Name(), fn)
 		}

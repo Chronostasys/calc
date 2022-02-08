@@ -75,11 +75,6 @@ type test1 struct{
     a int32
 }
 func testBasicGeneric() int {
-    m := malloc(8)
-    n := unsafecast<*byte,*int64>(m)
-    *n = 100
-    printIntln(*n)
-    free(m)
     genericTest<int>(100)
     return 0
 }
@@ -97,7 +92,10 @@ func genericTest<T>(v T) int {
 }
 
 func heapalloc<T>() *T {
-    return unsafecast<*byte,*T>(malloc(sizeofwraped<T>()))
+    size := sizeof<T>()
+    bs := GC_malloc(size)
+    seted := memset(bs,0,size)
+    return unsafecast<*byte,*T>(seted)
 }
 
 
