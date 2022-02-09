@@ -32,7 +32,7 @@ all_exp: AE->E|BE|TPE|TVE
 exp: E->F|F((ADD|MIN)F)*
 factor: F->S|S((MUL|DIV)S)*
 symbol: S->N|((ADD|MIN) N)
-number: N->n|(LP E RP)|TVE
+number: N->n|(LP E RP)|TVE|SE
 bool_exp: BE->B|(B (AND|OR) BE)
 boolean: B->TRUE|FALSE|C|(NOT B)|(LP BE RP)|TVE
 compare_exp: C->(E|NE) (EQ|NEQ|LG|SM|LEQ|SEQ) (E|NE)
@@ -52,4 +52,5 @@ var_block: VB->var (LSB AE RSB)*
 interface_def: INTER->TP var INTERFACE LB ((var FPS TYPE NL)|NL)* RB
 null_exp: NE->NIL
 pkg_declare: PD->PKG var
+string_exp: SE->str
 ```

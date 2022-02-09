@@ -136,15 +136,6 @@ func (n *ArrayInitNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 		alloca = s.block.NewAlloca(atype)
 	}
 	var va value.Value = alloca
-	if n.allocOnHeap {
-		// unwrap
-		va = s.block.NewPtrToInt(alloca, lexer.DefaultIntType())
-		wrappertp := types.NewStruct(types.I8, atype)
-		va = s.block.NewIntToPtr(va, types.NewPointer(wrappertp))
-		va = s.block.NewGetElementPtr(wrappertp, va,
-			constant.NewIndex(zero),
-			constant.NewIndex(constant.NewInt(types.I32, int64(1))))
-	}
 	for k, v := range n.Vals {
 		ptr := s.block.NewGetElementPtr(atype, va,
 			constant.NewIndex(zero),
@@ -176,16 +167,6 @@ func (n *StructInitNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 		}
 
 		var va value.Value = alloca
-		if n.allocOnHeap {
-			// unwrap
-			va = s.block.NewPtrToInt(alloca, lexer.DefaultIntType())
-			wrappertp := types.NewStruct(types.I8, tp.structType)
-			va = s.block.NewIntToPtr(va, types.NewPointer(wrappertp))
-			va = s.block.NewGetElementPtr(wrappertp, va,
-				constant.NewIndex(zero),
-				constant.NewIndex(constant.NewInt(types.I32, int64(1))))
-		}
-
 		// assign
 		for k, v := range n.Fields {
 			fi := tp.fieldsIdx[k]

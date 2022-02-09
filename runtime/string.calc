@@ -1,0 +1,42 @@
+package runtime
+
+
+
+func PrintStringLn(s string) void {
+    a := s.Append("\n\0")
+    printf(a.bs)
+    return
+}
+
+
+type _str struct {
+    bs *byte
+    len int
+}
+
+func newstr(bs *byte,len int) _str {
+    return _str{
+        bs:bs,
+        len:len,
+    }
+}
+
+
+func Len(this s _str) int {
+    return s.len
+}
+
+func Append(this s _str, newstr _str) _str {
+    bs := GC_malloc(s.len+newstr.len)
+    memcpy(bs,s.bs,s.len)
+    i := ptrtoint<*byte>(bs)
+    i = i + s.len
+    nbs := inttoptr<*byte>(i)
+    memcpy(nbs,newstr.bs,newstr.len)
+    return _str{
+        bs: bs,
+        len: s.len + newstr.len,
+    }
+}
+
+

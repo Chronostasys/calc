@@ -29,8 +29,12 @@ func ParseInt(s string) (int64, *types.IntType, error) {
 }
 
 func number() (n ast.Node) {
+	n, err := runWithCatch2(strExp)
+	if err == nil {
+		return n
+	}
 	ch := lexer.SetCheckpoint()
-	n, err := runWithCatch2(takeValExp)
+	n, err = runWithCatch2(takeValExp)
 	if err == nil {
 		return n
 	}

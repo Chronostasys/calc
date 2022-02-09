@@ -61,6 +61,8 @@ const (
 	TYPE_RES_INTERFACE // "interface"
 	TYPE_RES_NIL       // "nil"
 	TYPE_RES_PKG       // "pkg"
+	TYPE_STR           // ant quoted string
+	TYPE_RES_STR       // "string"
 )
 
 var (
@@ -92,6 +94,7 @@ var (
 		"interface": TYPE_RES_INTERFACE,
 		"nil":       TYPE_RES_NIL,
 		"package":   TYPE_RES_PKG,
+		"string":    TYPE_RES_STR,
 	}
 	reservedTypes = map[string]int{
 		"int":     TYPE_RES_INT,
@@ -103,6 +106,7 @@ var (
 		"float32": TYPE_RES_FLOAT32,
 		"float64": TYPE_RES_FLOAT64,
 		"byte":    TYPE_RES_BYTE,
+		"string":  TYPE_RES_STR,
 	}
 	ErrEOS  = fmt.Errorf("eos error")
 	ErrTYPE = fmt.Errorf("the next token doesn't match the expected type")
@@ -208,6 +212,44 @@ func Scan() (code int, token string, eos bool) {
 		eos = end
 		return
 	}
+	if ch == '"' {
+		i := []rune{}
+		for {
+			c, end := getCh()
+			if end {
+				break
+			}
+			if c == '\\' {
+				c, end := getCh()
+				if end {
+					break
+				}
+				switch c {
+				case '"', '\'':
+					i = append(i, c)
+				case 't':
+					i = append(i, '\t')
+				case 'n':
+					i = append(i, '\n')
+				case 'r':
+					i = append(i, '\r')
+				case '\\':
+					i = append(i, '\\')
+				case '0':
+					i = append(i, '\x00')
+				default:
+					panic(fmt.Sprintf("unknown escape symbol %c", c))
+				}
+				continue
+
+			}
+			if c == '"' {
+				break
+			}
+			i = append(i, c)
+		}
+		return TYPE_STR, string(i), end
+	}
 	if isLetterOrUnderscore(ch) {
 		i := []rune{ch}
 		for {
@@ -215,16 +257,6 @@ func Scan() (code int, token string, eos bool) {
 			if end {
 				break
 			}
-			// if c == '.' {
-			// 	// handle xxx.XXX
-			// 	i = append(i, c)
-			// 	continue
-			// }
-			// if c == '[' || c == ']' {
-			// 	// handle indexing (xxx[X])
-			// 	i = append(i, c)
-			// 	continue
-			// }
 			if !isLetterOrUnderscore(c) && !isNum(c) {
 				pos--
 				break

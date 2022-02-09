@@ -24,11 +24,14 @@ var (
 		lexer.TYPE_RES_INT64:   types.I64,
 		lexer.TYPE_RES_BYTE:    types.I8,
 		lexer.TYPE_RES_VOID:    types.Void,
+		lexer.TYPE_RES_STR:     getstrtp(),
 	}
 )
 
-type VNode interface {
-	V() value.Value
+func getstrtp() types.Type {
+	s := types.NewStruct()
+	s.TypeName = "_str"
+	return s
 }
 
 type Node interface {
@@ -488,10 +491,6 @@ type DefineNode struct {
 	ID  string
 	TP  TypeNode
 	Val value.Value
-}
-
-func (n *DefineNode) V() value.Value {
-	return n.Val
 }
 
 func (n *DefineNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {

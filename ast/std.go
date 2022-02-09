@@ -13,6 +13,7 @@ import (
 func AddSTDFunc(m *ir.Module) {
 	printf := m.NewFunc("printf", types.I32, ir.NewParam("formatstr", types.I8Ptr))
 	printf.Sig.Variadic = true
+	globalScope.addVar(printf.Name(), &variable{printf})
 	gi := m.NewGlobalDef("stri", constant.NewCharArrayFromString("%d\n\x00"))
 	p := ir.NewParam("i", lexer.DefaultIntType())
 	f := m.NewFunc("printIntln", types.Void, p)
@@ -53,6 +54,11 @@ func AddSTDFunc(m *ir.Module) {
 
 	p = ir.NewParam("i", types.I8Ptr)
 	f = m.NewFunc("memset", types.I8Ptr, p, ir.NewParam("v", lexer.DefaultIntType()), ir.NewParam("len", lexer.DefaultIntType()))
+	globalScope.addVar(f.Name(), &variable{f})
+
+	p1 := ir.NewParam("dst", types.I8Ptr)
+	p2 := ir.NewParam("src", types.I8Ptr)
+	f = m.NewFunc("memcpy", types.I8Ptr, p1, p2, ir.NewParam("len", lexer.DefaultIntType()))
 	globalScope.addVar(f.Name(), &variable{f})
 
 	globalScope.addGeneric("unsafecast", func(m *ir.Module, s *scope, gens ...TypeNode) value.Value {
@@ -100,6 +106,23 @@ func AddSTDFunc(m *ir.Module) {
 			f = m.NewFunc(fnname, lexer.DefaultIntType(), p)
 			b = f.NewBlock("")
 			ptr := b.NewPtrToInt(p, lexer.DefaultIntType())
+			b.NewRet(ptr)
+			fn = &variable{f}
+			globalScope.addVar(f.Name(), fn)
+		}
+		return fn.v
+
+	})
+
+	globalScope.addGeneric("inttoptr", func(m *ir.Module, s *scope, gens ...TypeNode) value.Value {
+		tp, _ := gens[0].calc(s)
+		fnname := fmt.Sprintf("inttoptr<%s>", tp.String())
+		fn, err := globalScope.searchVar(fnname)
+		if err != nil {
+			p := ir.NewParam("int", lexer.DefaultIntType())
+			f = m.NewFunc(fnname, tp, p)
+			b = f.NewBlock("")
+			ptr := b.NewIntToPtr(p, tp)
 			b.NewRet(ptr)
 			fn = &variable{f}
 			globalScope.addVar(f.Name(), fn)
