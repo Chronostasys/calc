@@ -250,7 +250,10 @@ func statementList() ast.Node {
 
 func program() *ast.ProgramNode {
 	n := &ast.ProgramNode{}
-	//
+	ast, err := pkgDeclare()
+	if err == nil {
+		n.Children = append(n.Children, ast)
+	}
 	for {
 		ch := lexer.SetCheckpoint()
 		c, _, eos := lexer.Scan()

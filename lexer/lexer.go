@@ -60,6 +60,7 @@ const (
 	TYPE_RES_THIS      // "this"
 	TYPE_RES_INTERFACE // "interface"
 	TYPE_RES_NIL       // "nil"
+	TYPE_RES_PKG       // "pkg"
 )
 
 var (
@@ -90,6 +91,7 @@ var (
 		"this":      TYPE_RES_THIS,
 		"interface": TYPE_RES_INTERFACE,
 		"nil":       TYPE_RES_NIL,
+		"package":   TYPE_RES_PKG,
 	}
 	reservedTypes = map[string]int{
 		"int":     TYPE_RES_INT,

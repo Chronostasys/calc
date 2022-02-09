@@ -332,7 +332,7 @@ func (n *SLNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 		strings.Contains(f.Ident(), "MallocList") {
 		goto LOOP
 	}
-	// stackescape analysis
+	// stackescape analysis 逃逸分析
 	for _, v := range n.Children {
 		switch node := v.(type) {
 		case *BinNode:
