@@ -2,26 +2,61 @@ package ast
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/llir/llvm/ir"
 	"github.com/llir/llvm/ir/types"
 	"github.com/llir/llvm/ir/value"
 )
 
-type scope struct {
-	parent            *scope
+type Scope struct {
+	Pkgname           string
+	globalScope       *Scope
+	parent            *Scope
 	vartable          map[string]*variable
-	childrenScopes    []*scope
+	childrenScopes    []*Scope
 	block             *ir.Block
 	continueBlock     *ir.Block
 	breakBlock        *ir.Block
 	types             map[string]*typedef
-	defFuncs          []func(m *ir.Module) error
-	interfaceDefFuncs []func()
-	funcDefFuncs      []func()
-	genericFuncs      map[string]func(m *ir.Module, s *scope, gens ...TypeNode) value.Value
+	defFuncs          []func(m *ir.Module, s *Scope) error
+	interfaceDefFuncs []func(s *Scope)
+	funcDefFuncs      []func(s *Scope)
+	genericFuncs      map[string]func(m *ir.Module, s *Scope, gens ...TypeNode) value.Value
 	genericMap        map[string]types.Type
 	heapAllocTable    map[string]bool
+}
+
+var externMap = map[string]bool{
+	"printf":    true,
+	"memset":    true,
+	"GC_malloc": true,
+	"memcpy":    true,
+	"Sleep":     true,
+}
+
+func MergeGlobalScopes(ss ...*Scope) *Scope {
+	s := NewGlobalScope()
+	s.Pkgname = ss[0].Pkgname
+	for _, v := range ss {
+		for id, v := range v.vartable {
+			s.addVar(id, v)
+		}
+		for k, v := range v.types {
+			s.addStruct(k, v)
+		}
+		for k, v := range v.genericFuncs {
+			s.addGeneric(k, v)
+		}
+		s.defFuncs = append(s.defFuncs, v.defFuncs...)
+		s.interfaceDefFuncs = append(s.interfaceDefFuncs, v.interfaceDefFuncs...)
+		s.funcDefFuncs = append(s.funcDefFuncs, v.funcDefFuncs...)
+		s.childrenScopes = append(s.childrenScopes, v.childrenScopes...)
+		for _, v := range v.childrenScopes {
+			v.parent = s
+		}
+	}
+	return s
 }
 
 type variable struct {
@@ -40,29 +75,38 @@ type field struct {
 	ftype types.Type
 }
 
-func newScope(block *ir.Block) *scope {
-	return &scope{
+func newScope(block *ir.Block) *Scope {
+	sc := &Scope{
 		vartable:     make(map[string]*variable),
 		block:        block,
 		types:        map[string]*typedef{},
-		genericFuncs: make(map[string]func(m *ir.Module, s *scope, gens ...TypeNode) value.Value),
+		genericFuncs: make(map[string]func(m *ir.Module, s *Scope, gens ...TypeNode) value.Value),
 		genericMap:   make(map[string]types.Type),
 	}
+	return sc
+}
+func NewGlobalScope() *Scope {
+	sc := newScope(nil)
+	sc.globalScope = sc
+	return sc
 }
 
-func (s *scope) addChildScope(block *ir.Block) *scope {
+func (s *Scope) addChildScope(block *ir.Block) *Scope {
 	child := newScope(block)
 	child.parent = s
 	child.continueBlock = s.continueBlock
 	child.breakBlock = s.breakBlock
 	// child.genericMap = s.genericMap
+	child.globalScope = s.globalScope
+	child.Pkgname = s.Pkgname
 	s.childrenScopes = append(s.childrenScopes, child)
 	return child
 }
 
 var errRedef = fmt.Errorf("variable redefination in same scope")
 
-func (s *scope) addVar(id string, val *variable) error {
+func (s *Scope) addVar(id string, val *variable) error {
+	id = s.getFullName(id)
 	_, ok := s.vartable[id]
 	if ok {
 		return errRedef
@@ -70,7 +114,22 @@ func (s *scope) addVar(id string, val *variable) error {
 	s.vartable[id] = val
 	return nil
 }
-func (s *scope) addGeneric(id string, val func(m *ir.Module, s *scope, gens ...TypeNode) value.Value) error {
+func (s *Scope) getFullName(id string) string {
+	if s.Pkgname == "main" {
+		return id
+	}
+	if externMap[id] {
+		return id
+	}
+
+	if strings.Index(id, s.Pkgname+".") != 0 {
+		id = s.Pkgname + "." + id
+		return id
+	}
+	return id
+}
+func (s *Scope) addGeneric(id string, val func(m *ir.Module, s *Scope, gens ...TypeNode) value.Value) error {
+	id = s.getFullName(id)
 	_, ok := s.genericFuncs[id]
 	if ok {
 		return errRedef
@@ -81,7 +140,8 @@ func (s *scope) addGeneric(id string, val func(m *ir.Module, s *scope, gens ...T
 
 var errVarNotFound = fmt.Errorf("variable defination not found")
 
-func (s *scope) searchVar(id string) (*variable, error) {
+func (s *Scope) searchVar(id string) (*variable, error) {
+	id = s.getFullName(id)
 	scope := s
 	for {
 		if scope == nil {
@@ -96,7 +156,8 @@ func (s *scope) searchVar(id string) (*variable, error) {
 	return nil, errVarNotFound
 }
 
-func (s *scope) addStruct(id string, structT *typedef) error {
+func (s *Scope) addStruct(id string, structT *typedef) error {
+	id = s.getFullName(id)
 	_, ok := s.types[id]
 	if ok {
 		return errRedef
@@ -105,7 +166,8 @@ func (s *scope) addStruct(id string, structT *typedef) error {
 	return nil
 }
 
-func (s *scope) getStruct(id string) *typedef {
+func (s *Scope) getStruct(id string) *typedef {
+	id = s.getFullName(id)
 	scope := s
 	for {
 		if scope == nil {
@@ -120,7 +182,7 @@ func (s *scope) getStruct(id string) *typedef {
 	return nil
 }
 
-func (s *scope) getGenericType(id string) types.Type {
+func (s *Scope) getGenericType(id string) types.Type {
 	scope := s
 	for {
 		if scope == nil {
@@ -134,3 +196,23 @@ func (s *scope) getGenericType(id string) types.Type {
 	}
 	return nil
 }
+
+func (s *Scope) getGenericFunc(id string) func(m *ir.Module, gens ...TypeNode) value.Value {
+	id = s.getFullName(id)
+	scope := s
+	for {
+		if scope == nil {
+			break
+		}
+		val, ok := scope.genericFuncs[id]
+		if ok {
+			return func(m *ir.Module, gens ...TypeNode) value.Value {
+				return val(m, s, gens...)
+			}
+		}
+		scope = scope.parent
+	}
+	return nil
+}
+
+var ScopeMap = map[string]*Scope{}

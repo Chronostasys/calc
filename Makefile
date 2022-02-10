@@ -4,10 +4,10 @@ test-ir:
 	cd cmd && go run main.go
 
 test-asm:
-	cd cmd && clang -S test.ll -o test.asm
+	cd cmd && clang -S out.ll -o test.asm
 
 test-exe:
-	cd cmd && clang test.ll gc.lib -o test.exe
+	cd cmd && clang out.ll gc.lib -o test.exe
 compiler:
 	cd cmd && go build -o compiler.exe main.go
 

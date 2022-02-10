@@ -1,6 +1,7 @@
 package ast
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/Chronostasys/calculator_go/lexer"
@@ -17,9 +18,9 @@ type BasicTypeNode struct {
 }
 
 type TypeNode interface {
-	calc(*scope) (types.Type, error)
+	calc(*Scope) (types.Type, error)
 	SetPtrLevel(int)
-	String() string
+	String(*Scope) string
 }
 
 type calcedTypeNode struct {
@@ -29,10 +30,10 @@ type calcedTypeNode struct {
 func (v *calcedTypeNode) SetPtrLevel(i int) {
 	panic("not impl")
 }
-func (v *calcedTypeNode) calc(*scope) (types.Type, error) {
+func (v *calcedTypeNode) calc(*Scope) (types.Type, error) {
 	return v.tp, nil
 }
-func (v *calcedTypeNode) String() string {
+func (v *calcedTypeNode) String(*Scope) string {
 	panic("not impl")
 }
 
@@ -48,23 +49,23 @@ func (v *ArrayTypeNode) SetPtrLevel(i int) {
 func (v *BasicTypeNode) SetPtrLevel(i int) {
 	v.PtrLevel = i
 }
-func (v *ArrayTypeNode) String() string {
-	t, err := v.calc(globalScope)
+func (v *ArrayTypeNode) String(s *Scope) string {
+	t, err := v.calc(s.globalScope)
 	if err != nil {
 		panic(err)
 	}
 	tp := strings.Trim(t.String(), "%*")
 	return tp
 }
-func (v *BasicTypeNode) String() string {
-	t, err := v.calc(globalScope)
+func (v *BasicTypeNode) String(s *Scope) string {
+	t, err := v.calc(s.globalScope)
 	if err != nil {
 		panic(err)
 	}
 	tp := strings.Trim(t.String(), "%*")
 	return tp
 }
-func (v *ArrayTypeNode) calc(s *scope) (types.Type, error) {
+func (v *ArrayTypeNode) calc(s *Scope) (types.Type, error) {
 	elm, err := v.ElmType.calc(s)
 	if err != nil {
 		return nil, err
@@ -77,29 +78,35 @@ func (v *ArrayTypeNode) calc(s *scope) (types.Type, error) {
 	return tp, nil
 }
 
-func (v *BasicTypeNode) calc(sc *scope) (types.Type, error) {
+func (v *BasicTypeNode) calc(sc *Scope) (types.Type, error) {
 	var s types.Type
 	if len(v.CustomTp) == 0 {
 		s = typedic[v.ResType]
 	} else {
-		if len(v.CustomTp) == 1 {
+		tpname := v.CustomTp[0]
+		getTp := func() {
 			st := types.NewStruct()
-			def := sc.getStruct(v.CustomTp[0])
+			def := sc.getStruct(tpname)
 			if def != nil && def.interf {
 				s = &interf{
 					IntType:        lexer.DefaultIntType(),
 					interfaceFuncs: def.funcs,
-					name:           v.CustomTp[0],
+					name:           tpname,
 				}
 
-			} else if sc.getGenericType(v.CustomTp[0]) != nil {
-				s = sc.getGenericType(v.CustomTp[0])
+			} else if sc.getGenericType(tpname) != nil {
+				s = sc.getGenericType(tpname)
 			} else {
-				st.TypeName = v.CustomTp[0]
+				st.TypeName = sc.getFullName(tpname)
 				s = st
 			}
+		}
+		if len(v.CustomTp) == 1 {
+			getTp()
 		} else {
-			panic("not impl")
+			sc = ScopeMap[v.CustomTp[0]]
+			tpname = v.CustomTp[1]
+			getTp()
 		}
 	}
 	if s == nil {
@@ -121,7 +128,7 @@ func (n *ArrayInitNode) setAlloc(onheap bool) {
 	n.allocOnHeap = onheap
 }
 
-func (n *ArrayInitNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
+func (n *ArrayInitNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	tp := n.Type
 	atype, err := tp.calc(s)
 	if err != nil {
@@ -129,8 +136,8 @@ func (n *ArrayInitNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 	}
 	var alloca value.Value
 	if n.allocOnHeap {
-		gfn := globalScope.genericFuncs["heapalloc"]
-		fnv := gfn(m, s, n.Type)
+		gfn := s.globalScope.getGenericFunc("heapalloc")
+		fnv := gfn(m, n.Type)
 		alloca = s.block.NewCall(fnv)
 	} else {
 		alloca = s.block.NewAlloca(atype)
@@ -152,35 +159,40 @@ func (n *ArrayInitNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 func (n *StructInitNode) setAlloc(onheap bool) {
 	n.allocOnHeap = onheap
 }
-func (n *StructInitNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
+func (n *StructInitNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
+	var tp *typedef
 	if len(n.ID) > 1 {
-		panic("not impl yet")
+		scope, ok := ScopeMap[n.ID[0]]
+		if !ok {
+			panic(fmt.Sprintf("module %s not found", n.ID[0]))
+		}
+		tp = scope.getStruct(n.ID[1])
 	} else {
-		tp := globalScope.getStruct(n.ID[0])
-		var alloca value.Value
-		if n.allocOnHeap {
-			gfn := globalScope.genericFuncs["heapalloc"]
-			fnv := gfn(m, s, &BasicTypeNode{CustomTp: n.ID})
-			alloca = s.block.NewCall(fnv)
-		} else {
-			alloca = s.block.NewAlloca(tp.structType)
-		}
-
-		var va value.Value = alloca
-		// assign
-		for k, v := range n.Fields {
-			fi := tp.fieldsIdx[k]
-			ptr := s.block.NewGetElementPtr(tp.structType, va,
-				constant.NewIndex(zero),
-				constant.NewIndex(constant.NewInt(types.I32, int64(fi.idx))))
-			va, err := implicitCast(loadIfVar(v.calc(m, f, s), s), fi.ftype, s)
-			if err != nil {
-				panic(err)
-			}
-			store(va, ptr, s)
-		}
-		return alloca
+		tp = s.globalScope.getStruct(n.ID[0])
 	}
+	var alloca value.Value
+	if n.allocOnHeap {
+		gfn := s.globalScope.getGenericFunc("heapalloc")
+		fnv := gfn(m, &BasicTypeNode{CustomTp: n.ID})
+		alloca = s.block.NewCall(fnv)
+	} else {
+		alloca = s.block.NewAlloca(tp.structType)
+	}
+
+	var va value.Value = alloca
+	// assign
+	for k, v := range n.Fields {
+		fi := tp.fieldsIdx[k]
+		ptr := s.block.NewGetElementPtr(tp.structType, va,
+			constant.NewIndex(zero),
+			constant.NewIndex(constant.NewInt(types.I32, int64(fi.idx))))
+		va, err := implicitCast(loadIfVar(v.calc(m, f, s), s), fi.ftype, s)
+		if err != nil {
+			panic(err)
+		}
+		store(va, ptr, s)
+	}
+	return alloca
 }
 
 type structDefNode struct {
@@ -188,14 +200,14 @@ type structDefNode struct {
 	fields map[string]TypeNode
 }
 
-func NewStructDefNode(id string, fieldsMap map[string]TypeNode) Node {
+func NewStructDefNode(id string, fieldsMap map[string]TypeNode, s *Scope) Node {
 	n := &structDefNode{id: id, fields: fieldsMap}
-	defFunc := func(m *ir.Module) error {
+	defFunc := func(m *ir.Module, s *Scope) error {
 		fields := []types.Type{}
 		fieldsIdx := map[string]*field{}
 		i := 0
 		for k, v := range n.fields {
-			tp, err := v.calc(globalScope)
+			tp, err := v.calc(s.globalScope)
 			if err != nil {
 				return err
 			}
@@ -206,18 +218,18 @@ func NewStructDefNode(id string, fieldsMap map[string]TypeNode) Node {
 			}
 			i++
 		}
-		globalScope.addStruct(n.id, &typedef{
+		s.globalScope.addStruct(n.id, &typedef{
 			fieldsIdx:  fieldsIdx,
-			structType: m.NewTypeDef(n.id, types.NewStruct(fields...)),
+			structType: m.NewTypeDef(s.getFullName(n.id), types.NewStruct(fields...)),
 		})
 		return nil
 	}
-	globalScope.defFuncs = append(globalScope.defFuncs, defFunc)
+	s.globalScope.defFuncs = append(s.globalScope.defFuncs, defFunc)
 	return n
 
 }
 
-func (n *structDefNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
+func (n *structDefNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	return zero
 }
 

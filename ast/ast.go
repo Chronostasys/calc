@@ -13,8 +13,7 @@ import (
 )
 
 var (
-	globalScope = newScope(nil)
-	typedic     = map[int]types.Type{
+	typedic = map[int]types.Type{
 		lexer.TYPE_RES_FLOAT:   lexer.DefaultFloatType(),
 		lexer.TYPE_RES_INT:     lexer.DefaultIntType(),
 		lexer.TYPE_RES_BOOL:    types.I1,
@@ -35,11 +34,7 @@ func getstrtp() types.Type {
 }
 
 type Node interface {
-	calc(*ir.Module, *ir.Func, *scope) value.Value
-}
-
-func PrintTable() {
-	fmt.Println(globalScope)
+	calc(*ir.Module, *ir.Func, *Scope) value.Value
 }
 
 type BinNode struct {
@@ -48,7 +43,7 @@ type BinNode struct {
 	Right Node
 }
 
-func loadIfVar(l value.Value, s *scope) value.Value {
+func loadIfVar(l value.Value, s *Scope) value.Value {
 
 	if t, ok := l.Type().(*types.PointerType); ok {
 		return s.block.NewLoad(t.ElemType, l)
@@ -112,7 +107,7 @@ func hasFloatType(b *ir.Block, ts ...value.Value) (bool, []value.Value) {
 	return hasfloat, re
 }
 
-func (n *BinNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
+func (n *BinNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	rawL, rawR := n.Left.calc(m, f, s), n.Right.calc(m, f, s)
 	l, r := loadIfVar(rawL, s), loadIfVar(rawR, s)
 	hasF, re := hasFloatType(s.block, l, r)
@@ -178,7 +173,7 @@ func getVarNode(n Node) alloca {
 	}
 }
 
-func store(r, lptr value.Value, s *scope) value.Value {
+func store(r, lptr value.Value, s *Scope) value.Value {
 	if r.Type().Equal(lptr.Type().(*types.PointerType).ElemType) {
 		s.block.NewStore(r, lptr)
 		return lptr
@@ -196,7 +191,7 @@ type NumNode struct {
 	Val value.Value
 }
 
-func (n *NumNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
+func (n *NumNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	return n.Val
 }
 
@@ -207,7 +202,7 @@ type UnaryNode struct {
 
 var zero = constant.NewInt(lexer.DefaultIntType(), 0)
 
-func (n *UnaryNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
+func (n *UnaryNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	c := loadIfVar(n.Child.calc(m, f, s), s)
 	switch n.Op {
 	case lexer.TYPE_PLUS:
@@ -246,22 +241,27 @@ func (n *VarBlockNode) setAlloc(onheap bool) {
 	n.allocOnHeap = onheap
 }
 
-func (n *VarBlockNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
+func (n *VarBlockNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	var va value.Value
 	if n.parent == nil {
 		// head node
 		var err error
 		var val *variable
 		val, err = s.searchVar(n.Token)
-		va = val.v
 		if err != nil {
-			// TODO module
-			panic(fmt.Errorf("variable %s not defined", n.Token))
+			scope := ScopeMap[n.Token]
+			val, err = scope.searchVar(n.Next.Token)
+			if err != nil {
+				// TODO module
+				panic(fmt.Errorf("variable %s not defined", n.Token))
+			}
+			n = n.Next
 		}
+		va = val.v
 	} else {
 		va = n.parent
 		s1 := getTypeName(va.Type())
-		tp := globalScope.getStruct(s1)
+		tp := s.globalScope.getStruct(s1)
 		fi := tp.fieldsIdx[n.Token]
 		va = s.block.NewGetElementPtr(tp.structType, va,
 			constant.NewIndex(zero),
@@ -294,7 +294,7 @@ func (n *VarBlockNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 	return n.Next.calc(m, f, s)
 }
 
-func deReference(va value.Value, s *scope) value.Value {
+func deReference(va value.Value, s *Scope) value.Value {
 	tpptr := va.Type()
 	for {
 		if ptr, ok := tpptr.(*types.PointerType); ok {
@@ -325,7 +325,7 @@ type escNode struct {
 	initNode alloca
 }
 
-func (n *SLNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
+func (n *SLNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	var escMap = map[string][]*escNode{}
 	var defMap = map[string]bool{}
 	var escPoint = []string{}
@@ -443,26 +443,47 @@ func findEsc(next []*escNode, defMap map[string]bool, heapAllocTable map[string]
 }
 
 type ProgramNode struct {
-	PKG      *PackageNode
-	Imports  *ImportNode
-	Children []Node
+	PKG         *PackageNode
+	Imports     *ImportNode
+	Children    []Node
+	GlobalScope *Scope
 }
 
-func (n *ProgramNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
+func Merge(ns ...*ProgramNode) *ProgramNode {
+	ss := []*Scope{}
+	p := &ProgramNode{}
+	for _, v := range ns {
+		ss = append(ss, v.GlobalScope)
+		p.Children = append(p.Children, v.Children...)
+		if p.PKG != nil && p.PKG.Name != v.PKG.Name {
+			panic("found two different modules under same dir")
+		}
+		p.PKG = v.PKG
+	}
+	s := MergeGlobalScopes(ss...)
+	p.GlobalScope = s
+	return p
+}
+
+func (n *ProgramNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	n.Emit(m)
 	return zero
 }
-func (n *ProgramNode) Emit(m *ir.Module) value.Value {
+
+func (n *ProgramNode) CalcGlobals(m *ir.Module) {
+
+	globalScope := n.GlobalScope
 	// define all interfaces
 	for _, v := range globalScope.interfaceDefFuncs {
-		v()
+		v(n.GlobalScope)
 	}
+	globalScope.interfaceDefFuncs = globalScope.interfaceDefFuncs[:0]
 
 	// define all structs
 	for {
-		failed := []func(m *ir.Module) error{}
+		failed := []func(m *ir.Module, s *Scope) error{}
 		for _, v := range globalScope.defFuncs {
-			if v(m) != nil {
+			if v(m, n.GlobalScope) != nil {
 				failed = append(failed, v)
 			}
 		}
@@ -473,19 +494,23 @@ func (n *ProgramNode) Emit(m *ir.Module) value.Value {
 	}
 	// add all func declaration to scope
 	for _, v := range globalScope.funcDefFuncs {
-		v()
+		v(n.GlobalScope)
 	}
+	globalScope.funcDefFuncs = globalScope.funcDefFuncs[:0]
+}
 
+func (n *ProgramNode) Emit(m *ir.Module) {
+	globalScope := n.GlobalScope
+	n.CalcGlobals(m)
 	for _, v := range n.Children {
 		v.calc(m, nil, globalScope)
 	}
-	return zero
 }
 
 type EmptyNode struct {
 }
 
-func (n *EmptyNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
+func (n *EmptyNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	return zero
 }
 
@@ -495,7 +520,7 @@ type DefineNode struct {
 	Val value.Value
 }
 
-func (n *DefineNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
+func (n *DefineNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	tp, err := n.TP.calc(s)
 	if err != nil {
 		panic(err)
@@ -510,8 +535,8 @@ func (n *DefineNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 		s.addVar(n.ID, &variable{n.Val})
 	} else {
 		if s.heapAllocTable[n.ID] {
-			gfn := globalScope.genericFuncs["heapalloc"]
-			fnv := gfn(m, s, n.TP)
+			gfn := s.globalScope.getGenericFunc("heapalloc")
+			fnv := gfn(m, n.TP)
 			n.Val = s.block.NewCall(fnv)
 			s.addVar(n.ID, &variable{n.Val})
 		} else {
@@ -528,7 +553,7 @@ type RetNode struct {
 	Exp Node
 }
 
-func (n *RetNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
+func (n *RetNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	if n.Exp == nil {
 		s.block.NewRet(nil)
 		return zero
@@ -545,7 +570,7 @@ func (n *RetNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 type NilNode struct {
 }
 
-func (n *NilNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
+func (n *NilNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	return zero
 }
 
@@ -554,10 +579,10 @@ type DefAndAssignNode struct {
 	ID  string
 }
 
-func autoAlloc(m *ir.Module, id string, gtp TypeNode, tp types.Type, s *scope) (v value.Value) {
+func autoAlloc(m *ir.Module, id string, gtp TypeNode, tp types.Type, s *Scope) (v value.Value) {
 	if s.heapAllocTable[id] {
-		gfn := globalScope.genericFuncs["heapalloc"]
-		fnv := gfn(m, s, gtp)
+		gfn := s.globalScope.getGenericFunc("heapalloc")
+		fnv := gfn(m, gtp)
 		v = s.block.NewCall(fnv)
 	} else {
 		v = s.block.NewAlloca(tp)
@@ -566,10 +591,7 @@ func autoAlloc(m *ir.Module, id string, gtp TypeNode, tp types.Type, s *scope) (
 
 }
 
-func (n *DefAndAssignNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
-	if strings.Contains(n.ID, ".") {
-		panic("unexpected '.'")
-	}
+func (n *DefAndAssignNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	if f != nil {
 		rawval := n.Val.calc(m, f, s)
 		val := loadIfVar(rawval, s)
@@ -619,7 +641,7 @@ func (n *DefAndAssignNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value 
 	panic("not impl")
 }
 
-func implicitCast(v value.Value, target types.Type, s *scope) (value.Value, error) {
+func implicitCast(v value.Value, target types.Type, s *Scope) (value.Value, error) {
 	if v.Type().Equal(target) {
 		return v, nil
 	}

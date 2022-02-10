@@ -9,21 +9,12 @@ import (
 )
 
 func main() {
-	var inf, outf string
-	flag.StringVar(&inf, "c", "test.calc", "source file")
-	flag.StringVar(&outf, "o", "test.ll", "llvm ir file")
+	var outf string
+	flag.StringVar(&outf, "o", "out.ll", "llvm ir file")
 	flag.Parse()
-	bs, err := ioutil.ReadFile(inf)
+	s := parser.ParseCurentDir()
+	err := ioutil.WriteFile(outf, []byte(s), 0777)
 	if err != nil {
 		log.Fatalln(err)
 	}
-	code := string(bs)
-	ir := parser.Parse(code)
-	err = ioutil.WriteFile(outf, []byte(ir), 0777)
-	if err != nil {
-		log.Fatalln(err)
-	}
-	// ast.PrintTable()
-	// ast := parser.ParseAST(code)
-	// fmt.Println(ast)
 }

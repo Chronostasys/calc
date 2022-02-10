@@ -53,5 +53,5 @@ interface_def: INTER->TP var INTERFACE LB ((var FPS TYPE NL)|NL)* RB
 null_exp: NE->NIL
 pkg_declare: PD->PKG var
 string_exp: SE->str
-import_statement: IS->imp str|imp LP (SE|NL)* RP
+import_statement: IS->imp str|imp LP ((SE var?)|NL)* RP
 ```

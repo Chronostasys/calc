@@ -67,8 +67,6 @@ const (
 )
 
 var (
-	input    string
-	pos      int
 	reserved = map[string]int{
 		"var":       TYPE_RES_VAR,
 		"int":       TYPE_RES_INT,
@@ -114,46 +112,51 @@ var (
 	ErrTYPE = fmt.Errorf("the next token doesn't match the expected type")
 )
 
+type Lexer struct {
+	input string
+	pos   int
+}
+
 func IsResType(token string) (code int, ok bool) {
 	code, ok = reservedTypes[token]
 	return
 }
 
-func SetInput(s string) {
-	pos = 0
-	input = s
+func (l *Lexer) SetInput(s string) {
+	l.pos = 0
+	l.input = s
 }
 
-func Peek() (ch rune, end bool) {
-	if pos >= len(input) {
+func (l *Lexer) Peek() (ch rune, end bool) {
+	if l.pos >= len(l.input) {
 		return ch, true
 	}
-	ch = []rune(input)[pos]
+	ch = []rune(l.input)[l.pos]
 	return ch, false
 }
 
-func PeekToken() (code int, token string, eos bool) {
-	ch := SetCheckpoint()
+func (l *Lexer) PeekToken() (code int, token string, eos bool) {
+	ch := l.SetCheckpoint()
 	defer func() {
-		GobackTo(ch)
+		l.GobackTo(ch)
 	}()
-	return Scan()
+	return l.Scan()
 }
 
-func getCh() (ch rune, end bool) {
+func (l *Lexer) getCh() (ch rune, end bool) {
 	defer func() {
-		pos++
+		l.pos++
 	}()
-	return Peek()
+	return l.Peek()
 }
 
-func getChSkipEmpty() (ch rune, end bool) {
-	ch, end = getCh()
+func (l *Lexer) getChSkipEmpty() (ch rune, end bool) {
+	ch, end = l.getCh()
 	if end {
 		return
 	}
 	if ch == ' ' || ch == '\t' {
-		return getChSkipEmpty()
+		return l.getChSkipEmpty()
 	}
 	return
 }
@@ -167,49 +170,45 @@ func isNum(ch rune) bool {
 	return '0' <= ch && ch <= '9'
 }
 
-func Retract(i int) {
-	pos -= i
-}
-
 type Checkpoint struct {
 	pos int
 }
 
-func SetCheckpoint() Checkpoint {
+func (l *Lexer) SetCheckpoint() Checkpoint {
 	return Checkpoint{
-		pos: pos,
+		pos: l.pos,
 	}
 }
-func GobackTo(c Checkpoint) {
-	pos = c.pos
+func (l *Lexer) GobackTo(c Checkpoint) {
+	l.pos = c.pos
 }
 
-func ScanType(code int) (token string, err error) {
-	ch := SetCheckpoint()
-	c, t, e := Scan()
+func (l *Lexer) ScanType(code int) (token string, err error) {
+	ch := l.SetCheckpoint()
+	c, t, e := l.Scan()
 	if c == code {
 		return t, nil
 	} else if e {
 		return "", ErrEOS
 	}
 	// fmt.Println(pos, t)
-	GobackTo(ch)
+	l.GobackTo(ch)
 	return "", ErrTYPE
 }
 
-func PrintCurrent() {
-	start, end := pos-10, pos+10
+func (l *Lexer) PrintCurrent() {
+	start, end := l.pos-10, l.pos+10
 	if start < 0 {
 		start = 0
 	}
-	if end > len(input) {
-		end = len(input)
+	if end > len(l.input) {
+		end = len(l.input)
 	}
-	fmt.Println(input[start:end])
+	fmt.Println(l.input[start:end])
 }
 
-func Scan() (code int, token string, eos bool) {
-	ch, end := getChSkipEmpty()
+func (l *Lexer) Scan() (code int, token string, eos bool) {
+	ch, end := l.getChSkipEmpty()
 	if end {
 		eos = end
 		return
@@ -217,12 +216,12 @@ func Scan() (code int, token string, eos bool) {
 	if ch == '"' {
 		i := []rune{}
 		for {
-			c, end := getCh()
+			c, end := l.getCh()
 			if end {
 				break
 			}
 			if c == '\\' {
-				c, end := getCh()
+				c, end := l.getCh()
 				if end {
 					break
 				}
@@ -255,12 +254,12 @@ func Scan() (code int, token string, eos bool) {
 	if isLetterOrUnderscore(ch) {
 		i := []rune{ch}
 		for {
-			c, end := getCh()
+			c, end := l.getCh()
 			if end {
 				break
 			}
 			if !isLetterOrUnderscore(c) && !isNum(c) {
-				pos--
+				l.pos--
 				break
 			}
 			i = append(i, c)
@@ -275,7 +274,7 @@ func Scan() (code int, token string, eos bool) {
 		i := []rune{ch}
 		t := TYPE_INT
 		for {
-			c, end := getCh()
+			c, end := l.getCh()
 			if end {
 				break
 			}
@@ -285,7 +284,7 @@ func Scan() (code int, token string, eos bool) {
 				continue
 			}
 			if !isNum(c) {
-				pos--
+				l.pos--
 				break
 			}
 			i = append(i, c)
@@ -306,17 +305,17 @@ func Scan() (code int, token string, eos bool) {
 	case ')':
 		return TYPE_RP, ")", end
 	case '=':
-		if ne, _ := Peek(); ne == '=' {
-			getCh()
+		if ne, _ := l.Peek(); ne == '=' {
+			l.getCh()
 			return TYPE_EQ, "==", end
 		}
 		return TYPE_ASSIGN, "=", end
 	case '\n':
 		return TYPE_NL, "\n", end
 	case '\r':
-		c, e := Peek()
+		c, e := l.Peek()
 		if !e && c == '\n' {
-			pos++
+			l.pos++
 			return TYPE_NL, "\n", e
 		}
 	case '{':
@@ -326,37 +325,37 @@ func Scan() (code int, token string, eos bool) {
 	case ',':
 		return TYPE_COMMA, ",", end
 	case '&':
-		if ne, _ := Peek(); ne == '&' {
-			getCh()
+		if ne, _ := l.Peek(); ne == '&' {
+			l.getCh()
 			return TYPE_AND, "&&", end
 		}
 		return TYPE_ESP, "&", end
 	case '|':
-		if ne, _ := Peek(); ne == '|' {
-			getCh()
+		if ne, _ := l.Peek(); ne == '|' {
+			l.getCh()
 			return TYPE_OR, "||", end
 		}
 	case '>':
-		if ne, _ := Peek(); ne == '=' {
-			getCh()
+		if ne, _ := l.Peek(); ne == '=' {
+			l.getCh()
 			return TYPE_LEQ, ">=", end
 		}
 		return TYPE_LG, ">", end
 	case '<':
-		if ne, _ := Peek(); ne == '=' {
-			getCh()
+		if ne, _ := l.Peek(); ne == '=' {
+			l.getCh()
 			return TYPE_SEQ, "<=", end
 		}
 		return TYPE_SM, "<", end
 	case '!':
-		if ne, _ := Peek(); ne == '=' {
-			getCh()
+		if ne, _ := l.Peek(); ne == '=' {
+			l.getCh()
 			return TYPE_NEQ, "!=", end
 		}
 		return TYPE_NOT, "!", end
 	case ':':
-		if ne, _ := Peek(); ne == '=' {
-			getCh()
+		if ne, _ := l.Peek(); ne == '=' {
+			l.getCh()
 			return TYPE_DEAS, ":=", end
 		}
 		return TYPE_COLON, ":", end
@@ -369,7 +368,7 @@ func Scan() (code int, token string, eos bool) {
 	case '.':
 		return TYPE_DOT, ".", end
 	}
-	log.Fatalf("unrecognized letter %c in pos %d", ch, pos)
+	log.Fatalf("unrecognized letter %c inl.pos %d", ch, l.pos)
 	return
 
 }

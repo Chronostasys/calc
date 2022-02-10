@@ -17,7 +17,7 @@ func (n *StringNode) setAlloc(onheap bool) {
 	n.onheap = onheap
 }
 
-func (n *StringNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
+func (n *StringNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 
 	ch := constant.NewCharArrayFromString(n.Str)
 	var alloca value.Value

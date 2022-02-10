@@ -1,0 +1,10 @@
+package test2
+
+func Dosth<T>(in T) void {
+    printIntln(8778)
+    return
+}
+
+type testS struct {
+
+}

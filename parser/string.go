@@ -5,12 +5,12 @@ import (
 	"github.com/Chronostasys/calculator_go/lexer"
 )
 
-func strExp() (n ast.Node, err error) {
-	str, err := lexer.ScanType(lexer.TYPE_STR)
+func (p *Parser) strExp() (n ast.Node, err error) {
+	str, err := p.lexer.ScanType(lexer.TYPE_STR)
 	if err != nil {
 		return nil, err
 	}
-	_, err = lexer.ScanType(lexer.TYPE_PLUS)
+	_, err = p.lexer.ScanType(lexer.TYPE_PLUS)
 	if err != nil {
 		return nil, err
 	}

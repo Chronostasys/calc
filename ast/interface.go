@@ -18,19 +18,19 @@ type interfaceDefNode struct {
 	funcs map[string]*FuncNode
 }
 
-func NewSInterfaceDefNode(id string, funcsMap map[string]*FuncNode) Node {
+func NewSInterfaceDefNode(id string, funcsMap map[string]*FuncNode, s *Scope) Node {
 	n := &interfaceDefNode{id: id, funcs: funcsMap}
-	defFunc := func() {
-		globalScope.addStruct(n.id, &typedef{
+	defFunc := func(s *Scope) {
+		s.globalScope.addStruct(n.id, &typedef{
 			interf: true,
 			funcs:  funcsMap,
 		})
 	}
-	globalScope.interfaceDefFuncs = append(globalScope.interfaceDefFuncs, defFunc)
+	s.globalScope.interfaceDefFuncs = append(s.globalScope.interfaceDefFuncs, defFunc)
 	return n
 
 }
 
-func (n *interfaceDefNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
+func (n *interfaceDefNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	return zero
 }

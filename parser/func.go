@@ -5,33 +5,33 @@ import (
 	"github.com/Chronostasys/calculator_go/lexer"
 )
 
-func extFuncParam() (n *ast.ParamNode, err error) {
-	_, err = lexer.ScanType(lexer.TYPE_RES_THIS)
+func (p *Parser) extFuncParam() (n *ast.ParamNode, err error) {
+	_, err = p.lexer.ScanType(lexer.TYPE_RES_THIS)
 	if err != nil {
 		return nil, err
 	}
-	n = funcParam()
+	n = p.funcParam()
 	return
 }
 
-func funcParam() *ast.ParamNode {
-	t, err := lexer.ScanType(lexer.TYPE_VAR)
+func (p *Parser) funcParam() *ast.ParamNode {
+	t, err := p.lexer.ScanType(lexer.TYPE_VAR)
 	if err != nil {
 		panic(err)
 	}
-	tp, err := allTypes()
+	tp, err := p.allTypes()
 	if err != nil {
 		panic(err)
 	}
 	return &ast.ParamNode{ID: t, TP: tp}
 }
 
-func funcParams() *ast.ParamsNode {
-	_, err := lexer.ScanType(lexer.TYPE_LP)
+func (p *Parser) funcParams() *ast.ParamsNode {
+	_, err := p.lexer.ScanType(lexer.TYPE_LP)
 	if err != nil {
 		panic(err)
 	}
-	_, err = lexer.ScanType(lexer.TYPE_RP)
+	_, err = p.lexer.ScanType(lexer.TYPE_RP)
 	if err == nil {
 		return &ast.ParamsNode{Params: []*ast.ParamNode{}}
 	}
@@ -39,127 +39,127 @@ func funcParams() *ast.ParamsNode {
 		panic(err)
 	}
 	pn := &ast.ParamsNode{}
-	n, err := extFuncParam()
+	n, err := p.extFuncParam()
 	if err != nil {
-		pn.Params = append(pn.Params, funcParam())
+		pn.Params = append(pn.Params, p.funcParam())
 	} else {
 		pn.Params = append(pn.Params, n)
 		pn.Ext = true
 	}
 	for {
-		_, err = lexer.ScanType(lexer.TYPE_RP)
+		_, err = p.lexer.ScanType(lexer.TYPE_RP)
 		if err == nil {
 			return pn
 		}
 		if err == lexer.ErrEOS {
 			panic(err)
 		}
-		_, err = lexer.ScanType(lexer.TYPE_COMMA)
+		_, err = p.lexer.ScanType(lexer.TYPE_COMMA)
 		if err != nil {
 			panic(err)
 		}
-		pn.Params = append(pn.Params, funcParam())
+		pn.Params = append(pn.Params, p.funcParam())
 	}
 }
 
-func function() ast.Node {
-	_, err := lexer.ScanType(lexer.TYPE_RES_FUNC)
+func (p *Parser) function() ast.Node {
+	_, err := p.lexer.ScanType(lexer.TYPE_RES_FUNC)
 	if err != nil {
 		panic(err)
 	}
-	id, err := lexer.ScanType(lexer.TYPE_VAR)
+	id, err := p.lexer.ScanType(lexer.TYPE_VAR)
 	if err != nil {
 		panic(err)
 	}
 	fn := &ast.FuncNode{ID: id}
-	fn.Generics, _ = genericParams()
-	fn.Params = funcParams()
+	fn.Generics, _ = p.genericParams()
+	fn.Params = p.funcParams()
 	if fn.Params.Ext {
-		fn.ID = fn.Params.Params[0].TP.String() + "." + fn.ID
+		fn.ID = fn.Params.Params[0].TP.String(p.scope) + "." + fn.ID
 	}
-	tp, err := allTypes()
+	tp, err := p.allTypes()
 	if err != nil {
 		panic(err)
 	}
 	fn.RetType = tp
-	fn.Statements, err = statementBlock()
+	fn.Statements, err = p.statementBlock()
 	if err != nil {
 		panic(err)
 	}
-	fn.AddtoScope()
+	fn.AddtoScope(p.scope)
 	return fn
 }
 
-func callFunc() ast.Node {
-	fnnode, err := runWithCatch2(varChain)
+func (p *Parser) callFunc() ast.Node {
+	fnnode, err := p.runWithCatch2(p.varChain)
 	if err != nil {
 		panic(err)
 	}
 	fn := &ast.CallFuncNode{FnNode: fnnode}
-	fn.Generics, _ = genericCallParams()
-	_, err = lexer.ScanType(lexer.TYPE_LP)
+	fn.Generics, _ = p.genericCallParams()
+	_, err = p.lexer.ScanType(lexer.TYPE_LP)
 	if err != nil {
 		panic(err)
 	}
-	_, err = lexer.ScanType(lexer.TYPE_RP)
+	_, err = p.lexer.ScanType(lexer.TYPE_RP)
 	if err == nil {
 		return fn
 	}
 	if err == lexer.ErrEOS {
 		panic(err)
 	}
-	fn.Params = append(fn.Params, allexp())
+	fn.Params = append(fn.Params, p.allexp())
 	for {
-		_, err = lexer.ScanType(lexer.TYPE_RP)
+		_, err = p.lexer.ScanType(lexer.TYPE_RP)
 		if err == nil {
 			return fn
 		}
 		if err == lexer.ErrEOS {
 			panic(err)
 		}
-		_, err = lexer.ScanType(lexer.TYPE_COMMA)
+		_, err = p.lexer.ScanType(lexer.TYPE_COMMA)
 		if err != nil {
 			panic(err)
 		}
-		fn.Params = append(fn.Params, allexp())
+		fn.Params = append(fn.Params, p.allexp())
 	}
 }
 
-func returnST() (n ast.Node, err error) {
-	_, err = lexer.ScanType(lexer.TYPE_RES_RET)
+func (p *Parser) returnST() (n ast.Node, err error) {
+	_, err = p.lexer.ScanType(lexer.TYPE_RES_RET)
 	if err != nil {
 		return nil, err
 	}
-	_, err = runWithCatch(empty)
+	_, err = p.runWithCatch(p.empty)
 	if err == nil {
 		return &ast.RetNode{}, nil
 	}
-	return &ast.RetNode{Exp: allexp()}, nil
+	return &ast.RetNode{Exp: p.allexp()}, nil
 }
 
-func genericParams() (n []string, err error) {
-	ch := lexer.SetCheckpoint()
+func (p *Parser) genericParams() (n []string, err error) {
+	ch := p.lexer.SetCheckpoint()
 	defer func() {
 		if err != nil {
-			lexer.GobackTo(ch)
+			p.lexer.GobackTo(ch)
 		}
 	}()
-	_, err = lexer.ScanType(lexer.TYPE_SM)
+	_, err = p.lexer.ScanType(lexer.TYPE_SM)
 	if err != nil {
 		return nil, err
 	}
-	t, err := lexer.ScanType(lexer.TYPE_VAR)
+	t, err := p.lexer.ScanType(lexer.TYPE_VAR)
 	if err != nil {
 		return nil, err
 	}
 	n = append(n, t)
 
 	for {
-		_, err = lexer.ScanType(lexer.TYPE_LG)
+		_, err = p.lexer.ScanType(lexer.TYPE_LG)
 		if err == nil {
 			return n, nil
 		}
-		t, err := lexer.ScanType(lexer.TYPE_VAR)
+		t, err := p.lexer.ScanType(lexer.TYPE_VAR)
 		if err != nil {
 			return nil, err
 		}
@@ -167,33 +167,33 @@ func genericParams() (n []string, err error) {
 	}
 }
 
-func genericCallParams() (n []ast.TypeNode, err error) {
-	ch := lexer.SetCheckpoint()
+func (p *Parser) genericCallParams() (n []ast.TypeNode, err error) {
+	ch := p.lexer.SetCheckpoint()
 	defer func() {
 		if err != nil {
-			lexer.GobackTo(ch)
+			p.lexer.GobackTo(ch)
 		}
 	}()
-	_, err = lexer.ScanType(lexer.TYPE_SM)
+	_, err = p.lexer.ScanType(lexer.TYPE_SM)
 	if err != nil {
 		return nil, err
 	}
-	t, err := allTypes()
+	t, err := p.allTypes()
 	if err != nil {
 		return nil, err
 	}
 	n = append(n, t)
 
 	for {
-		_, err = lexer.ScanType(lexer.TYPE_LG)
+		_, err = p.lexer.ScanType(lexer.TYPE_LG)
 		if err == nil {
 			return n, nil
 		}
-		_, err = lexer.ScanType(lexer.TYPE_COMMA)
+		_, err = p.lexer.ScanType(lexer.TYPE_COMMA)
 		if err != nil {
 			return nil, err
 		}
-		t, err := allTypes()
+		t, err := p.allTypes()
 		if err != nil {
 			return nil, err
 		}

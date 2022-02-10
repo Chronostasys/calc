@@ -15,7 +15,7 @@ type ParamNode struct {
 	Val value.Value
 }
 
-func (n *ParamNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
+func (n *ParamNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	tp, err := n.TP.calc(s)
 	if err != nil {
 		panic(err)
@@ -32,7 +32,7 @@ type ParamsNode struct {
 	Ext    bool
 }
 
-func (n *ParamsNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
+func (n *ParamsNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 
 	return zero
 }
@@ -47,9 +47,9 @@ type FuncNode struct {
 	Generics     []string
 }
 
-func (n *FuncNode) AddtoScope() {
+func (n *FuncNode) AddtoScope(s *Scope) {
 	if len(n.Generics) > 0 {
-		globalScope.addGeneric(n.ID, func(m *ir.Module, s *scope, gens ...TypeNode) value.Value {
+		s.globalScope.addGeneric(n.ID, func(m *ir.Module, s *Scope, gens ...TypeNode) value.Value {
 			sig := fmt.Sprintf("%s<", n.ID)
 			for i, v := range n.Generics {
 				tp, _ := gens[i].calc(s)
@@ -60,7 +60,7 @@ func (n *FuncNode) AddtoScope() {
 				sig += tp.String()
 			}
 			sig += ">"
-			fn, err := globalScope.searchVar(sig)
+			fn, err := s.globalScope.searchVar(sig)
 			if err == nil {
 				return fn.v
 			}
@@ -79,9 +79,9 @@ func (n *FuncNode) AddtoScope() {
 			if err != nil {
 				panic(err)
 			}
-			fun := m.NewFunc(sig, tp, ps...)
+			fun := m.NewFunc(s.getFullName(sig), tp, ps...)
 			n.Fn = fun
-			globalScope.addVar(sig, &variable{fun})
+			s.globalScope.addVar(sig, &variable{fun})
 			b := fun.NewBlock("")
 			childScope := s.addChildScope(b)
 			n.DefaultBlock = b
@@ -95,28 +95,28 @@ func (n *FuncNode) AddtoScope() {
 		})
 		return
 	} else {
-		globalScope.funcDefFuncs = append(globalScope.funcDefFuncs, func() {
+		s.globalScope.funcDefFuncs = append(s.globalScope.funcDefFuncs, func(s *Scope) {
 			psn := n.Params
 			ps := []*ir.Param{}
 			for _, v := range psn.Params {
 				p := v
-				tp, err := p.TP.calc(globalScope)
+				tp, err := p.TP.calc(s.globalScope)
 				if err != nil {
 					panic(err)
 				}
 				param := ir.NewParam(p.ID, tp)
 				ps = append(ps, param)
 			}
-			tp, err := n.RetType.calc(globalScope)
+			tp, err := n.RetType.calc(s.globalScope)
 			if err != nil {
 				panic(err)
 			}
-			globalScope.addVar(n.ID, &variable{ir.NewFunc(n.ID, tp, ps...)})
+			s.globalScope.addVar(n.ID, &variable{ir.NewFunc(s.getFullName(n.ID), tp, ps...)})
 		})
 	}
 }
 
-func (n *FuncNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
+func (n *FuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	if len(n.Generics) > 0 {
 		// generic function will be generate while call
 		return zero
@@ -132,7 +132,7 @@ func (n *FuncNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 	if err != nil {
 		panic(err)
 	}
-	fn := m.NewFunc(n.ID, tp, ps...)
+	fn := m.NewFunc(s.getFullName(n.ID), tp, ps...)
 	n.Fn = fn
 	b := fn.NewBlock("")
 	childScope.block = b
@@ -156,21 +156,24 @@ type CallFuncNode struct {
 	Generics []TypeNode
 }
 
-func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
+func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	varNode := n.FnNode.(*VarBlockNode)
 	fnNode := varNode
-	prev := fnNode
-	for {
-		if fnNode.Next == nil {
-			s := prev.Next
-			prev.Next = nil
-			defer func() {
-				prev.Next = s
-			}()
-			break
+	scope, ok := ScopeMap[varNode.Token]
+	if !ok {
+		prev := fnNode
+		for {
+			if fnNode.Next == nil {
+				s := prev.Next
+				prev.Next = nil
+				defer func() {
+					prev.Next = s
+				}()
+				break
+			}
+			prev = fnNode
+			fnNode = fnNode.Next
 		}
-		prev = fnNode
-		fnNode = fnNode.Next
 	}
 	var fn *ir.Func
 
@@ -183,8 +186,8 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 		var err error
 		var fnv value.Value
 		if len(n.Generics) > 0 {
-			if gfn, ok := globalScope.genericFuncs[name]; ok {
-				fnv = gfn(m, s, n.Generics...)
+			if gfn := s.globalScope.getGenericFunc(name); gfn != nil {
+				fnv = gfn(m, n.Generics...)
 			} else {
 				panic(fmt.Errorf("cannot find generic method %s", name))
 			}
@@ -206,8 +209,14 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 		poff = 1
 	} else {
 		if len(n.Generics) > 0 {
-			if gfn, ok := globalScope.genericFuncs[fnNode.Token]; ok {
-				fn = gfn(m, s, n.Generics...).(*ir.Func)
+			token := fnNode.Token
+			if !ok {
+				scope = s.globalScope
+			} else {
+				token = varNode.Next.Token
+			}
+			if gfn := scope.getGenericFunc(token); gfn != nil {
+				fn = gfn(m, n.Generics...).(*ir.Func)
 			} else {
 				panic(fmt.Errorf("cannot find generic method %s", fnNode.Token))
 			}

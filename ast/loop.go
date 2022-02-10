@@ -14,7 +14,7 @@ type ForNode struct {
 	Statements   Node
 }
 
-func (n *ForNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
+func (n *ForNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	blockID++
 	cond := f.NewBlock(strconv.Itoa(blockID))
 	blockID++
@@ -57,7 +57,7 @@ func (n *ForNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 type BreakNode struct {
 }
 
-func (n *BreakNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
+func (n *BreakNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	if s.breakBlock == nil {
 		panic("cannot break out of loop")
 	}
@@ -68,7 +68,7 @@ func (n *BreakNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 type ContinueNode struct {
 }
 
-func (n *ContinueNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
+func (n *ContinueNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	if s.continueBlock == nil {
 		panic("cannot continue out of loop")
 	}

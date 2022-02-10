@@ -15,7 +15,7 @@ type BoolConstNode struct {
 	Val bool
 }
 
-func (n *BoolConstNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
+func (n *BoolConstNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	return constant.NewBool(n.Val)
 }
 
@@ -38,7 +38,7 @@ var comparedic = map[int]e{
 	lexer.TYPE_SEQ: {enum.IPredSLE, enum.FPredOLE},
 }
 
-func (n *CompareNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
+func (n *CompareNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	l, r := loadIfVar(n.Left.calc(m, f, s), s), loadIfVar(n.Right.calc(m, f, s), s)
 	hasF, re := hasFloatType(s.block, l, r)
 	l, r = re[0], re[1]
@@ -79,7 +79,7 @@ type IfNode struct {
 	Statements Node
 }
 
-func (n *IfNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
+func (n *IfNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	blockID++
 	tt := f.NewBlock(strconv.Itoa(blockID))
 	n.Statements.calc(m, f, s.addChildScope(tt))
@@ -103,7 +103,7 @@ type IfElseNode struct {
 	ElSt       Node
 }
 
-func (n *IfElseNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
+func (n *IfElseNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	blockID++
 	tt := f.NewBlock(strconv.Itoa(blockID))
 	blockID++
@@ -132,7 +132,7 @@ type BoolExpNode struct {
 	Right Node
 }
 
-func (n *BoolExpNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
+func (n *BoolExpNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	l, r := loadIfVar(n.Left.calc(m, f, s), s), loadIfVar(n.Right.calc(m, f, s), s)
 	if n.Op == lexer.TYPE_AND {
 		return s.block.NewAnd(l, r)
@@ -145,6 +145,6 @@ type NotNode struct {
 	Bool Node
 }
 
-func (n *NotNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
+func (n *NotNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	return s.block.NewICmp(enum.IPredEQ, loadIfVar(n.Bool.calc(m, f, s), s), constant.False)
 }

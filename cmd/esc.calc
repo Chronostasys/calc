@@ -1,24 +1,38 @@
-func main() int {
-    for {
-        loop()
-    }
+package main
+
+
+func add(this a Test) int {
+    printIntln(a.A)
+    a.A = 999999
     return 0
 }
 
-func massiveAllocation() [100]int {
-    d := [100]int{}
-    return d
-}
-func loop() void {
-    for i:=0;i<1000;i=i+1{
-        massiveAllocation()
-    }
-    return
-}
 
-func heapalloc<T>() *T {
-    size := sizeof<T>()
-    bs := GC_malloc(size)
-    seted := memset(bs,0,size)
-    return unsafecast<*byte,*T>(seted)
+func add(a int, b int) int {
+	for i := 0; i < 10; i = i + 1 {
+        printIntln(i)
+	}
+    for i := 0; true; i = i + 1 {
+        if i > 3 {
+            break
+        }
+        if i == 1 {
+            continue
+        }
+        printIntln(i)
+	}
+    if a>b {
+        var a int
+        a = 100
+        add(0,1)
+        printIntln(a)
+    }else if a<b {
+        printIntln(2)
+        return b
+    }else {
+        printIntln(3)
+        return 0
+    }
+    printIntln(a)
+    return a+b
 }

@@ -9,7 +9,7 @@ type TakePtrNode struct {
 	Node Node
 }
 
-func (n *TakePtrNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
+func (n *TakePtrNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	v := n.Node.calc(m, f, s)
 	ptr := s.block.NewAlloca(v.Type())
 	s.block.NewStore(v, ptr)
@@ -21,7 +21,7 @@ type TakeValNode struct {
 	Node  Node
 }
 
-func (n *TakeValNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
+func (n *TakeValNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	v := n.Node.calc(m, f, s)
 
 	for i := 0; i < n.Level; i++ {

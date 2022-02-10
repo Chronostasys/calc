@@ -5,79 +5,79 @@ import (
 	"github.com/Chronostasys/calculator_go/lexer"
 )
 
-func structDef() (n ast.Node, err error) {
-	_, err = lexer.ScanType(lexer.TYPE_RES_TYPE)
+func (p *Parser) structDef() (n ast.Node, err error) {
+	_, err = p.lexer.ScanType(lexer.TYPE_RES_TYPE)
 	if err != nil {
 		return nil, err
 	}
-	t, err := lexer.ScanType(lexer.TYPE_VAR)
+	t, err := p.lexer.ScanType(lexer.TYPE_VAR)
 	if err != nil {
 		return nil, err
 	}
 	fields := make(map[string]ast.TypeNode)
-	_, err = lexer.ScanType(lexer.TYPE_RES_STRUCT)
+	_, err = p.lexer.ScanType(lexer.TYPE_RES_STRUCT)
 	if err != nil {
 		return nil, err
 	}
-	_, err = lexer.ScanType(lexer.TYPE_LB)
+	_, err = p.lexer.ScanType(lexer.TYPE_LB)
 	if err != nil {
 		return nil, err
 	}
 	for {
-		_, err = lexer.ScanType(lexer.TYPE_RB)
+		_, err = p.lexer.ScanType(lexer.TYPE_RB)
 		if err == nil {
 			break
 		}
-		t, err := lexer.ScanType(lexer.TYPE_VAR)
+		t, err := p.lexer.ScanType(lexer.TYPE_VAR)
 		if err != nil {
-			empty()
+			p.empty()
 			continue
 		}
-		fields[t], err = allTypes()
+		fields[t], err = p.allTypes()
 		if err != nil {
 			panic(err)
 		}
-		empty()
+		p.empty()
 	}
-	return ast.NewStructDefNode(t, fields), nil
+	return ast.NewStructDefNode(t, fields, p.scope), nil
 }
 
-func interfaceDef() (n ast.Node, err error) {
-	_, err = lexer.ScanType(lexer.TYPE_RES_TYPE)
+func (p *Parser) interfaceDef() (n ast.Node, err error) {
+	_, err = p.lexer.ScanType(lexer.TYPE_RES_TYPE)
 	if err != nil {
 		return nil, err
 	}
-	t, err := lexer.ScanType(lexer.TYPE_VAR)
+	t, err := p.lexer.ScanType(lexer.TYPE_VAR)
 	if err != nil {
 		return nil, err
 	}
 	fields := make(map[string]*ast.FuncNode)
-	_, err = lexer.ScanType(lexer.TYPE_RES_INTERFACE)
+	_, err = p.lexer.ScanType(lexer.TYPE_RES_INTERFACE)
 	if err != nil {
 		return nil, err
 	}
-	_, err = lexer.ScanType(lexer.TYPE_LB)
+	_, err = p.lexer.ScanType(lexer.TYPE_LB)
 	if err != nil {
 		return nil, err
 	}
 	for {
-		_, err = lexer.ScanType(lexer.TYPE_RB)
+		_, err = p.lexer.ScanType(lexer.TYPE_RB)
 		if err == nil {
 			break
 		}
-		t, err := lexer.ScanType(lexer.TYPE_VAR)
+		t, err := p.lexer.ScanType(lexer.TYPE_VAR)
 		if err != nil {
-			empty()
+			p.empty()
 			continue
 		}
 		fields[t] = &ast.FuncNode{}
-		fields[t].Params = funcParams()
+		fields[t].Params = p.funcParams()
 
-		fields[t].RetType, err = allTypes()
+		fields[t].RetType, err = p.allTypes()
 		if err != nil {
 			panic(err)
 		}
-		empty()
+		p.empty()
 	}
-	return ast.NewSInterfaceDefNode(t, fields), nil
+	return ast.NewSInterfaceDefNode(t, fields, p.scope), nil
 }

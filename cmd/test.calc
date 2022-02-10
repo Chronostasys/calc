@@ -1,6 +1,6 @@
 package main
 
-import "atest"
+import "test/test1/test2"
 
 func main() int {
     testAllocWrap()
@@ -59,6 +59,8 @@ func main() int {
     printBoolln(d)
     printBoolln(!(c!=(b+c-b))||b>c)
     add(1,2)
+    test2.Dosth<int>(1)
+    ttt := test2.testS{}
     return 0
 }
 func testAllocWrap() int {
@@ -135,40 +137,4 @@ type Test struct {
 type Test1 struct {
     A int
     B bool
-}
-
-func add(this a Test) int {
-    printIntln(a.A)
-    a.A = 999999
-    return 0
-}
-
-
-func add(a int, b int) int {
-	for i := 0; i < 10; i = i + 1 {
-        printIntln(i)
-	}
-    for i := 0; true; i = i + 1 {
-        if i > 3 {
-            break
-        }
-        if i == 1 {
-            continue
-        }
-        printIntln(i)
-	}
-    if a>b {
-        var a int
-        a = 100
-        add(0,1)
-        printIntln(a)
-    }else if a<b {
-        printIntln(2)
-        return b
-    }else {
-        printIntln(3)
-        return 0
-    }
-    printIntln(a)
-    return a+b
 }
