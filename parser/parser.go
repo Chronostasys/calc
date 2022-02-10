@@ -961,12 +961,12 @@ func getModule() string {
 
 var calcmod string
 
-func ParseCurentDir() string {
+func ParseCurentDir() *ir.Module {
 	calcmod = getModule()
 	m := ir.NewModule()
 	p1 := ParseModule(".", calcmod, m)
 	ast.AddSTDFunc(m, p1.GlobalScope)
-	return m.String()
+	return m
 }
 func ParseModule(dir, mod string, m *ir.Module) *ast.ProgramNode {
 	c, err := os.ReadDir(dir)
