@@ -65,7 +65,6 @@ func funcParams() *ast.ParamsNode {
 func function() ast.Node {
 	_, err := lexer.ScanType(lexer.TYPE_RES_FUNC)
 	if err != nil {
-		//
 		panic(err)
 	}
 	id, err := lexer.ScanType(lexer.TYPE_VAR)

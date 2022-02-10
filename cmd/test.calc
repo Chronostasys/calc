@@ -1,5 +1,7 @@
 package main
 
+import "atest"
+
 func main() int {
     testAllocWrap()
     AAA()

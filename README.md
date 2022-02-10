@@ -11,7 +11,7 @@
 - golang 1.17.1
 ## Rules
 ```
-program: P->PD(FN|NL|T|INTER|D)+
+program: P->PD NL* IS? (FN|NL|T|INTER|D)+
 call_func: CF->VC GPC? LP (RP|(E(COMMA AE)* RP))
 generic_params: GP->SM TYPE (COMMA var)* LG
 generic_call_params: GPC->SM TYPE (COMMA TYPE)* LG
@@ -53,5 +53,5 @@ interface_def: INTER->TP var INTERFACE LB ((var FPS TYPE NL)|NL)* RB
 null_exp: NE->NIL
 pkg_declare: PD->PKG var
 string_exp: SE->str
-import_statement: IS->imp SE|imp LP (SE|NL)* RP
+import_statement: IS->imp str|imp LP (SE|NL)* RP
 ```

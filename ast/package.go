@@ -12,3 +12,11 @@ type PackageNode struct {
 func (n *PackageNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
 	return zero
 }
+
+type ImportNode struct {
+	Imports []string
+}
+
+func (n *ImportNode) calc(m *ir.Module, f *ir.Func, s *scope) value.Value {
+	return zero
+}

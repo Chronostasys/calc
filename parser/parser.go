@@ -255,9 +255,18 @@ func statementList() ast.Node {
 func program() *ast.ProgramNode {
 	n := &ast.ProgramNode{}
 	ast, err := pkgDeclare()
-	if err == nil {
-		n.Children = append(n.Children, ast)
+	if err != nil {
+		panic("missing package declareation on begining of source file")
 	}
+	n.PKG = ast
+	for {
+		_, err := lexer.ScanType(lexer.TYPE_NL)
+		if err != nil {
+			break
+		}
+	}
+	imp, _ := importStatement()
+	n.Imports = imp
 	for {
 		ch := lexer.SetCheckpoint()
 		c, _, eos := lexer.Scan()

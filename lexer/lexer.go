@@ -63,6 +63,7 @@ const (
 	TYPE_RES_PKG       // "pkg"
 	TYPE_STR           // ant quoted string
 	TYPE_RES_STR       // "string"
+	TYPE_RES_IMPORT    // "import"
 )
 
 var (
@@ -95,6 +96,7 @@ var (
 		"nil":       TYPE_RES_NIL,
 		"package":   TYPE_RES_PKG,
 		"string":    TYPE_RES_STR,
+		"import":    TYPE_RES_IMPORT,
 	}
 	reservedTypes = map[string]int{
 		"int":     TYPE_RES_INT,

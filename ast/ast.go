@@ -443,6 +443,8 @@ func findEsc(next []*escNode, defMap map[string]bool, heapAllocTable map[string]
 }
 
 type ProgramNode struct {
+	PKG      *PackageNode
+	Imports  *ImportNode
 	Children []Node
 }
 
