@@ -60,7 +60,12 @@ func main() int {
     printBoolln(!(c!=(b+c-b))||b>c)
     add(1,2)
     test2.Dosth<int>(1)
-    ttt := test2.testS{}
+    ttt := test2.testS{i:100}
+    ttt.i = 996
+    printIntln(ttt.i)
+    f := struct{i int}{i:10}
+    f.i = 11
+    printIntln(f.i)
     return 0
 }
 func testAllocWrap() int {

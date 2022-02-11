@@ -317,16 +317,16 @@ func (p *Parser) program() *ast.ProgramNode {
 		if eos {
 			break
 		}
-		ast, err := p.runWithCatch2(p.structDef)
+		ast, err := p.runWithCatch2(p.typeDef)
 		if err == nil {
 			n.Children = append(n.Children, ast)
 			continue
 		}
-		ast, err = p.runWithCatch2(p.interfaceDef)
-		if err == nil {
-			n.Children = append(n.Children, ast)
-			continue
-		}
+		// ast, err = p.runWithCatch2(p.interfaceDef)
+		// if err == nil {
+		// 	n.Children = append(n.Children, ast)
+		// 	continue
+		// }
 		ast, err = p.runWithCatch2(p.define)
 		if err == nil {
 			n.Children = append(n.Children, ast)
@@ -353,7 +353,7 @@ func (p *Parser) allexp() ast.Node {
 		ch := p.lexer.SetCheckpoint()
 		code, _, eos := p.lexer.Scan()
 		if eos {
-			panic("unexpected eos")
+			return n
 		}
 		p.lexer.GobackTo(ch)
 		switch code {
@@ -651,6 +651,14 @@ func (p *Parser) allTypes() (n ast.TypeNode, err error) {
 		}
 		ptrLevel++
 	}
+	n, err = p.structType()
+	if err == nil {
+		goto END
+	}
+	n, err = p.interfaceType()
+	if err == nil {
+		goto END
+	}
 	n, err = p.basicTypes()
 	if err != nil {
 		n, err = p.arrayTypes()
@@ -658,6 +666,7 @@ func (p *Parser) allTypes() (n ast.TypeNode, err error) {
 			return nil, err
 		}
 	}
+END:
 	n.SetPtrLevel(ptrLevel)
 	return
 }
@@ -718,6 +727,7 @@ func (p *Parser) basicTypes() (n ast.TypeNode, err error) {
 					return nil, err
 				}
 				tp = append(tp, t)
+				tp[0] = p.imp[tp[0]]
 			}
 			return &ast.BasicTypeNode{CustomTp: tp}, nil
 		} else {
@@ -728,23 +738,12 @@ func (p *Parser) basicTypes() (n ast.TypeNode, err error) {
 }
 
 func (p *Parser) structInit() (n ast.Node, err error) {
-	t, err := p.lexer.ScanType(lexer.TYPE_VAR)
+	tp, err := p.allTypes()
 	if err != nil {
 		return nil, err
 	}
-	tp := []string{t}
-	_, err = p.lexer.ScanType(lexer.TYPE_DOT)
-	if err == nil {
-		// module
-		tp[0] = p.imp[tp[0]]
-		t, err = p.lexer.ScanType(lexer.TYPE_VAR)
-		if err != nil {
-			return nil, err
-		}
-		tp = append(tp, t)
-	}
 	stNode := &ast.StructInitNode{
-		ID:     tp,
+		TP:     tp,
 		Fields: make(map[string]ast.Node),
 	}
 	_, err = p.lexer.ScanType(lexer.TYPE_LB)

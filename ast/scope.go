@@ -66,8 +66,6 @@ type variable struct {
 type typedef struct {
 	structType types.Type
 	fieldsIdx  map[string]*field
-	interf     bool
-	funcs      map[string]*FuncNode
 }
 
 type field struct {

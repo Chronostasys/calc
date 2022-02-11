@@ -222,8 +222,8 @@ func getElmType(v interface{}) types.Type {
 	return reflect.Indirect(reflect.ValueOf(v).Elem()).FieldByName("ElemType").Interface().(types.Type)
 }
 
-func getTypeName(v interface{}) string {
-	return reflect.Indirect(reflect.ValueOf(v).Elem()).FieldByName("ElemType").MethodByName("Name").Call([]reflect.Value{})[0].String()
+func getTypeName(v types.Type) string {
+	return strings.Trim(v.String(), "%*\"")
 }
 
 type VarBlockNode struct {
@@ -252,7 +252,6 @@ func (n *VarBlockNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 			scope := ScopeMap[n.Token]
 			val, err = scope.searchVar(n.Next.Token)
 			if err != nil {
-				// TODO module
 				panic(fmt.Errorf("variable %s not defined", n.Token))
 			}
 			n = n.Next
@@ -261,7 +260,14 @@ func (n *VarBlockNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	} else {
 		va = n.parent
 		s1 := getTypeName(va.Type())
-		tp := s.globalScope.getStruct(s1)
+		s2 := strings.Split(s1, ".")
+		ss := s2[0]
+		var scope = s
+		if len(s2) > 1 {
+			ss = s2[1]
+			scope = ScopeMap[s2[0]]
+		}
+		tp := scope.getStruct(ss)
 		fi := tp.fieldsIdx[n.Token]
 		va = s.block.NewGetElementPtr(tp.structType, va,
 			constant.NewIndex(zero),
@@ -668,7 +674,7 @@ func implicitCast(v value.Value, target types.Type, s *Scope) (value.Value, erro
 	case *types.PointerType:
 		v = deReference(v, s)
 		tp, ok := target.(*interf)
-		src := strings.Trim(v.Type().String(), "%*")
+		src := strings.Trim(v.Type().String(), "%*\"")
 		if ok { // turn to interface
 			for k, v1 := range tp.interfaceFuncs {
 				fnv, err := s.searchVar(src + "." + k)

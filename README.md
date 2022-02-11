@@ -11,7 +11,7 @@
 - golang 1.17.1
 ## Rules
 ```
-program: P->PD NL* IS? (FN|NL|T|INTER|D)+
+program: P->PD NL* IS? (FN|NL|T|D)+
 call_func: CF->VC GPC? LP (RP|(E(COMMA AE)* RP))
 generic_params: GP->SM TYPE (COMMA var)* LG
 generic_call_params: GPC->SM TYPE (COMMA TYPE)* LG
@@ -24,9 +24,15 @@ statement: S->CS|BS|EM|D|A|R|(CF NL)|I|(DA NL)
 return: R->RET|(RET AE)
 empty: EM->NL
 define: D->VAR var TYPE NL
-all_types: TYPE->MUL*  BTYPE|AT
+
+
+all_types: TYPE->MUL*  BTYPE|AT|ST|IT
 basic_types: BTYPE->tp
 array_types: AT->LSB n RSB TYPE
+type_def: T->TP var TYPE
+struct_type: ST->STRUCT LB ((var TYPE NL)|NL)* RB
+interface_type: IT->INTERFACE LB ((var FPS TYPE NL)|NL)* RB
+
 asssign: A->MUL* VC ASSIGN AE
 all_exp: AE->E|BE|TPE|TVE
 exp: E->F|F((ADD|MIN)F)*
@@ -42,14 +48,12 @@ if_st: I->IF BE SB((EL SB|I)?)
 for_st: F->FOR (DA? SEMI BE SEMI A?)? SB
 break_statement: BS->BR NL
 continue_statement: CS->CT NL
-struct_def: T->TP var STRUCT LB ((var TYPE NL)|NL)* RB
 struct_init_exp: SI->(var LB ((var COLON AE COMMA)|NL)* RB)
 array_init_exp: AI->AT LB ((AE COMMA)|NL)* RB
 take_ptr_exp: TPE->ESP AI|SI|VC
 take_val_exp: TVE->MUL* AI|SI|VC|CF
 var_chain: VC->VB (DOT VB)*
 var_block: VB->var (LSB AE RSB)*
-interface_def: INTER->TP var INTERFACE LB ((var FPS TYPE NL)|NL)* RB
 null_exp: NE->NIL
 pkg_declare: PD->PKG var
 string_exp: SE->str

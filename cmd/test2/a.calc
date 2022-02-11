@@ -6,5 +6,5 @@ func Dosth<T>(in T) void {
 }
 
 type testS struct {
-
+    i int
 }
