@@ -5,7 +5,8 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/Chronostasys/calculator_go/lexer"
+	"github.com/Chronostasys/calc/compiler/helper"
+	"github.com/Chronostasys/calc/compiler/lexer"
 	"github.com/llir/llvm/ir"
 	"github.com/llir/llvm/ir/constant"
 	"github.com/llir/llvm/ir/types"
@@ -260,7 +261,7 @@ func (n *VarBlockNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	} else {
 		va = n.parent
 		s1 := getTypeName(va.Type())
-		s2 := strings.Split(s1, ".")
+		s2 := helper.SplitLast(s1, ".")
 		ss := s2[0]
 		var scope = s
 		if len(s2) > 1 {

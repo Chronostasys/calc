@@ -1,4 +1,4 @@
-module github.com/Chronostasys/calculator_go
+module github.com/Chronostasys/calc
 
 go 1.17
 

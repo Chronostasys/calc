@@ -8,12 +8,13 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/Chronostasys/calculator_go/ast"
+	"github.com/Chronostasys/calc/compiler/ast"
+	"github.com/Chronostasys/calc/compiler/helper"
 	"github.com/llir/llvm/ir"
 	"github.com/llir/llvm/ir/constant"
 	"github.com/llir/llvm/ir/types"
 
-	"github.com/Chronostasys/calculator_go/lexer"
+	"github.com/Chronostasys/calc/compiler/lexer"
 )
 
 func ParseInt(s string) (int64, *types.IntType, error) {
@@ -299,7 +300,7 @@ func (p *Parser) program() *ast.ProgramNode {
 		for _, v := range p.imp {
 			if strings.Index(v, calcmod) == 0 {
 				// sub module of mod
-				pa := path.Join(".", v[len(calcmod):])
+				pa := path.Join(maindir, v[len(calcmod):])
 				ParseModule(pa, v, p.m)
 			} else {
 				// TODO external module
@@ -946,24 +947,36 @@ func (p *Parser) ParseAST(s string) *ast.ProgramNode {
 	return p.program()
 }
 
-func getModule() string {
-	bs, err := ioutil.ReadFile("calc.mod")
-	if err != nil {
-
-		return "main"
+func getModule(dir string) string {
+	for i := 0; i < 20; i++ {
+		_, err := os.Stat(path.Join(dir, "calc.mod"))
+		if err == nil {
+			// path/to/whatever does not exist
+			bs, err := ioutil.ReadFile(path.Join(dir, "calc.mod"))
+			if err != nil {
+				panic(err)
+			}
+			str := string(bs)
+			mod := ""
+			fmt.Sscanf(str, "module %s", &mod)
+			maindir = dir
+			return mod
+		}
+		if os.IsNotExist(err) {
+			dir = path.Join(dir, "..")
+			continue
+		}
+		panic(err)
 	}
-	str := string(bs)
-	mod := ""
-	fmt.Sscanf(str, "module %s", &mod)
-	return mod
+	panic("cannot find mod file")
 }
 
-var calcmod string
+var calcmod, maindir string
 
-func ParseCurentDir() *ir.Module {
-	calcmod = getModule()
+func ParseDir(dir string) *ir.Module {
+	calcmod = getModule(dir)
 	m := ir.NewModule()
-	p1 := ParseModule(".", calcmod, m)
+	p1 := ParseModule(dir, calcmod, m)
 	ast.AddSTDFunc(m, p1.GlobalScope)
 	return m
 }
@@ -976,7 +989,7 @@ func ParseModule(dir, mod string, m *ir.Module) *ast.ProgramNode {
 	for _, v := range c {
 		if !v.IsDir() {
 			name := v.Name()
-			sp := strings.Split(name, ".")
+			sp := helper.SplitLast(name, ".")
 			if !(len(sp) == 2 && sp[1] == "calc") {
 				continue
 			}

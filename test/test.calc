@@ -1,6 +1,6 @@
 package main
 
-import "test/test1/test2"
+import "github.com/Chronostasys/calc/test/test2"
 
 func main() int {
     testAllocWrap()

@@ -3,8 +3,8 @@ package parser
 import (
 	"path"
 
-	"github.com/Chronostasys/calculator_go/ast"
-	"github.com/Chronostasys/calculator_go/lexer"
+	"github.com/Chronostasys/calc/compiler/ast"
+	"github.com/Chronostasys/calc/compiler/lexer"
 )
 
 func (p *Parser) pkgDeclare() (n *ast.PackageNode, err error) {

@@ -3,7 +3,7 @@ package ast
 import (
 	"fmt"
 
-	"github.com/Chronostasys/calculator_go/lexer"
+	"github.com/Chronostasys/calc/compiler/lexer"
 	"github.com/llir/llvm/ir"
 	"github.com/llir/llvm/ir/constant"
 	"github.com/llir/llvm/ir/types"

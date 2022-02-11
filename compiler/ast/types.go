@@ -3,7 +3,8 @@ package ast
 import (
 	"strings"
 
-	"github.com/Chronostasys/calculator_go/lexer"
+	"github.com/Chronostasys/calc/compiler/helper"
+	"github.com/Chronostasys/calc/compiler/lexer"
 	"github.com/llir/llvm/ir"
 	"github.com/llir/llvm/ir/constant"
 	"github.com/llir/llvm/ir/types"
@@ -171,7 +172,7 @@ func (n *StructInitNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	}
 	ss1 := t.String()
 	ss2 := strings.Trim(ss1, "%*\"")
-	scs := strings.Split(ss2, ".")
+	scs := helper.SplitLast(ss2, ".")
 	var scope = s
 	var ss string
 	if len(scs) > 1 {

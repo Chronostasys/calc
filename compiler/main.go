@@ -5,19 +5,16 @@ import (
 	"log"
 	"os"
 
-	"github.com/Chronostasys/calculator_go/parser"
+	"github.com/Chronostasys/calc/compiler/parser"
 )
 
 func main() {
-	var outf string
+	var indir, outf string
+	flag.StringVar(&indir, "d", "../test", "source repo dir")
 	flag.StringVar(&outf, "o", "out.ll", "llvm ir file")
 	flag.Parse()
-	m := parser.ParseCurentDir()
-	f, err := os.OpenFile(outf, os.O_RDWR, 0777)
-	if err != nil {
-		log.Fatalln(err)
-	}
-	err = f.Truncate(0)
+	m := parser.ParseDir(indir)
+	f, err := os.Create(outf)
 	if err != nil {
 		log.Fatalln(err)
 	}

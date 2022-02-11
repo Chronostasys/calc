@@ -1,8 +1,8 @@
 package parser
 
 import (
-	"github.com/Chronostasys/calculator_go/ast"
-	"github.com/Chronostasys/calculator_go/lexer"
+	"github.com/Chronostasys/calc/compiler/ast"
+	"github.com/Chronostasys/calc/compiler/lexer"
 )
 
 func (p *Parser) extFuncParam() (n *ast.ParamNode, err error) {
