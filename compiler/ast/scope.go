@@ -23,8 +23,10 @@ type Scope struct {
 	interfaceDefFuncs []func(s *Scope)
 	funcDefFuncs      []func(s *Scope)
 	genericFuncs      map[string]func(m *ir.Module, s *Scope, gens ...TypeNode) value.Value
+	genericStructs    map[string]func(m *ir.Module, s *Scope, gens ...TypeNode) *typedef
 	genericMap        map[string]types.Type
 	heapAllocTable    map[string]bool
+	m                 *ir.Module
 }
 
 var externMap = map[string]bool{
@@ -36,7 +38,7 @@ var externMap = map[string]bool{
 }
 
 func MergeGlobalScopes(ss ...*Scope) *Scope {
-	s := NewGlobalScope()
+	s := NewGlobalScope(ss[0].m)
 	s.Pkgname = ss[0].Pkgname
 	for _, v := range ss {
 		for id, v := range v.vartable {
@@ -48,6 +50,10 @@ func MergeGlobalScopes(ss ...*Scope) *Scope {
 		for k, v := range v.genericFuncs {
 			s.addGeneric(k, v)
 		}
+		for k, v := range v.genericStructs {
+			s.addGenericStruct(k, v)
+		}
+
 		s.defFuncs = append(s.defFuncs, v.defFuncs...)
 		s.interfaceDefFuncs = append(s.interfaceDefFuncs, v.interfaceDefFuncs...)
 		s.funcDefFuncs = append(s.funcDefFuncs, v.funcDefFuncs...)
@@ -75,17 +81,19 @@ type field struct {
 
 func newScope(block *ir.Block) *Scope {
 	sc := &Scope{
-		vartable:     make(map[string]*variable),
-		block:        block,
-		types:        map[string]*typedef{},
-		genericFuncs: make(map[string]func(m *ir.Module, s *Scope, gens ...TypeNode) value.Value),
-		genericMap:   make(map[string]types.Type),
+		vartable:       make(map[string]*variable),
+		block:          block,
+		types:          map[string]*typedef{},
+		genericFuncs:   make(map[string]func(m *ir.Module, s *Scope, gens ...TypeNode) value.Value),
+		genericMap:     make(map[string]types.Type),
+		genericStructs: make(map[string]func(m *ir.Module, s *Scope, gens ...TypeNode) *typedef),
 	}
 	return sc
 }
-func NewGlobalScope() *Scope {
+func NewGlobalScope(m *ir.Module) *Scope {
 	sc := newScope(nil)
 	sc.globalScope = sc
+	sc.m = m
 	return sc
 }
 
@@ -97,6 +105,7 @@ func (s *Scope) addChildScope(block *ir.Block) *Scope {
 	// child.genericMap = s.genericMap
 	child.globalScope = s.globalScope
 	child.Pkgname = s.Pkgname
+	child.m = s.m
 	s.childrenScopes = append(s.childrenScopes, child)
 	return child
 }
@@ -133,6 +142,33 @@ func (s *Scope) addGeneric(id string, val func(m *ir.Module, s *Scope, gens ...T
 		return errRedef
 	}
 	s.genericFuncs[id] = val
+	return nil
+}
+func (s *Scope) addGenericStruct(id string, val func(m *ir.Module, s *Scope, gens ...TypeNode) *typedef) error {
+	id = s.getFullName(id)
+	_, ok := s.genericStructs[id]
+	if ok {
+		return errRedef
+	}
+	s.genericStructs[id] = val
+	return nil
+}
+
+func (s *Scope) getGenericStruct(id string) func(m *ir.Module, gens ...TypeNode) *typedef {
+	id = s.getFullName(id)
+	scope := s
+	for {
+		if scope == nil {
+			break
+		}
+		val, ok := scope.genericStructs[id]
+		if ok {
+			return func(m *ir.Module, gens ...TypeNode) *typedef {
+				return val(m, s, gens...)
+			}
+		}
+		scope = scope.parent
+	}
 	return nil
 }
 

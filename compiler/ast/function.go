@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/Chronostasys/calc/compiler/helper"
 	"github.com/llir/llvm/ir"
 	"github.com/llir/llvm/ir/types"
 	"github.com/llir/llvm/ir/value"
@@ -161,6 +162,7 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	fnNode := varNode
 	scope, ok := ScopeMap[varNode.Token]
 	if !ok {
+		scope = s
 		prev := fnNode
 		for {
 			if fnNode.Next == nil {
@@ -181,19 +183,28 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	poff := 0
 	if fnNode != varNode {
 		alloca := deReference(varNode.calc(m, f, s), s)
-		name := strings.Trim(alloca.Type().String(), "*%")
+		name := strings.Trim(alloca.Type().String(), "%*\"")
+		idx := strings.Index(name, "<")
+		if idx > -1 {
+			name = name[:idx]
+		}
+		ss := helper.SplitLast(name, ".")
+		if len(ss) > 1 && !strings.Contains(ss[1], "/") { // method is in another module
+			mod := ss[0]
+			scope = ScopeMap[mod]
+		}
 		name = name + "." + fnNode.Token
 		var err error
 		var fnv value.Value
 		if len(n.Generics) > 0 {
-			if gfn := s.globalScope.getGenericFunc(name); gfn != nil {
+			if gfn := scope.getGenericFunc(name); gfn != nil {
 				fnv = gfn(m, n.Generics...)
 			} else {
 				panic(fmt.Errorf("cannot find generic method %s", name))
 			}
 		} else {
 			var va *variable
-			va, err = s.searchVar(name)
+			va, err = scope.searchVar(name)
 			fnv = va.v
 			if err != nil {
 				panic(err)

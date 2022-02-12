@@ -40,10 +40,10 @@ type Parser struct {
 	m     *ir.Module
 }
 
-func NewParser() *Parser {
+func NewParser(m *ir.Module) *Parser {
 	return &Parser{
 		lexer: &lexer.Lexer{},
-		scope: ast.NewGlobalScope(),
+		scope: ast.NewGlobalScope(m),
 	}
 }
 
@@ -323,11 +323,6 @@ func (p *Parser) program() *ast.ProgramNode {
 			n.Children = append(n.Children, ast)
 			continue
 		}
-		// ast, err = p.runWithCatch2(p.interfaceDef)
-		// if err == nil {
-		// 	n.Children = append(n.Children, ast)
-		// 	continue
-		// }
 		ast, err = p.runWithCatch2(p.define)
 		if err == nil {
 			n.Children = append(n.Children, ast)
@@ -730,7 +725,8 @@ func (p *Parser) basicTypes() (n ast.TypeNode, err error) {
 				tp = append(tp, t)
 				tp[0] = p.imp[tp[0]]
 			}
-			return &ast.BasicTypeNode{CustomTp: tp}, nil
+			generic, _ := p.genericCallParams()
+			return &ast.BasicTypeNode{CustomTp: tp, Generics: generic}, nil
 		} else {
 			return nil, fmt.Errorf("not basic type")
 		}
@@ -998,7 +994,7 @@ func ParseModule(dir, mod string, m *ir.Module) *ast.ProgramNode {
 				panic(err)
 			}
 			str := string(bs)
-			p := NewParser()
+			p := NewParser(m)
 			p.mod = mod
 			p.m = m
 			p.scope.Pkgname = mod

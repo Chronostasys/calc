@@ -1,6 +1,9 @@
 package main
 
-import "github.com/Chronostasys/calc/test/test2"
+import (
+    "github.com/Chronostasys/calc/test/test2"
+    "github.com/Chronostasys/calc/test/generic"
+)
 
 func main() int {
     testAllocWrap()
@@ -66,6 +69,9 @@ func main() int {
     f := struct{i int}{i:10}
     f.i = 11
     printIntln(f.i)
+    a11 := generic.SG<int>{t:1}
+    printIntln(a11.t)
+    a11.GenericTPTest<int>()
     return 0
 }
 func testAllocWrap() int {

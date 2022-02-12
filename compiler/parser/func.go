@@ -1,6 +1,8 @@
 package parser
 
 import (
+	"strings"
+
 	"github.com/Chronostasys/calc/compiler/ast"
 	"github.com/Chronostasys/calc/compiler/lexer"
 )
@@ -74,8 +76,13 @@ func (p *Parser) function() ast.Node {
 	fn := &ast.FuncNode{ID: id}
 	fn.Generics, _ = p.genericParams()
 	fn.Params = p.funcParams()
-	if fn.Params.Ext {
-		fn.ID = fn.Params.Params[0].TP.String(p.scope) + "." + fn.ID
+	if fn.Params.Ext { // 扩展方法的第一个参数
+		name := fn.Params.Params[0].TP.String(p.scope)
+		idx := strings.Index(name, "<") // 去掉泛型
+		if idx > -1 {
+			name = name[:idx]
+		}
+		fn.ID = name + "." + fn.ID
 	}
 	tp, err := p.allTypes()
 	if err != nil {

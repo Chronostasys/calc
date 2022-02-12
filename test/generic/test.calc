@@ -1,0 +1,9 @@
+package generic
+
+type SG<T> struct {
+    t T
+}
+
+func GenericTPTest<T>(this sg SG<T>) void {
+    return
+}

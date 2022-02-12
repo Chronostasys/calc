@@ -14,11 +14,12 @@ func (p *Parser) typeDef() (n ast.Node, err error) {
 	if err != nil {
 		return nil, err
 	}
+	generics, _ := p.genericParams()
 	tp, err := p.allTypes()
 	if err != nil {
 		return nil, err
 	}
-	node := ast.NewTypeDef(t, tp, p.m, p.scope)
+	node := ast.NewTypeDef(t, tp, generics, p.m, p.scope)
 	return node, nil
 }
 

@@ -15,6 +15,7 @@ type BasicTypeNode struct {
 	ResType  int
 	CustomTp []string
 	PtrLevel int
+	Generics []TypeNode
 }
 
 type TypeNode interface {
@@ -58,10 +59,14 @@ func (v *ArrayTypeNode) String(s *Scope) string {
 	return tp
 }
 func (v *BasicTypeNode) String(s *Scope) string {
+	m := ir.NewModule()
+	oldm := s.m
+	s.m = m
 	t, err := v.calc(s.globalScope)
 	if err != nil {
 		panic(err)
 	}
+	s.m = oldm
 	tp := strings.Trim(t.String(), "%*\"")
 	return tp
 }
@@ -92,6 +97,12 @@ func (v *BasicTypeNode) calc(sc *Scope) (types.Type, error) {
 	} else {
 		tpname := v.CustomTp[0]
 		getTp := func() {
+			if len(v.Generics) > 0 {
+				gfn := sc.getGenericStruct(tpname)
+				td := gfn(sc.m, v.Generics...)
+				s = td.structType
+				return
+			}
 			st := types.NewStruct()
 			def := sc.getStruct(tpname)
 
@@ -224,7 +235,7 @@ func (v *StructDefNode) calc(s *Scope) (types.Type, error) {
 	fieldsIdx := map[string]*field{}
 	i := 0
 	for k, v := range v.Fields {
-		tp, err := v.calc(s.globalScope)
+		tp, err := v.calc(s)
 		if err != nil {
 			return nil, err
 		}
@@ -289,31 +300,72 @@ type StructInitNode struct {
 	allocOnHeap bool
 }
 
-type typeDef struct {
-	id string
-	tp types.Type
+type typeDefNode struct {
+	id       string
+	tp       types.Type
+	generics []string
 }
 
-func NewTypeDef(id string, tp TypeNode, m *ir.Module, s *Scope) Node {
-	t, err := tp.calc(s)
-	if err != nil {
-		panic(err)
+func NewTypeDef(id string, tp TypeNode, generics []string, m *ir.Module, s *Scope) Node {
+	if len(generics) == 0 {
+		t, err := tp.calc(s)
+		if err != nil {
+			panic(err)
+		}
+		var fidx map[string]*field
+		if n, ok := tp.(*StructDefNode); ok {
+			fidx = n.fields
+		}
+		n := &typeDefNode{id: id, tp: t, generics: generics}
+		defFunc := func(s *Scope) {
+			s.globalScope.addStruct(n.id, &typedef{
+				structType: m.NewTypeDef(s.getFullName(n.id), t),
+				fieldsIdx:  fidx,
+			})
+		}
+		s.globalScope.interfaceDefFuncs = append(s.globalScope.interfaceDefFuncs, defFunc)
+		return n
 	}
-	var fidx map[string]*field
-	if n, ok := tp.(*StructDefNode); ok {
-		fidx = n.fields
-	}
-	n := &typeDef{id: id, tp: t}
-	defFunc := func(s *Scope) {
-		s.globalScope.addStruct(n.id, &typedef{
-			structType: m.NewTypeDef(s.getFullName(n.id), t),
+	deffunc := func(m *ir.Module, s *Scope, gens ...TypeNode) *typedef {
+		sig := id + "<"
+		genericMap := s.genericMap
+		if len(gens) > 0 {
+			if genericMap == nil {
+				genericMap = make(map[string]types.Type)
+			}
+			for i, v := range gens {
+				tp, err := v.calc(s)
+				if err != nil {
+					panic(err)
+				}
+				genericMap[generics[i]] = tp
+				sig += tp.String() + ","
+			}
+		}
+		sig += ">"
+		if td := s.globalScope.getStruct(sig); td != nil {
+			return td
+		}
+		s.genericMap = genericMap
+		t, err := tp.calc(s)
+		if err != nil {
+			panic(err)
+		}
+		var fidx map[string]*field
+		if n, ok := tp.(*StructDefNode); ok {
+			fidx = n.fields
+		}
+		td := &typedef{
+			structType: m.NewTypeDef(s.getFullName(sig), t),
 			fieldsIdx:  fidx,
-		})
+		}
+		s.globalScope.addStruct(sig, td)
+		return td
 	}
-	s.globalScope.interfaceDefFuncs = append(s.globalScope.interfaceDefFuncs, defFunc)
-	return n
+	s.addGenericStruct(id, deffunc)
+	return &typeDefNode{id: id, generics: generics}
 }
 
-func (n *typeDef) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
+func (n *typeDefNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	return zero
 }
