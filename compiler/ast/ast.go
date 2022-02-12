@@ -662,14 +662,14 @@ func implicitCast(v value.Value, target types.Type, s *Scope) (value.Value, erro
 		tp := v.Type().(*types.FloatType)
 		targetTp := target.(*types.FloatType)
 		if targetTp.Kind < tp.Kind {
-			return nil, fmt.Errorf("failed to perform impliciot cast from %T to %v", v, target)
+			return nil, fmt.Errorf("failed to perform implicit cast from %T to %v", v, target)
 		}
 		return s.block.NewFPExt(v, targetTp), nil
 	case *types.IntType:
 		tp := v.Type().(*types.IntType)
 		targetTp := target.(*types.IntType)
 		if targetTp.BitSize < tp.BitSize {
-			return nil, fmt.Errorf("failed to perform impliciot cast from %T to %v", v, target)
+			return nil, fmt.Errorf("failed to perform implicit cast from %T to %v", v, target)
 		}
 		return s.block.NewZExt(v, targetTp), nil
 	case *types.PointerType:

@@ -122,7 +122,10 @@ func (s *Scope) addVar(id string, val *variable) error {
 	return nil
 }
 func (s *Scope) getFullName(id string) string {
-	if s.Pkgname == "main" {
+	if id == "main" {
+		return id
+	}
+	if id[0] == '{' { // anonymous struct
 		return id
 	}
 	if externMap[id] {

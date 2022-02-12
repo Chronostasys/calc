@@ -3,7 +3,11 @@ package helper
 import "strings"
 
 func SplitLast(str, sep string) []string {
-	idx := strings.LastIndex(str, sep)
+	mainStr := str
+	if strings.Contains(str, "<") {
+		mainStr = strings.Split(mainStr, "<")[0]
+	}
+	idx := strings.LastIndex(mainStr, sep)
 	if idx == -1 {
 		return []string{str}
 	}

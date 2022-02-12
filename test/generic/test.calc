@@ -1,9 +1,30 @@
 package generic
 
+import (
+    "github.com/Chronostasys/calc/test/generic/sub"
+)
+
+
 type SG<T> struct {
     t T
 }
 
 func GenericTPTest<T>(this sg SG<T>) void {
+    sub.print()
+    sg1 := sub.SG<int>{t:101}
+    printIntln(sg1.t)
+    return
+}
+func heapalloc<T>() *T {
+    size := sizeof<T>()
+    bs := GC_malloc(size)
+    seted := memset(bs,0,size)
+    return unsafecast<*byte,*T>(seted)
+}
+
+func zero_mem<T>(t *T) void {
+    size := sizeof<T>()
+    bs := unsafecast<*T,*byte>(t)
+    seted := memset(bs,0,size)
     return
 }

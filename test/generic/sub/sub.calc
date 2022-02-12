@@ -1,0 +1,10 @@
+package sub
+
+func print() void {
+    printIntln(100)
+    return
+}
+
+type SG<T> struct {
+    t T
+}

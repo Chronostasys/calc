@@ -726,7 +726,7 @@ func (p *Parser) basicTypes() (n ast.TypeNode, err error) {
 				tp[0] = p.imp[tp[0]]
 			}
 			generic, _ := p.genericCallParams()
-			return &ast.BasicTypeNode{CustomTp: tp, Generics: generic}, nil
+			return &ast.BasicTypeNode{CustomTp: tp, Generics: generic, Pkg: p.mod}, nil
 		} else {
 			return nil, fmt.Errorf("not basic type")
 		}
@@ -972,7 +972,7 @@ var calcmod, maindir string
 func ParseDir(dir string) *ir.Module {
 	calcmod = getModule(dir)
 	m := ir.NewModule()
-	p1 := ParseModule(dir, calcmod, m)
+	p1 := ParseModule(dir, "main", m)
 	ast.AddSTDFunc(m, p1.GlobalScope)
 	return m
 }
@@ -1002,9 +1002,9 @@ func ParseModule(dir, mod string, m *ir.Module) *ast.ProgramNode {
 		}
 	}
 	p := ast.Merge(nodes...)
+	ast.ScopeMap[mod] = p.GlobalScope
 	ast.AddSTDFunc(ir.NewModule(), p.GlobalScope)
 	p.Emit(m)
-	ast.ScopeMap[mod] = p.GlobalScope
 	return p
 
 }

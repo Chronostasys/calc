@@ -16,6 +16,7 @@ type BasicTypeNode struct {
 	CustomTp []string
 	PtrLevel int
 	Generics []TypeNode
+	Pkg      string
 }
 
 type TypeNode interface {
@@ -111,7 +112,7 @@ func (v *BasicTypeNode) calc(sc *Scope) (types.Type, error) {
 			} else if sc.getGenericType(tpname) != nil {
 				s = sc.getGenericType(tpname)
 			} else {
-				st.TypeName = sc.getFullName(tpname)
+				st.TypeName = v.Pkg + "." + tpname
 				s = st
 			}
 		}
