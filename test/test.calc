@@ -75,6 +75,7 @@ func main() int {
     a11.GenericTPTest()
     testChain()
     indexer := test2.Arr<int>{}
+    indexer[10]=100
     printIntln(indexer[10])
     fff := "aa"
     fff.PrintLn()

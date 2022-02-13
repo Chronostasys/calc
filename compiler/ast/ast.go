@@ -109,8 +109,14 @@ func hasFloatType(b *ir.Block, ts ...value.Value) (bool, []value.Value) {
 }
 
 func (n *BinNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
-	rawL, rawR := n.Left.calc(m, f, s), n.Right.calc(m, f, s)
-	l, r := loadIfVar(rawL, s), loadIfVar(rawR, s)
+	rawR := n.Right.calc(m, f, s)
+	r := loadIfVar(rawR, s)
+	if n.Op == lexer.TYPE_ASSIGN {
+		s.rightValue = r
+	}
+	rawL := n.Left.calc(m, f, s)
+	s.rightValue = nil
+	l := loadIfVar(rawL, s)
 	hasF, re := hasFloatType(s.block, l, r)
 	l, r = re[0], re[1]
 	switch n.Op {
@@ -135,6 +141,10 @@ func (n *BinNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		}
 		return s.block.NewSub(l, r)
 	case lexer.TYPE_ASSIGN:
+		if s.assigned {
+			s.assigned = false
+			return zero
+		}
 		if _, ok := n.Right.(*NilNode); ok {
 			r = constant.NewNull(rawL.Type().(*types.PointerType).ElemType.(*types.PointerType))
 			store(r, rawL, s)
@@ -154,7 +164,7 @@ func (n *BinNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		// 	}
 		// 	getVarNode(n.Left).setHeap(false, s)
 		// }
-		return val
+		return zero
 	default:
 		panic("unexpected op")
 	}
@@ -290,7 +300,7 @@ func (n *VarBlockNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 				idx,
 			)
 		} else {
-			va = getReloadIdx(va, idxs, m, f, s)
+			va = n.getReloadIdx(va, idxs, m, f, s)
 		}
 	}
 	if n.Next == nil {
@@ -303,9 +313,37 @@ func (n *VarBlockNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	return n.Next.calc(m, f, s)
 }
 
-func getReloadIdx(val value.Value, idxs []Node, m *ir.Module, f *ir.Func, s *Scope) value.Value {
+type fakeNode struct {
+	v value.Value
+}
+
+func (n *fakeNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
+	return n.v
+}
+
+func (n *VarBlockNode) getReloadIdx(val value.Value, idxs []Node, m *ir.Module, f *ir.Func, s *Scope) value.Value {
+	if n.Next == nil && s.rightValue != nil {
+		i := INDEX_RELOAD
+
+		for iter, v := range idxs {
+			ps := []Node{v}
+			if len(idxs)-1 == iter {
+				i = INDEX_SET_RELOAD
+				ps = append(ps, &fakeNode{s.rightValue})
+			}
+			b := &VarBlockNode{Token: i}
+			cf := &CallFuncNode{
+				FnNode: b,
+				Params: ps,
+				parent: val,
+			}
+			val = cf.calc(m, f, s)
+		}
+		s.assigned = true
+		return val
+	}
 	b := &VarBlockNode{Token: INDEX_RELOAD}
-	for _, v := range idxs[:] {
+	for _, v := range idxs {
 		cf := &CallFuncNode{
 			FnNode: b,
 			Params: []Node{v},

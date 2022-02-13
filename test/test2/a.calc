@@ -17,6 +17,11 @@ func IndexOp<T>(this arr *Arr<T>, index int) T {
     return arr.arr[index]
 }
 
+func IndexSetOp<T>(this arr *Arr<T>, index int, i T) void {
+    arr.arr[index] = i
+    return
+}
+
 
 
 

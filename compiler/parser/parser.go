@@ -3,6 +3,7 @@ package parser
 import (
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"path"
 	"strconv"
@@ -1005,6 +1006,9 @@ func ParseModule(dir, mod string, m *ir.Module) *ast.ProgramNode {
 			p := NewParser(mod, m)
 			nodes = append(nodes, p.ParseAST(str))
 		}
+	}
+	if len(nodes) == 0 {
+		log.Fatalln("cannot find source file at", dir)
 	}
 	p := ast.Merge(nodes...)
 	ast.ScopeMap[mod] = p.GlobalScope

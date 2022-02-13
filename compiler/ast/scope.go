@@ -30,6 +30,8 @@ type Scope struct {
 	generics          []types.Type
 	paramGenerics     [][]types.Type
 	currParam         int
+	rightValue        value.Value
+	assigned          bool
 }
 
 var externMap = map[string]bool{
