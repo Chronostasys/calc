@@ -71,7 +71,8 @@ func main() int {
     printIntln(f.i)
     a11 := generic.SG<test>{t:test{a:1}}
     printIntln(a11.t.a)
-    a11.GenericTPTest<test>()
+    a12 := generic.SG<int>{t:500}
+    a11.GenericTPTest()
     return 0
 }
 func testAllocWrap() int {

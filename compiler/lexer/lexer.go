@@ -64,6 +64,7 @@ const (
 	TYPE_STR           // ant quoted string
 	TYPE_RES_STR       // "string"
 	TYPE_RES_IMPORT    // "import"
+	TYPE_RES_OP        // "op"
 )
 
 var (
@@ -95,6 +96,7 @@ var (
 		"package":   TYPE_RES_PKG,
 		"string":    TYPE_RES_STR,
 		"import":    TYPE_RES_IMPORT,
+		"op":        TYPE_RES_OP,
 	}
 	reservedTypes = map[string]int{
 		"int":     TYPE_RES_INT,

@@ -53,7 +53,13 @@ func (n *FuncNode) AddtoScope(s *Scope) {
 		s.globalScope.addGeneric(n.ID, func(m *ir.Module, s *Scope, gens ...TypeNode) value.Value {
 			sig := fmt.Sprintf("%s<", n.ID)
 			for i, v := range n.Generics {
-				tp, _ := gens[i].calc(s)
+				var tp types.Type
+				if i >= len(gens) {
+
+					tp = s.genericMap[v]
+				} else {
+					tp, _ = gens[i].calc(s)
+				}
 				s.genericMap[v] = tp
 				if i != 0 {
 					sig += ","
@@ -82,14 +88,14 @@ func (n *FuncNode) AddtoScope(s *Scope) {
 			}
 			fun := m.NewFunc(s.getFullName(sig), tp, ps...)
 			n.Fn = fun
-			s.globalScope.addVar(sig, &variable{fun})
+			s.globalScope.addVar(sig, &variable{v: fun})
 			b := fun.NewBlock("")
 			childScope := s.addChildScope(b)
 			n.DefaultBlock = b
 			for i, v := range ps {
 				ptr := b.NewAlloca(v.Type())
 				store(v, ptr, childScope)
-				childScope.addVar(psn.Params[i].ID, &variable{ptr})
+				childScope.addVar(psn.Params[i].ID, &variable{v: ptr})
 			}
 			n.Statements.calc(m, fun, childScope)
 			return fun
@@ -112,7 +118,7 @@ func (n *FuncNode) AddtoScope(s *Scope) {
 			if err != nil {
 				panic(err)
 			}
-			s.globalScope.addVar(n.ID, &variable{ir.NewFunc(s.getFullName(n.ID), tp, ps...)})
+			s.globalScope.addVar(n.ID, &variable{v: ir.NewFunc(s.getFullName(n.ID), tp, ps...)})
 		})
 	}
 }
@@ -142,10 +148,10 @@ func (n *FuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	for i, v := range ps {
 		ptr := b.NewAlloca(v.Type())
 		store(v, ptr, childScope)
-		childScope.addVar(psn.Params[i].ID, &variable{ptr})
+		childScope.addVar(psn.Params[i].ID, &variable{v: ptr})
 	}
 
-	s.addVar(n.ID, &variable{n.Fn})
+	s.addVar(n.ID, &variable{v: n.Fn})
 
 	n.Statements.calc(m, fn, childScope)
 	return fn
@@ -180,7 +186,15 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	var fn *ir.Func
 
 	params := []value.Value{}
+	pvs := []value.Value{}
 	poff := 0
+
+	for _, v := range n.Params {
+		v2 := v.calc(m, f, s)
+		v1 := loadIfVar(v2, s)
+		pvs = append(pvs, v1)
+	}
+
 	if fnNode != varNode {
 		alloca := deReference(varNode.calc(m, f, s), s)
 		name := strings.Trim(alloca.Type().String(), "%*\"")
@@ -192,6 +206,9 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		if len(ss) > 1 && !strings.Contains(ss[1], "/") { // method is in another module
 			mod := ss[0]
 			scope = ScopeMap[mod]
+			for k, v := range s.genericMap {
+				scope.genericMap[k] = v
+			}
 		}
 		name = name + "." + fnNode.Token
 		var err error
@@ -235,10 +252,9 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 			fn = fnNode.calc(m, f, s).(*ir.Func)
 		}
 	}
-	for i, v := range n.Params {
+	for i, v := range pvs {
 		tp := fn.Params[i+poff].Typ
-		v2 := v.calc(m, f, s)
-		v1 := loadIfVar(v2, s)
+		v1 := v
 		p, err := implicitCast(v1, tp, s)
 		if err != nil {
 			panic(err)

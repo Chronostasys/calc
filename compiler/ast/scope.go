@@ -66,7 +66,8 @@ func MergeGlobalScopes(ss ...*Scope) *Scope {
 }
 
 type variable struct {
-	v value.Value
+	v          value.Value
+	genericMap map[string]types.Type
 }
 
 type typedef struct {
@@ -114,6 +115,10 @@ var errRedef = fmt.Errorf("variable redefination in same scope")
 
 func (s *Scope) addVar(id string, val *variable) error {
 	id = s.getFullName(id)
+	val.genericMap = make(map[string]types.Type)
+	for k, v := range s.genericMap {
+		val.genericMap[k] = v
+	}
 	_, ok := s.vartable[id]
 	if ok {
 		return errRedef
@@ -186,9 +191,19 @@ func (s *Scope) searchVar(id string) (*variable, error) {
 		}
 		val, ok := scope.vartable[id]
 		if ok {
+			for k, v := range val.genericMap {
+				s.genericMap[k] = v
+			}
 			return val, nil
 		}
 		scope = scope.parent
+	}
+	f := s.getGenericFunc(id)
+	if f != nil {
+		v := f(s.m)
+		if v != nil {
+			return &variable{v: v}, nil
+		}
 	}
 	return nil, errVarNotFound
 }

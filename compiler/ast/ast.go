@@ -539,16 +539,16 @@ func (n *DefineNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		} else {
 			// TODO
 		}
-		s.addVar(n.ID, &variable{n.Val})
+		s.addVar(n.ID, &variable{v: n.Val})
 	} else {
 		if s.heapAllocTable[n.ID] {
 			gfn := s.globalScope.getGenericFunc("heapalloc")
 			fnv := gfn(m, n.TP)
 			n.Val = s.block.NewCall(fnv)
-			s.addVar(n.ID, &variable{n.Val})
+			s.addVar(n.ID, &variable{v: n.Val})
 		} else {
 			n.Val = s.block.NewAlloca(tp)
-			s.addVar(n.ID, &variable{n.Val})
+			s.addVar(n.ID, &variable{v: n.Val})
 		}
 	}
 	return n.Val
@@ -603,7 +603,6 @@ func (n *DefAndAssignNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value 
 		rawval := n.Val.calc(m, f, s)
 		val := loadIfVar(rawval, s)
 		var v value.Value
-		var heap bool
 		var tp types.Type
 		switch val.Type().(type) {
 		case *types.FloatType:
@@ -635,12 +634,8 @@ func (n *DefAndAssignNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value 
 		if err != nil {
 			panic(err)
 		}
-		va := &variable{v}
+		va := &variable{v: v}
 		store(val, val1, s)
-		if heap {
-			s.addVar(n.ID, va)
-			return v
-		}
 		s.addVar(n.ID, va)
 		return v
 	}

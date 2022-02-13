@@ -93,6 +93,7 @@ func loadElmType(tp types.Type) types.Type {
 
 func (v *BasicTypeNode) calc(sc *Scope) (types.Type, error) {
 	var s types.Type
+	oris := sc
 	if len(v.CustomTp) == 0 {
 		s = typedic[v.ResType]
 	} else {
@@ -102,6 +103,9 @@ func (v *BasicTypeNode) calc(sc *Scope) (types.Type, error) {
 				gfn := sc.getGenericStruct(tpname)
 				td := gfn(sc.m, v.Generics...)
 				s = td.structType
+				for k, v := range sc.genericMap {
+					oris.genericMap[k] = v
+				}
 				return
 			}
 			st := types.NewStruct()
@@ -120,9 +124,6 @@ func (v *BasicTypeNode) calc(sc *Scope) (types.Type, error) {
 			getTp()
 		} else {
 			sc = ScopeMap[v.CustomTp[0]]
-			if sc == nil {
-				println()
-			}
 			tpname = v.CustomTp[1]
 			getTp()
 		}

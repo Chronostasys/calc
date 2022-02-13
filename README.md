@@ -58,4 +58,6 @@ null_exp: NE->NIL
 pkg_declare: PD->PKG var
 string_exp: SE->str
 import_statement: IS->imp str|imp LP ((SE var?)|NL)* RP
+
+idx_op_reload: IOR->OP LSB RSB LP EFP COMMA FP RP TYPE SB
 ```
