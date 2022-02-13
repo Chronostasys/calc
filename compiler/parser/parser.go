@@ -40,11 +40,15 @@ type Parser struct {
 	m     *ir.Module
 }
 
-func NewParser(m *ir.Module) *Parser {
-	return &Parser{
+func NewParser(mod string, m *ir.Module) *Parser {
+	p := &Parser{
 		lexer: &lexer.Lexer{},
 		scope: ast.NewGlobalScope(m),
+		mod:   mod,
+		m:     m,
 	}
+	p.scope.Pkgname = mod
+	return p
 }
 
 func (p *Parser) number() (n ast.Node) {
@@ -972,11 +976,15 @@ var calcmod, maindir string
 func ParseDir(dir string) *ir.Module {
 	calcmod = getModule(dir)
 	m := ir.NewModule()
+	mod := "github.com/Chronostasys/calc/runtime"
+	pa := path.Join(maindir, mod[len(calcmod):])
+	ParseModule(pa, mod, m)
 	p1 := ParseModule(dir, "main", m)
 	ast.AddSTDFunc(m, p1.GlobalScope)
 	return m
 }
 func ParseModule(dir, mod string, m *ir.Module) *ast.ProgramNode {
+	tmpm := ir.NewModule()
 	c, err := os.ReadDir(dir)
 	if err != nil {
 		panic(err)
@@ -994,16 +1002,13 @@ func ParseModule(dir, mod string, m *ir.Module) *ast.ProgramNode {
 				panic(err)
 			}
 			str := string(bs)
-			p := NewParser(m)
-			p.mod = mod
-			p.m = m
-			p.scope.Pkgname = mod
+			p := NewParser(mod, m)
 			nodes = append(nodes, p.ParseAST(str))
 		}
 	}
 	p := ast.Merge(nodes...)
 	ast.ScopeMap[mod] = p.GlobalScope
-	ast.AddSTDFunc(ir.NewModule(), p.GlobalScope)
+	ast.AddSTDFunc(tmpm, p.GlobalScope)
 	p.Emit(m)
 	return p
 

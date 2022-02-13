@@ -101,17 +101,31 @@ func (v *BasicTypeNode) calc(sc *Scope) (types.Type, error) {
 		getTp := func() {
 			if len(v.Generics) > 0 {
 				gfn := sc.getGenericStruct(tpname)
+				if oris.paramGenerics != nil {
+					gs := oris.paramGenerics[oris.currParam]
+					if gs != nil {
+						fakes := NewGlobalScope(ir.NewModule())
+						for i, v := range v.Generics {
+							k := v.String(fakes)
+							ss := strings.Split(k, ".")
+							k = ss[len(ss)-1]
+							oris.genericMap[k] = gs[i]
+						}
+					}
+				}
 				td := gfn(sc.m, v.Generics...)
 				s = td.structType
-				for k, v := range sc.genericMap {
-					oris.genericMap[k] = v
-				}
+				oris.generics = td.generics
+				// for k, v := range sc.genericMap {
+				// 	oris.genericMap[k] = v
+				// }
 				return
 			}
 			st := types.NewStruct()
 			def := sc.getStruct(tpname)
-
+			sc.generics = nil
 			if def != nil {
+				oris.generics = def.generics
 				s = def.structType
 			} else if sc.getGenericType(tpname) != nil {
 				s = sc.getGenericType(tpname)
@@ -121,6 +135,9 @@ func (v *BasicTypeNode) calc(sc *Scope) (types.Type, error) {
 			}
 		}
 		if len(v.CustomTp) == 1 {
+			if sc.Pkgname != v.Pkg {
+				sc = ScopeMap[v.Pkg]
+			}
 			getTp()
 		} else {
 			sc = ScopeMap[v.CustomTp[0]]
@@ -155,11 +172,9 @@ func (n *ArrayInitNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	}
 	var alloca value.Value
 	if n.allocOnHeap {
-		gfn := s.globalScope.getGenericFunc("heapalloc")
-		fnv := gfn(m, n.Type)
-		alloca = s.block.NewCall(fnv)
+		alloca = heapAlloc(m, s, n.Type)
 	} else {
-		alloca = s.block.NewAlloca(atype)
+		alloca = stackAlloc(m, s, atype)
 	}
 	var va value.Value = alloca
 	for k, v := range n.Vals {
@@ -180,6 +195,10 @@ func (n *StructInitNode) setAlloc(onheap bool) {
 }
 func (n *StructInitNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	t, err := n.TP.calc(s)
+	generics := s.generics
+	defer func() {
+		s.generics = generics
+	}()
 	if err != nil {
 		panic(err)
 	}
@@ -200,11 +219,9 @@ func (n *StructInitNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	}
 	var alloca value.Value
 	if n.allocOnHeap {
-		gfn := s.globalScope.getGenericFunc("heapalloc")
-		fnv := gfn(m, n.TP)
-		alloca = s.block.NewCall(fnv)
+		alloca = heapAlloc(m, s, n.TP)
 	} else {
-		alloca = s.block.NewAlloca(tp.structType)
+		alloca = stackAlloc(m, s, tp.structType)
 	}
 
 	var va value.Value = alloca
@@ -331,6 +348,7 @@ func NewTypeDef(id string, tp TypeNode, generics []string, m *ir.Module, s *Scop
 	deffunc := func(m *ir.Module, s *Scope, gens ...TypeNode) *typedef {
 		sig := id + "<"
 		genericMap := s.genericMap
+		generictypes := []types.Type{}
 		if len(gens) > 0 {
 			if genericMap == nil {
 				genericMap = make(map[string]types.Type)
@@ -341,6 +359,7 @@ func NewTypeDef(id string, tp TypeNode, generics []string, m *ir.Module, s *Scop
 					panic(err)
 				}
 				genericMap[generics[i]] = tp
+				generictypes = append(generictypes, tp)
 				sig += tp.String() + ","
 			}
 		}
@@ -360,6 +379,7 @@ func NewTypeDef(id string, tp TypeNode, generics []string, m *ir.Module, s *Scop
 		td := &typedef{
 			structType: m.NewTypeDef(s.getFullName(sig), t),
 			fieldsIdx:  fidx,
+			generics:   generictypes,
 		}
 		s.globalScope.addStruct(sig, td)
 		return td

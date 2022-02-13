@@ -30,7 +30,7 @@ var (
 
 func getstrtp() types.Type {
 	s := types.NewStruct()
-	s.TypeName = "_str"
+	s.TypeName = "github.com/Chronostasys/calc/runtime._str"
 	return s
 }
 
@@ -290,8 +290,7 @@ func (n *VarBlockNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 				idx,
 			)
 		} else {
-			// TODO indexer reload
-			panic("not impl")
+			va = getReloadIdx(va, idxs, m, f, s)
 		}
 	}
 	if n.Next == nil {
@@ -304,13 +303,18 @@ func (n *VarBlockNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	return n.Next.calc(m, f, s)
 }
 
-// func getReloadIdx(token string, idxs []Node) value.Value {
-// 	b := &VarBlockNode{}
-// 	b.Token = token
-// 	b.Next =  &VarBlockNode{Token: "Index"}
-// 	cf := &CallFuncNode{FnNode: b,Params: []Node{idxs[0]}}
-
-// }
+func getReloadIdx(val value.Value, idxs []Node, m *ir.Module, f *ir.Func, s *Scope) value.Value {
+	b := &VarBlockNode{Token: INDEX_RELOAD}
+	for _, v := range idxs[:] {
+		cf := &CallFuncNode{
+			FnNode: b,
+			Params: []Node{v},
+			parent: val,
+		}
+		val = cf.calc(m, f, s)
+	}
+	return val
+}
 
 func deReference(va value.Value, s *Scope) value.Value {
 	tpptr := va.Type()
@@ -553,12 +557,10 @@ func (n *DefineNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		s.addVar(n.ID, &variable{v: n.Val})
 	} else {
 		if s.heapAllocTable[n.ID] {
-			gfn := s.globalScope.getGenericFunc("heapalloc")
-			fnv := gfn(m, n.TP)
-			n.Val = s.block.NewCall(fnv)
+			n.Val = heapAlloc(m, s, n.TP)
 			s.addVar(n.ID, &variable{v: n.Val})
 		} else {
-			n.Val = s.block.NewAlloca(tp)
+			n.Val = stackAlloc(m, s, tp)
 			s.addVar(n.ID, &variable{v: n.Val})
 		}
 	}
@@ -599,11 +601,9 @@ type DefAndAssignNode struct {
 
 func autoAlloc(m *ir.Module, id string, gtp TypeNode, tp types.Type, s *Scope) (v value.Value) {
 	if s.heapAllocTable[id] {
-		gfn := s.globalScope.getGenericFunc("heapalloc")
-		fnv := gfn(m, gtp)
-		v = s.block.NewCall(fnv)
+		v = heapAlloc(m, s, gtp)
 	} else {
-		v = s.block.NewAlloca(tp)
+		v = stackAlloc(m, s, tp)
 	}
 	return
 

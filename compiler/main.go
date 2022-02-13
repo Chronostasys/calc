@@ -12,7 +12,7 @@ import (
 
 func main() {
 	var indir, outf string
-	flag.StringVar(&indir, "d", "../test", "source repo dir")
+	flag.StringVar(&indir, "d", ".", "source repo dir")
 	flag.StringVar(&outf, "o", "out.ll", "llvm ir file")
 	flag.Parse()
 	since := time.Now()

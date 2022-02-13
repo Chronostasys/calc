@@ -2,7 +2,7 @@ package runtime
 
 
 
-func PrintStringLn(s string) void {
+func PrintLn(this s string) void {
     a := s.Append("\n\0")
     printf(a.bs)
     return

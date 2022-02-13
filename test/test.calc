@@ -8,7 +8,7 @@ import (
 func main() int {
     testAllocWrap()
     AAA()
-    t := heapalloc<Test>()
+    t := &Test{}
     t.A = 888
     printIntln(t.A)
     testBasicGeneric()
@@ -74,12 +74,19 @@ func main() int {
     a12 := generic.SG<int>{t:500}
     a11.GenericTPTest()
     testChain()
+    indexer := test2.Arr<int>{}
+    printIntln(indexer[10])
+    fff := "aa"
+    fff.PrintLn()
+    fff = fff.Append("hello")
+    fff.PrintLn()
     return 0
 }
 
+
 func testChain() int {
-    arr := Arr{}
-    printIntln(arr.arr[0])
+    arr := Arr<int>{}
+    printIntln(arr[0])
     a := 1
     printIntln(a.add().add())
     printIntln(a)
@@ -87,9 +94,9 @@ func testChain() int {
     return 0
 }
 func testAllocWrap() int {
-    a := heapalloc<test>()
+    a := &test{}
     a.a = 100
-    b := heapalloc<test1>()
+    b := &test1{}
     a.b=b
     a.b.a =1
     printIntln(a.b.a)
@@ -115,12 +122,6 @@ func genericTest<T>(v T) int {
     return 0
 }
 
-func heapalloc<T>() *T {
-    size := sizeof<T>()
-    bs := GC_malloc(size)
-    seted := memset(bs,0,size)
-    return unsafecast<*byte,*T>(seted)
-}
 
 
 func testInterface(x any) int {

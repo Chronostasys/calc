@@ -27,6 +27,9 @@ type Scope struct {
 	genericMap        map[string]types.Type
 	heapAllocTable    map[string]bool
 	m                 *ir.Module
+	generics          []types.Type
+	paramGenerics     [][]types.Type
+	currParam         int
 }
 
 var externMap = map[string]bool{
@@ -66,13 +69,14 @@ func MergeGlobalScopes(ss ...*Scope) *Scope {
 }
 
 type variable struct {
-	v          value.Value
-	genericMap map[string]types.Type
+	v        value.Value
+	generics []types.Type
 }
 
 type typedef struct {
 	structType types.Type
 	fieldsIdx  map[string]*field
+	generics   []types.Type
 }
 
 type field struct {
@@ -115,14 +119,11 @@ var errRedef = fmt.Errorf("variable redefination in same scope")
 
 func (s *Scope) addVar(id string, val *variable) error {
 	id = s.getFullName(id)
-	val.genericMap = make(map[string]types.Type)
-	for k, v := range s.genericMap {
-		val.genericMap[k] = v
-	}
 	_, ok := s.vartable[id]
 	if ok {
 		return errRedef
 	}
+	val.generics = s.generics
 	s.vartable[id] = val
 	return nil
 }
@@ -191,9 +192,7 @@ func (s *Scope) searchVar(id string) (*variable, error) {
 		}
 		val, ok := scope.vartable[id]
 		if ok {
-			for k, v := range val.genericMap {
-				s.genericMap[k] = v
-			}
+			s.generics = val.generics
 			return val, nil
 		}
 		scope = scope.parent

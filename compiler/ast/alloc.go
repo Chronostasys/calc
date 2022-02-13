@@ -8,6 +8,9 @@ import (
 
 func heapAlloc(m *ir.Module, s *Scope, gtp TypeNode) value.Value {
 	gfn := s.globalScope.getGenericFunc("heapalloc")
+	if gfn == nil {
+		gfn = ScopeMap["github.com/Chronostasys/calc/runtime"].getGenericFunc("heapalloc")
+	}
 	fnv := gfn(m, gtp)
 	v := s.block.NewCall(fnv)
 	return v
@@ -15,8 +18,5 @@ func heapAlloc(m *ir.Module, s *Scope, gtp TypeNode) value.Value {
 
 func stackAlloc(m *ir.Module, s *Scope, gtp types.Type) value.Value {
 	v := s.block.NewAlloca(gtp)
-	gfn := s.globalScope.getGenericFunc("zero_mem")
-	fnv := gfn(m, &calcedTypeNode{gtp})
-	s.block.NewCall(fnv, v)
 	return v
 }

@@ -1,15 +1,15 @@
 package main
 
-type Arr struct{
-    arr [100]int
+type Arr<T> struct{
+    arr [100]T
 }
 
-func Index(this arr *Arr, index int) int {
+func IndexOp<T>(this arr *Arr<T>, index int) T {
     return arr.arr[index]
 }
 
 
-func Arrr(this arr *Arr) *Arr {
+func Arrr<T>(this arr *Arr<T>) *Arr<T> {
     return arr
 }
 

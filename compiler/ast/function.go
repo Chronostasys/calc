@@ -51,7 +51,26 @@ type FuncNode struct {
 func (n *FuncNode) AddtoScope(s *Scope) {
 	if len(n.Generics) > 0 {
 		s.globalScope.addGeneric(n.ID, func(m *ir.Module, s *Scope, gens ...TypeNode) value.Value {
+			psn := n.Params
+			ps := []*ir.Param{}
 			sig := fmt.Sprintf("%s<", n.ID)
+			defparams := func() {
+				s.currParam = 0
+				for _, v := range psn.Params {
+					p := v
+					tp, err := p.TP.calc(s)
+					s.currParam++
+					if err != nil {
+						panic(err)
+					}
+					param := ir.NewParam(p.ID, tp)
+					ps = append(ps, param)
+				}
+				s.paramGenerics = nil
+			}
+			if len(gens) == 0 {
+				defparams()
+			}
 			for i, v := range n.Generics {
 				var tp types.Type
 				if i >= len(gens) {
@@ -67,20 +86,12 @@ func (n *FuncNode) AddtoScope(s *Scope) {
 				sig += tp.String()
 			}
 			sig += ">"
+			if len(gens) != 0 {
+				defparams()
+			}
 			fn, err := s.globalScope.searchVar(sig)
 			if err == nil {
 				return fn.v
-			}
-			psn := n.Params
-			ps := []*ir.Param{}
-			for _, v := range psn.Params {
-				p := v
-				tp, err := p.TP.calc(s)
-				if err != nil {
-					panic(err)
-				}
-				param := ir.NewParam(p.ID, tp)
-				ps = append(ps, param)
 			}
 			tp, err := n.RetType.calc(s)
 			if err != nil {
@@ -125,7 +136,7 @@ func (n *FuncNode) AddtoScope(s *Scope) {
 
 func (n *FuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	if len(n.Generics) > 0 {
-		// generic function will be generate while call
+		// generic function will be generated while call
 		return zero
 	}
 	psn := n.Params
@@ -174,6 +185,7 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	varNode := n.FnNode.(*VarBlockNode)
 	fnNode := varNode
 	scope, ok := ScopeMap[varNode.Token]
+	paramGenerics := [][]types.Type{}
 	if !ok {
 		scope = s
 		prev := fnNode
@@ -190,21 +202,21 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 			fnNode = fnNode.Next
 		}
 	}
-	if n.parent != nil {
-		varNode = nil
-		goto EXT
-	}
-
+	paramGenerics = append(paramGenerics, s.generics)
 	for _, v := range n.Params {
 		v2 := v.calc(m, f, s)
 		v1 := loadIfVar(v2, s)
 		pvs = append(pvs, v1)
+		paramGenerics = append(paramGenerics, s.generics)
 	}
-EXT:
+	if n.parent != nil {
+		varNode = nil
+	}
 	if fnNode != varNode {
 		var alloca value.Value
 		if varNode != nil {
 			alloca = deReference(varNode.calc(m, f, s), s)
+			paramGenerics[0] = s.generics
 		} else {
 			alloca = n.parent
 		}
@@ -221,6 +233,7 @@ EXT:
 				scope.genericMap[k] = v
 			}
 		}
+		scope.paramGenerics = paramGenerics
 		name = name + "." + fnNode.Token
 		var err error
 		var fnv value.Value
@@ -254,6 +267,7 @@ EXT:
 			} else {
 				token = varNode.Next.Token
 			}
+			scope.paramGenerics = paramGenerics
 			if gfn := scope.getGenericFunc(token); gfn != nil {
 				fn = gfn(m, n.Generics...).(*ir.Func)
 			} else {

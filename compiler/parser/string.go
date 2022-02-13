@@ -10,10 +10,6 @@ func (p *Parser) strExp() (n ast.Node, err error) {
 	if err != nil {
 		return nil, err
 	}
-	_, err = p.lexer.ScanType(lexer.TYPE_PLUS)
-	if err != nil {
-		return nil, err
-	}
 
 	return &ast.StringNode{Str: str}, nil
 }

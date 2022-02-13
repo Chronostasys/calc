@@ -8,3 +8,15 @@ func Dosth<T>(in T) void {
 type testS struct {
     i int
 }
+
+type Arr<T> struct{
+    arr [100]T
+}
+
+func IndexOp<T>(this arr *Arr<T>, index int) T {
+    return arr.arr[index]
+}
+
+
+
+
