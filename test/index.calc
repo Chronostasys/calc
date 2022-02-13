@@ -1,0 +1,15 @@
+package main
+
+type Arr struct{
+    arr [100]int
+}
+
+func Index(this arr *Arr, index int) int {
+    return arr.arr[index]
+}
+
+
+func Arrr(this arr *Arr) *Arr {
+    return arr
+}
+

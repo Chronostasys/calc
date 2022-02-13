@@ -260,6 +260,7 @@ func (n *VarBlockNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		va = val.v
 	} else {
 		va = n.parent
+
 		s1 := getTypeName(va.Type())
 		s2 := helper.SplitLast(s1, ".")
 		ss := s2[0]
@@ -280,16 +281,18 @@ func (n *VarBlockNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		va = deReference(va, s)
 	}
 	for _, v := range idxs {
-		tp := getElmType(va.Type())
-		idx := loadIfVar(v.calc(m, f, s), s)
-		if _, ok := idx.Type().(*types.IntType); !ok {
+		innerTP := va.Type().(*types.PointerType).ElemType
+		if atp, ok := innerTP.(*types.ArrayType); ok {
+			tp := atp
+			idx := loadIfVar(v.calc(m, f, s), s)
+			va = s.block.NewGetElementPtr(tp, va,
+				constant.NewIndex(zero),
+				idx,
+			)
+		} else {
 			// TODO indexer reload
 			panic("not impl")
 		}
-		va = s.block.NewGetElementPtr(tp, va,
-			constant.NewIndex(zero),
-			idx,
-		)
 	}
 	if n.Next == nil {
 		return va
@@ -300,6 +303,14 @@ func (n *VarBlockNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	n.Next.parent = va
 	return n.Next.calc(m, f, s)
 }
+
+// func getReloadIdx(token string, idxs []Node) value.Value {
+// 	b := &VarBlockNode{}
+// 	b.Token = token
+// 	b.Next =  &VarBlockNode{Token: "Index"}
+// 	cf := &CallFuncNode{FnNode: b,Params: []Node{idxs[0]}}
+
+// }
 
 func deReference(va value.Value, s *Scope) value.Value {
 	tpptr := va.Type()

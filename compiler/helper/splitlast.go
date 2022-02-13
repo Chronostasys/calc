@@ -15,3 +15,7 @@ func SplitLast(str, sep string) []string {
 	first := str[:idx]
 	return []string{first, last}
 }
+
+func Trin(str string) string {
+	return strings.Trim(str, "%*\"")
+}

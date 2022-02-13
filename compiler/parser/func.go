@@ -110,7 +110,7 @@ func (p *Parser) callFunc() ast.Node {
 	}
 	_, err = p.lexer.ScanType(lexer.TYPE_RP)
 	if err == nil {
-		return fn
+		goto END
 	}
 	if err == lexer.ErrEOS {
 		panic(err)
@@ -119,7 +119,7 @@ func (p *Parser) callFunc() ast.Node {
 	for {
 		_, err = p.lexer.ScanType(lexer.TYPE_RP)
 		if err == nil {
-			return fn
+			goto END
 		}
 		if err == lexer.ErrEOS {
 			panic(err)
@@ -130,6 +130,22 @@ func (p *Parser) callFunc() ast.Node {
 		}
 		fn.Params = append(fn.Params, p.allexp())
 	}
+END:
+	for {
+		_, err := p.lexer.ScanType(lexer.TYPE_DOT)
+		if err != nil {
+			break
+		}
+		inner, err := p.runWithCatch(p.callFunc)
+		if err != nil {
+			inner, err = p.varChain()
+			if err != nil {
+				panic(err)
+			}
+		}
+		fn.Next = inner
+	}
+	return fn
 }
 
 func (p *Parser) returnST() (n ast.Node, err error) {

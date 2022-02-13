@@ -160,10 +160,17 @@ func (n *FuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 type CallFuncNode struct {
 	Params   []Node
 	FnNode   Node
+	parent   value.Value
+	Next     Node
 	Generics []TypeNode
 }
 
 func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
+	var fn *ir.Func
+
+	params := []value.Value{}
+	pvs := []value.Value{}
+	poff := 0
 	varNode := n.FnNode.(*VarBlockNode)
 	fnNode := varNode
 	scope, ok := ScopeMap[varNode.Token]
@@ -183,20 +190,24 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 			fnNode = fnNode.Next
 		}
 	}
-	var fn *ir.Func
-
-	params := []value.Value{}
-	pvs := []value.Value{}
-	poff := 0
+	if n.parent != nil {
+		varNode = nil
+		goto EXT
+	}
 
 	for _, v := range n.Params {
 		v2 := v.calc(m, f, s)
 		v1 := loadIfVar(v2, s)
 		pvs = append(pvs, v1)
 	}
-
+EXT:
 	if fnNode != varNode {
-		alloca := deReference(varNode.calc(m, f, s), s)
+		var alloca value.Value
+		if varNode != nil {
+			alloca = deReference(varNode.calc(m, f, s), s)
+		} else {
+			alloca = n.parent
+		}
 		name := strings.Trim(alloca.Type().String(), "%*\"")
 		idx := strings.Index(name, "<")
 		if idx > -1 {
@@ -261,15 +272,28 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		}
 		params = append(params, p)
 	}
-	re := s.block.NewCall(fn, params...)
-	if re.Type().Equal(types.Void) {
-		return re
+
+	var re value.Value = s.block.NewCall(fn, params...)
+	if !re.Type().Equal(types.Void) {
+		// autoAlloc()
+		alloc := s.block.NewAlloca(re.Type())
+		store(re, alloc, s)
+		if fnNode.Token == "heapalloc" {
+			mallocTable[alloc] = true
+		}
+		re = alloc
 	}
-	// autoAlloc()
-	alloc := s.block.NewAlloca(re.Type())
-	store(re, alloc, s)
-	if fnNode.Token == "heapalloc" {
-		mallocTable[alloc] = true
+	if n.Next != nil {
+		re = deReference(re, s)
+		switch next := n.Next.(type) {
+		case *CallFuncNode:
+			next.parent = re
+		case *VarBlockNode:
+			next.parent = re
+		default:
+			panic("unknown type")
+		}
+		re = n.Next.calc(m, f, s)
 	}
-	return alloc
+	return re
 }

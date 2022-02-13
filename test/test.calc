@@ -73,6 +73,17 @@ func main() int {
     printIntln(a11.t.a)
     a12 := generic.SG<int>{t:500}
     a11.GenericTPTest()
+    testChain()
+    return 0
+}
+
+func testChain() int {
+    arr := Arr{}
+    printIntln(arr.arr[0])
+    a := 1
+    printIntln(a.add().add())
+    printIntln(a)
+    printIntln(arr.Arrr().Arrr().arr[0])
     return 0
 }
 func testAllocWrap() int {
