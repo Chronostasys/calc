@@ -301,6 +301,17 @@ func (l *Lexer) Scan() (code int, token string, eos bool) {
 	case '*':
 		return TYPE_MUL, "*", end
 	case '/':
+		if ne, _ := l.Peek(); ne == '/' {
+			for {
+				ch, end := l.getCh()
+				if end {
+					return -1, "", end
+				}
+				if ch == '\n' {
+					return l.Scan()
+				}
+			}
+		}
 		return TYPE_DIV, "/", end
 	case '(':
 		return TYPE_LP, "(", end
@@ -316,7 +327,7 @@ func (l *Lexer) Scan() (code int, token string, eos bool) {
 		return TYPE_NL, "\n", end
 	case '\r':
 		c, e := l.Peek()
-		if !e && c == '\n' {
+		if !e && c == '\n' { // CRLF
 			l.pos++
 			return TYPE_NL, "\n", e
 		}

@@ -1,15 +1,21 @@
-# Calculator
-~~Try to build a simple calculator, with lexer and recursive descent parser~~.
-
-现在它是一个小编译器了  
-在项目根目录`make`可以编译[test.calc](cmd/test.calc)的ir文件、可执行文件和汇编  
+# Calc
+`calc`是一个类似`golang`的编程语言  
+在项目根目录`make`可以编译[test](test)目录模块的ir文件、可执行文件和汇编  
 `make compiler`可以编译出编译器  
 因为是计算器基础上改的，所以暂时的文件后缀是`.calc`  
+
+## 早期开发
+本项目正处于早期开发阶段，很多功能尚不完善。  
+进度和计划可以查看[Roadmap](docs/roadmap.md)
+
+## 和golang主要区别
+- 支持泛型，是尖括号
+- 不能多返回值
 
 ## 工具链
 - clang (llvm 12.0)
 - golang 1.17.1
-## Rules
+## 语法规则
 ```
 program: P->PD NL* IS? (FN|NL|T|D)+
 call_func: CF->VC GPC? LP (RP|(E(COMMA AE)* RP)) (DOT CF|VC)*
