@@ -117,6 +117,7 @@ var (
 type Lexer struct {
 	input string
 	pos   int
+	runes []rune
 }
 
 func IsResType(token string) (code int, ok bool) {
@@ -127,13 +128,14 @@ func IsResType(token string) (code int, ok bool) {
 func (l *Lexer) SetInput(s string) {
 	l.pos = 0
 	l.input = s
+	l.runes = []rune(s)
 }
 
 func (l *Lexer) Peek() (ch rune, end bool) {
 	if l.pos >= len(l.input) {
 		return ch, true
 	}
-	ch = []rune(l.input)[l.pos]
+	ch = l.runes[l.pos]
 	return ch, false
 }
 
@@ -210,6 +212,7 @@ func (l *Lexer) PrintCurrent() {
 }
 
 func (l *Lexer) Scan() (code int, token string, eos bool) {
+START:
 	ch, end := l.getChSkipEmpty()
 	if end {
 		eos = end
@@ -308,7 +311,7 @@ func (l *Lexer) Scan() (code int, token string, eos bool) {
 					return -1, "", end
 				}
 				if ch == '\n' {
-					return l.Scan()
+					goto START
 				}
 			}
 		}

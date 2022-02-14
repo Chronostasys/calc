@@ -4,6 +4,7 @@ package main
 import (
     "github.com/Chronostasys/calc/test/test2"
     "github.com/Chronostasys/calc/test/generic"
+    "github.com/Chronostasys/calc/test/generic/sub"
 )
 
 func main() int {
@@ -22,47 +23,7 @@ func main() int {
     }
     a2.add()
     printIntln(a2.A)
-    var a1 int
-    a1 = 1
-    printIntln(a1)
-    var b1 *int
-    b1 = &a1
-    c1 := &b1
-    printIntln(3 * *b1)
-    printIntln(**c1)
-    Add1(c1)
-    printIntln(**c1)
-    var a [2][3]Test
-    a = [2][3]Test{}
-    a[1][2]= Test{
-        A:100,
-        B: Test1{
-            A:200,
-            B:true,
-        },
-    }
-    a[1][2].B.A = 300
-    printBoolln(a[1][2].B.B)
-    printIntln(a[1][2].B.A)
-    add(2,1)
-    d := false
-    printBoolln(d)
-    d = true||d
-    printBoolln(d)
-    var _a1 float
-    _a1 = 3.0 + 2.2*(3.1+9.6)/8.3
-    var b = 5+9*6
-    var c int
-    c = b
-    c = add(c,b)
-    printIntln(c)
-    printIntln(b)
-    printFloatln(_a1)
-    printIntln(add(7*8,add(c,b)))
-    d = !(c!=(b+c-b))&&b>c
-    printBoolln(d)
-    printBoolln(!(c!=(b+c-b))||b>c)
-    add(1,2)
+    testMath()
     test2.Dosth<int>(1)
     ttt := test2.testS{i:100}
     ttt.i = 996
@@ -82,6 +43,7 @@ func main() int {
     fff.PrintLn()
     fff = fff.Append("hello")
     fff.PrintLn()
+    sub.print()
     return 0
 }
 

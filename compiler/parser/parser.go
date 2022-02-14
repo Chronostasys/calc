@@ -8,6 +8,7 @@ import (
 	"path"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/Chronostasys/calc/compiler/ast"
 	"github.com/Chronostasys/calc/compiler/helper"
@@ -34,19 +35,21 @@ func ParseInt(s string) (int64, *types.IntType, error) {
 }
 
 type Parser struct {
-	imp   map[string]string
-	mod   string
-	scope *ast.Scope
-	lexer *lexer.Lexer
-	m     *ir.Module
+	imp     map[string]string
+	mod     string
+	scope   *ast.Scope
+	lexer   *lexer.Lexer
+	m       *ir.Module
+	fathers map[string]bool
 }
 
-func NewParser(mod string, m *ir.Module) *Parser {
+func NewParser(mod string, m *ir.Module, fathers map[string]bool) *Parser {
 	p := &Parser{
-		lexer: &lexer.Lexer{},
-		scope: ast.NewGlobalScope(m),
-		mod:   mod,
-		m:     m,
+		lexer:   &lexer.Lexer{},
+		scope:   ast.NewGlobalScope(m),
+		mod:     mod,
+		m:       m,
+		fathers: fathers,
 	}
 	p.scope.Pkgname = mod
 	return p
@@ -278,18 +281,18 @@ func (p *Parser) statementList() ast.Node {
 
 func (p *Parser) program() *ast.ProgramNode {
 	n := &ast.ProgramNode{GlobalScope: p.scope}
-	ast, err := p.pkgDeclare()
+	astnode, err := p.pkgDeclare()
 	if err != nil {
 		panic("missing package declareation on begining of source file")
 	}
-	n.PKG = ast
+	n.PKG = astnode
 	_, m := path.Split(p.mod)
-	if ast.Name != m && ast.Name != "main" {
-		panic(fmt.Errorf("bad mod %s", ast.Name))
+	if astnode.Name != m && astnode.Name != "main" {
+		panic(fmt.Errorf("bad mod %s", astnode.Name))
 	}
-	if ast.Name == "main" {
-		p.mod = ast.Name
-		p.scope.Pkgname = ast.Name
+	if astnode.Name == "main" {
+		p.mod = astnode.Name
+		p.scope.Pkgname = astnode.Name
 	}
 	for {
 		_, err := p.lexer.ScanType(lexer.TYPE_NL)
@@ -306,7 +309,10 @@ func (p *Parser) program() *ast.ProgramNode {
 			if strings.Index(v, calcmod) == 0 {
 				// sub module of mod
 				pa := path.Join(maindir, v[len(calcmod):])
-				ParseModule(pa, v, p.m)
+				if p.fathers[v] {
+					panic(fmt.Sprintf("found loop referencing in %s. refmap: %v", v, p.fathers))
+				}
+				ParseModule(pa, v, p.m, p.fathers)
 			} else {
 				// TODO external module
 				panic("not impl")
@@ -973,47 +979,80 @@ func getModule(dir string) string {
 }
 
 var calcmod, maindir string
+var startMap = map[string]bool{}
+var mu = &sync.Mutex{}
 
 func ParseDir(dir string) *ir.Module {
 	calcmod = getModule(dir)
 	m := ir.NewModule()
 	mod := "github.com/Chronostasys/calc/runtime"
 	pa := path.Join(maindir, mod[len(calcmod):])
-	ParseModule(pa, mod, m)
-	p1 := ParseModule(dir, "main", m)
+	ParseModule(pa, mod, m, map[string]bool{})
+	p1 := ParseModule(dir, "main", m, map[string]bool{})
 	ast.AddSTDFunc(m, p1.GlobalScope)
 	return m
 }
-func ParseModule(dir, mod string, m *ir.Module) *ast.ProgramNode {
+func ParseModule(dir, mod string, m *ir.Module, fathers map[string]bool) *ast.ProgramNode {
+	mu.Lock()
+	if startMap[mod] {
+		mu.Unlock()
+		return nil
+	}
+	startMap[mod] = true
+	mu.Unlock()
 	tmpm := ir.NewModule()
 	c, err := os.ReadDir(dir)
 	if err != nil {
 		panic(err)
 	}
 	nodes := []*ast.ProgramNode{}
+	fileNum := 0
+	nodeCh := make(chan *ast.ProgramNode)
+	errch := make(chan error)
 	for _, v := range c {
+		newF := map[string]bool{}
+		for k, v := range fathers {
+			newF[k] = v
+		}
+		newF[mod] = true
 		if !v.IsDir() {
 			name := v.Name()
 			sp := helper.SplitLast(name, ".")
 			if !(len(sp) == 2 && sp[1] == "calc") {
 				continue
 			}
-			bs, err := ioutil.ReadFile(path.Join(dir, name))
-			if err != nil {
-				panic(err)
-			}
-			str := string(bs)
-			p := NewParser(mod, m)
-			nodes = append(nodes, p.ParseAST(str))
+			fileNum++
+			go func() {
+				bs, err := ioutil.ReadFile(path.Join(dir, name))
+				if err != nil {
+					errch <- err
+				}
+				str := string(bs)
+				p := NewParser(mod, m, newF)
+				nodeCh <- p.ParseAST(str)
+			}()
 		}
 	}
-	if len(nodes) == 0 {
+	if fileNum == 0 {
 		log.Fatalln("cannot find source file at", dir)
 	}
+	for i := 0; i < fileNum; i++ {
+		select {
+		case err := <-errch:
+			panic(err)
+		case node := <-nodeCh:
+			nodes = append(nodes, node)
+		}
+	}
+
 	p := ast.Merge(nodes...)
-	ast.ScopeMap[mod] = p.GlobalScope
 	ast.AddSTDFunc(tmpm, p.GlobalScope)
+	emitMu.Lock()
+	defer emitMu.Unlock()
+	ast.ScopeMap[mod] = p.GlobalScope
 	p.Emit(m)
 	return p
 
 }
+
+var emitMu = &sync.Mutex{}
