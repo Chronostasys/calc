@@ -106,7 +106,8 @@ func (p *Parser) factor() ast.Node {
 	a := p.symbol()
 	ch := p.lexer.SetCheckpoint()
 	code, _, eos := p.lexer.Scan()
-	for !eos && code == lexer.TYPE_DIV || code == lexer.TYPE_MUL {
+	for !eos && code == lexer.TYPE_DIV ||
+		code == lexer.TYPE_MUL || code == lexer.TYPE_PS {
 		b := p.symbol()
 		a = &ast.BinNode{
 			Op:    code,

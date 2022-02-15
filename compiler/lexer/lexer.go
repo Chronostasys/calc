@@ -65,6 +65,7 @@ const (
 	TYPE_RES_STR       // "string"
 	TYPE_RES_IMPORT    // "import"
 	TYPE_RES_OP        // "op"
+	TYPE_PS            // "%"
 )
 
 var (
@@ -383,6 +384,8 @@ START:
 		return TYPE_RSB, "]", end
 	case '.':
 		return TYPE_DOT, ".", end
+	case '%':
+		return TYPE_PS, "%", end
 	}
 	log.Fatalf("unrecognized letter %c inl.pos %d", ch, l.pos)
 	return

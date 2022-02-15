@@ -156,15 +156,12 @@ func (n *BinNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 			panic(err)
 		}
 		store(r, val, s)
-		// if nd, ok := n.Right.(*VarBlockNode); ok {
-		// 	getVarNode(n.Left).setHeap(nd.getHeap(s), s)
-		// } else {
-		// 	if all, ok := rawR.(*ir.InstAlloca); ok {
-		// 		getVarNode(n.Left).setHeap(mallocTable[all], s)
-		// 	}
-		// 	getVarNode(n.Left).setHeap(false, s)
-		// }
 		return zero
+	case lexer.TYPE_PS:
+		if hasF {
+			return s.block.NewFRem(l, r)
+		}
+		return s.block.NewSRem(l, r)
 	default:
 		panic("unexpected op")
 	}

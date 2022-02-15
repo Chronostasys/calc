@@ -42,7 +42,7 @@ interface_type: IT->INTERFACE LB ((var FPS TYPE NL)|NL)* RB
 asssign: A->MUL* VC ASSIGN AE
 all_exp: AE->E|BE|TPE|TVE
 exp: E->F|F((ADD|MIN)F)*
-factor: F->S|S((MUL|DIV)S)*
+factor: F->S|S((MUL|DIV|PS)S)*
 symbol: S->N|((ADD|MIN) N)
 number: N->n|(LP E RP)|TVE|SE
 bool_exp: BE->B|(B (AND|OR) BE)

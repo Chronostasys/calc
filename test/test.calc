@@ -44,6 +44,8 @@ func main() int {
     fff = fff.Append("hello")
     fff.PrintLn()
     sub.print()
+    v := 7%3
+    printIntln(v)
     return 0
 }
 
