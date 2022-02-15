@@ -253,6 +253,11 @@ func (p *Parser) program() *ast.ProgramNode {
 			n.Children = append(n.Children, ast)
 			continue
 		}
+		ast, err = p.runWithCatch2(p.defineAndAssign)
+		if err == nil {
+			n.Children = append(n.Children, ast)
+			continue
+		}
 
 		n.Children = append(n.Children, p.function())
 	}

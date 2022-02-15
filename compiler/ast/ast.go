@@ -26,6 +26,8 @@ var (
 		lexer.TYPE_RES_VOID:    types.Void,
 		lexer.TYPE_RES_STR:     getstrtp(),
 	}
+	initf = ir.NewFunc("init.params", types.Void)
+	initb = initf.NewBlock("")
 )
 
 func getstrtp() types.Type {
@@ -564,14 +566,36 @@ func (n *ProgramNode) CalcGlobals(m *ir.Module) {
 		v(n.GlobalScope)
 	}
 	globalScope.funcDefFuncs = globalScope.funcDefFuncs[:0]
+	// add all global variables to scope
+	for _, v := range n.Children {
+		switch v.(type) {
+		case *DefineNode, *DefAndAssignNode:
+			v.calc(m, nil, globalScope)
+		}
+	}
 }
 
 func (n *ProgramNode) Emit(m *ir.Module) {
 	globalScope := n.GlobalScope
 	n.CalcGlobals(m)
 	for _, v := range n.Children {
-		v.calc(m, nil, globalScope)
+		switch v.(type) {
+		case *DefineNode, *DefAndAssignNode:
+		default:
+			v.calc(m, nil, globalScope)
+		}
 	}
+	mi, err := globalScope.searchVar("main")
+	if err != nil {
+		return
+	}
+	main := mi.v.(*ir.Func)
+	initb.NewRet(nil)
+	m.Funcs = append(m.Funcs, initf)
+	main.Blocks[0].Insts = append([]ir.Instruction{
+		ir.NewCall(initf), // add global init
+	}, main.Blocks[0].Insts...)
+
 }
 
 type EmptyNode struct {
@@ -593,12 +617,7 @@ func (n *DefineNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		panic(err)
 	}
 	if f == nil {
-		// TODO global
-		if ptr, ok := tp.(*types.PointerType); ok {
-			n.Val = m.NewGlobalDef(n.ID, constant.NewNull(ptr))
-		} else {
-			// TODO
-		}
+		n.Val = m.NewGlobalDef(s.getFullName(n.ID), constant.NewZeroInitializer(tp))
 		s.addVar(n.ID, &variable{v: n.Val})
 	} else {
 		if s.heapAllocTable[n.ID] {
@@ -655,48 +674,53 @@ func autoAlloc(m *ir.Module, id string, gtp TypeNode, tp types.Type, s *Scope) (
 }
 
 func (n *DefAndAssignNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
-	if f != nil {
-		rawval := n.Val.calc(m, f, s)
-		val := loadIfVar(rawval, s)
-		var v value.Value
-		var tp types.Type
-		switch val.Type().(type) {
-		case *types.FloatType:
-			tp = lexer.DefaultFloatType()
-			v = autoAlloc(m, n.ID,
-				&BasicTypeNode{ResType: lexer.TYPE_RES_FLOAT},
-				tp, s)
-
-		case *types.IntType:
-			if val.Type().(*types.IntType).BitSize == 1 {
-				tp = val.Type()
-				v = autoAlloc(m, n.ID,
-					&BasicTypeNode{ResType: lexer.TYPE_RES_BOOL},
-					tp, s)
-			} else {
-				tp = lexer.DefaultIntType()
-				v = autoAlloc(m, n.ID,
-					&BasicTypeNode{ResType: lexer.TYPE_RES_INT},
-					tp, s)
-			}
-		default:
-			tp = val.Type()
-			v = autoAlloc(m, n.ID,
-				&calcedTypeNode{tp},
-				tp, s)
-		}
-		var val1 = v
-		val, err := implicitCast(val, tp, s)
-		if err != nil {
-			panic(err)
-		}
-		va := &variable{v: v}
-		store(val, val1, s)
-		s.addVar(n.ID, va)
-		return v
+	global := false
+	if f == nil {
+		global = true
+		f = initf
+		f.Parent = m
+		s.block = initb
+		defer func() {
+			s.block = nil
+		}()
 	}
-	// TODO
-	panic("not impl")
+	rawval := n.Val.calc(m, f, s)
+	val := loadIfVar(rawval, s)
+	var v value.Value
+	var tp types.Type
+	var tpNode TypeNode
+	switch val.Type().(type) {
+	case *types.FloatType:
+		tp = lexer.DefaultFloatType()
+		tpNode = &BasicTypeNode{ResType: lexer.TYPE_RES_FLOAT}
+	case *types.IntType:
+		if val.Type().(*types.IntType).BitSize == 1 {
+			tp = val.Type()
+			tpNode = &BasicTypeNode{ResType: lexer.TYPE_RES_BOOL}
+		} else {
+			tp = lexer.DefaultIntType()
+			tpNode = &BasicTypeNode{ResType: lexer.TYPE_RES_INT}
+		}
+	default:
+		tp = val.Type()
+		tpNode = &calcedTypeNode{tp}
+	}
+	if !global {
+		v = autoAlloc(m, n.ID,
+			tpNode,
+			tp, s)
+	} else {
+		v = m.NewGlobalDef(s.getFullName(n.ID), constant.NewZeroInitializer(tp))
+	}
+
+	val, err := implicitCast(val, tp, s)
+	if err != nil {
+		panic(err)
+	}
+	va := &variable{v: v}
+	store(val, v, s)
+	s.addVar(n.ID, va)
+	return v
 }
 
 func implicitCast(v value.Value, target types.Type, s *Scope) (value.Value, error) {

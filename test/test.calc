@@ -52,8 +52,11 @@ func main() int {
     printIntln(v|4)
     bin := 0b010
     printIntln(bin)
+    printIntln(g1.a)
     return 0
 }
+
+var g1 = test{a:10}
 
 
 func testChain() int {

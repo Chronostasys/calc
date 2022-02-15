@@ -17,7 +17,7 @@
 - golang 1.17.1
 ## 语法规则
 ```
-program: P->PD NL* IS? (FN|NL|T|D)+
+program: P->PD NL* IS? (FN|NL|T|D|DA)+
 call_func: CF->VC GPC? LP (RP|(E(COMMA AE)* RP)) (DOT CF|VC)*
 generic_params: GP->SM TYPE (COMMA var)* LG
 generic_call_params: GPC->SM TYPE (COMMA TYPE)* LG
@@ -38,8 +38,8 @@ array_types: AT->LSB n RSB TYPE
 type_def: T->TP var GP TYPE
 struct_type: ST->STRUCT LB ((var TYPE NL)|NL)* RB
 interface_type: IT->INTERFACE LB ((var FPS TYPE NL)|NL)* RB
-
 asssign: A->MUL* VC ASSIGN AE
+
 all_exp: AE->BE|TPE
 exp: E->AF ((SHL|SHR) AF)*
 bool_exp: BE->BO ((AND|OR) BE)?

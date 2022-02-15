@@ -165,6 +165,9 @@ func (n *FuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	s.addVar(n.ID, &variable{v: n.Fn})
 
 	n.Statements.calc(m, fn, childScope)
+	if n.ID == "main" {
+		s.globalScope.vartable["main"].v = fn
+	}
 	return fn
 }
 
