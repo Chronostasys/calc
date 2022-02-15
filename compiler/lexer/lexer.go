@@ -61,11 +61,15 @@ const (
 	TYPE_RES_INTERFACE // "interface"
 	TYPE_RES_NIL       // "nil"
 	TYPE_RES_PKG       // "pkg"
-	TYPE_STR           // ant quoted string
+	TYPE_STR           // a quoted string
 	TYPE_RES_STR       // "string"
 	TYPE_RES_IMPORT    // "import"
 	TYPE_RES_OP        // "op"
 	TYPE_PS            // "%"
+	TYPE_SHL           // "<<" 逻辑左移
+	TYPE_SHR           // "<<" 算术右移
+	TYPE_BIT_OR        // "|"
+	TYPE_BIT_XOR       // "^"
 )
 
 var (
@@ -279,6 +283,13 @@ START:
 	if isNum(ch) {
 		i := []rune{ch}
 		t := TYPE_INT
+		next, _ := l.Peek()
+		if ch == '0' && (next == 'b' ||
+			next == 'o' ||
+			next == 'x') {
+			l.getCh()
+			i = append(i, next)
+		}
 		for {
 			c, end := l.getCh()
 			if end {
@@ -352,16 +363,25 @@ START:
 			l.getCh()
 			return TYPE_OR, "||", end
 		}
+		return TYPE_OR, "|", end
 	case '>':
-		if ne, _ := l.Peek(); ne == '=' {
+		ne, _ := l.Peek()
+		if ne == '=' {
 			l.getCh()
 			return TYPE_LEQ, ">=", end
+		} else if ne == '>' {
+			l.getCh()
+			return TYPE_SHR, ">>", end
 		}
 		return TYPE_LG, ">", end
 	case '<':
-		if ne, _ := l.Peek(); ne == '=' {
+		ne, _ := l.Peek()
+		if ne == '=' {
 			l.getCh()
 			return TYPE_SEQ, "<=", end
+		} else if ne == '<' {
+			l.getCh()
+			return TYPE_SHL, "<<", end
 		}
 		return TYPE_SM, "<", end
 	case '!':
@@ -386,6 +406,8 @@ START:
 		return TYPE_DOT, ".", end
 	case '%':
 		return TYPE_PS, "%", end
+	case '^':
+		return TYPE_BIT_XOR, "^", end
 	}
 	log.Fatalf("unrecognized letter %c inl.pos %d", ch, l.pos)
 	return

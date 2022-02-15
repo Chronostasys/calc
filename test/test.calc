@@ -46,6 +46,12 @@ func main() int {
     sub.print()
     v := 7%3
     printIntln(v)
+    v = -1<<1
+    printIntln(v)
+    v = 3
+    printIntln(v|4)
+    bin := 0b010
+    printIntln(bin)
     return 0
 }
 

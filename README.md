@@ -40,14 +40,18 @@ struct_type: ST->STRUCT LB ((var TYPE NL)|NL)* RB
 interface_type: IT->INTERFACE LB ((var FPS TYPE NL)|NL)* RB
 
 asssign: A->MUL* VC ASSIGN AE
-all_exp: AE->E|BE|TPE|TVE
-exp: E->F|F((ADD|MIN)F)*
+all_exp: AE->BE|TPE
+exp: E->AF ((SHL|SHR) AF)*
+bool_exp: BE->BO ((AND|OR) BE)?
+bit_op: BO->C ((BO|ESP|XOR) C)*
+compare_exp: C->(B) ((EQ|NEQ|LG|SM|LEQ|SEQ) (B))*
+boolean: B->TRUE|FALSE|E|NE|(LP BE RP)|NOT B
+added_factor: AF->F((ADD|MIN)F)*
 factor: F->S|S((MUL|DIV|PS)S)*
 symbol: S->N|((ADD|MIN) N)
 number: N->n|(LP E RP)|TVE|SE
-bool_exp: BE->B|(B (AND|OR) BE)
-boolean: B->TRUE|FALSE|C|(NOT B)|(LP BE RP)|TVE
-compare_exp: C->(E|NE) (EQ|NEQ|LG|SM|LEQ|SEQ) (E|NE)
+
+
 statement_block:SB->LB SL RB NL
 def_ass: DA->var DEFA E|VAR var ASSIGN E
 if_st: I->IF BE SB((EL SB|I)?)

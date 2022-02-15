@@ -13,16 +13,30 @@ import (
 	"github.com/Chronostasys/calc/compiler/ast"
 	"github.com/Chronostasys/calc/compiler/helper"
 	"github.com/llir/llvm/ir"
-	"github.com/llir/llvm/ir/constant"
 	"github.com/llir/llvm/ir/types"
 
 	"github.com/Chronostasys/calc/compiler/lexer"
 )
 
 func ParseInt(s string) (int64, *types.IntType, error) {
+	base := 10
+	if len(s) > 2 {
+		switch s[:2] {
+		case "0x":
+			base = 16
+			s = s[2:]
+		case "0b":
+			base = 2
+			s = s[2:]
+		case "0o":
+			base = 8
+			s = s[2:]
+
+		}
+	}
 	bw := 8
 	for {
-		re, err := strconv.ParseInt(s, 10, bw)
+		re, err := strconv.ParseInt(s, base, bw)
 		if err == nil {
 			return re, types.NewInt(uint64(bw)), err
 		} else {
@@ -53,107 +67,6 @@ func NewParser(mod string, m *ir.Module, fathers map[string]bool) *Parser {
 	}
 	p.scope.Pkgname = mod
 	return p
-}
-
-func (p *Parser) number() (n ast.Node) {
-	n, err := p.runWithCatch2(p.strExp)
-	if err == nil {
-		return n
-	}
-	ch := p.lexer.SetCheckpoint()
-	n, err = p.runWithCatch2(p.takeValExp)
-	if err == nil {
-		return n
-	}
-	code, t1, eos := p.lexer.Scan()
-	if eos {
-		panic("eos")
-	}
-	switch code {
-	case lexer.TYPE_FLOAT:
-		i, err := strconv.ParseFloat(t1, 32)
-		tp := types.Float
-		if err != nil {
-			i, err = strconv.ParseFloat(t1, 64)
-			if err != nil {
-				panic(err)
-			}
-			tp = types.Double
-		}
-		return &ast.NumNode{Val: constant.NewFloat(tp, i)}
-	case lexer.TYPE_INT:
-		i, tp, err := ParseInt(t1)
-		if err != nil {
-			panic(err)
-		}
-		return &ast.NumNode{Val: constant.NewInt(tp, i)}
-
-	}
-	p.lexer.GobackTo(ch)
-	_, err = p.lexer.ScanType(lexer.TYPE_LP)
-	if err != nil {
-		panic(err)
-	}
-	i := p.exp()
-	_, err = p.lexer.ScanType(lexer.TYPE_RP)
-	if err != nil {
-		panic(err)
-	}
-	return i
-}
-
-func (p *Parser) factor() ast.Node {
-	a := p.symbol()
-	ch := p.lexer.SetCheckpoint()
-	code, _, eos := p.lexer.Scan()
-	for !eos && code == lexer.TYPE_DIV ||
-		code == lexer.TYPE_MUL || code == lexer.TYPE_PS {
-		b := p.symbol()
-		a = &ast.BinNode{
-			Op:    code,
-			Left:  a,
-			Right: b,
-		}
-		ch = p.lexer.SetCheckpoint()
-		code, _, eos = p.lexer.Scan()
-	}
-	if !eos {
-		p.lexer.GobackTo(ch)
-	}
-	return a
-}
-
-func (p *Parser) exp() ast.Node {
-	a := p.factor()
-	ch := p.lexer.SetCheckpoint()
-	code, _, eos := p.lexer.Scan()
-	for !eos && code == lexer.TYPE_PLUS || code == lexer.TYPE_SUB {
-		b := p.factor()
-		a = &ast.BinNode{
-			Op:    code,
-			Left:  a,
-			Right: b,
-		}
-		ch = p.lexer.SetCheckpoint()
-		code, _, eos = p.lexer.Scan()
-	}
-	if !eos {
-		p.lexer.GobackTo(ch)
-	}
-	return a
-}
-
-func (p *Parser) symbol() ast.Node {
-	ch := p.lexer.SetCheckpoint()
-	code, _, eos := p.lexer.Scan()
-	if eos {
-		panic(lexer.ErrEOS)
-	}
-	if code == lexer.TYPE_PLUS || code == lexer.TYPE_SUB {
-		return &ast.UnaryNode{Op: code, Child: p.number()}
-	}
-	p.lexer.GobackTo(ch)
-	return p.number()
 }
 
 func (p *Parser) assign() (n ast.Node, err error) {
@@ -351,64 +264,12 @@ func (p *Parser) allexp() ast.Node {
 	if err == nil {
 		return ast
 	}
-	ast, err = p.runWithCatch2(p.nilExp)
-	if err == nil {
-		return ast
-	}
-	ch1 := p.lexer.SetCheckpoint()
-	n, err := p.runWithCatch(p.exp)
-	if err == nil {
-		ch := p.lexer.SetCheckpoint()
-		code, _, eos := p.lexer.Scan()
-		if eos {
-			return n
-		}
-		p.lexer.GobackTo(ch)
-		switch code {
-		case lexer.TYPE_AND, lexer.TYPE_OR, lexer.TYPE_LG, lexer.TYPE_SM, lexer.TYPE_LEQ, lexer.TYPE_SEQ:
-		default:
-			return n
-		}
-	}
-
-	p.lexer.GobackTo(ch1)
-	n, err = p.boolexp()
+	n, err := p.boolexp()
 	if err != nil {
 		panic(err)
 	}
 	return n
 
-}
-
-func (p *Parser) boolexp() (node ast.Node, err error) {
-	ch := p.lexer.SetCheckpoint()
-	defer func() {
-		if err != nil {
-			p.lexer.GobackTo(ch)
-		}
-	}()
-	node, err = p.boolean()
-	if err != nil {
-		return nil, err
-	}
-	cp := p.lexer.SetCheckpoint()
-	co, _, eos := p.lexer.Scan()
-	if eos {
-		return nil, lexer.ErrEOS
-	}
-	if co == lexer.TYPE_AND || co == lexer.TYPE_OR {
-		n := &ast.BoolExpNode{}
-		n.Left = node
-		n.Op = co
-		node, err = p.boolexp()
-		if err != nil {
-			return nil, err
-		}
-		n.Right = node
-		return n, nil
-	}
-	p.lexer.GobackTo(cp)
-	return
 }
 
 func (p *Parser) runWithCatch(f func() ast.Node) (node ast.Node, err error) {
@@ -437,95 +298,6 @@ func (p *Parser) runWithCatch2(f func() (ast.Node, error)) (node ast.Node, err e
 	node, err = f()
 	return
 }
-
-func (p *Parser) boolean() (node ast.Node, err error) {
-	ch1 := p.lexer.SetCheckpoint()
-	defer func() {
-		if err != nil {
-			p.lexer.GobackTo(ch1)
-		}
-	}()
-	_, err = p.lexer.ScanType(lexer.TYPE_RES_TRUE)
-	if err == nil {
-		return &ast.BoolConstNode{Val: true}, nil
-	}
-	_, err = p.lexer.ScanType(lexer.TYPE_RES_FALSE)
-	if err == nil {
-		return &ast.BoolConstNode{Val: false}, nil
-	}
-	node, err = p.runWithCatch2(p.compare)
-	if err == nil {
-		return node, nil
-	}
-	n, err := p.runWithCatch2(p.takeValExp)
-	if err == nil {
-		return n, nil
-	}
-
-	code, _, eos := p.lexer.Scan()
-	if eos {
-		return nil, lexer.ErrEOS
-	}
-	switch code {
-	case lexer.TYPE_NOT:
-		node, err = p.boolean()
-		if err != nil {
-			return nil, err
-		}
-		return &ast.NotNode{Bool: node}, nil
-	case lexer.TYPE_LP:
-		node, err = p.boolexp()
-		if err != nil {
-			return nil, err
-		}
-		_, err = p.lexer.ScanType(lexer.TYPE_RP)
-		if err != nil {
-			return nil, err
-		}
-		return
-
-	}
-
-	return nil, fmt.Errorf("parse failed")
-}
-
-func (p *Parser) compare() (node ast.Node, err error) {
-	ch := p.lexer.SetCheckpoint()
-	defer func() {
-		if err != nil {
-			p.lexer.GobackTo(ch)
-		}
-	}()
-	n := &ast.CompareNode{}
-	n.Left, err = p.runWithCatch(p.exp)
-	if err != nil {
-		n.Left, err = p.nilExp()
-		if err != nil {
-			return nil, err
-		}
-	}
-	code, _, eos := p.lexer.Scan()
-	if eos {
-		return nil, lexer.ErrEOS
-	}
-	switch code {
-	case lexer.TYPE_EQ, lexer.TYPE_NEQ,
-		lexer.TYPE_LG, lexer.TYPE_SM,
-		lexer.TYPE_LEQ, lexer.TYPE_SEQ:
-		n.Op = code
-	default:
-		return nil, fmt.Errorf("expect compare op")
-	}
-	n.Right, err = p.runWithCatch(p.exp)
-	if err != nil {
-		n.Right, err = p.nilExp()
-		if err != nil {
-			return nil, err
-		}
-	}
-	return n, nil
-}
-
 func (p *Parser) statementBlock() (ast.Node, error) {
 	_, err := p.lexer.ScanType(lexer.TYPE_LB)
 	if err != nil {

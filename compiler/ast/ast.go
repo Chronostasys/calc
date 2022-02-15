@@ -162,6 +162,16 @@ func (n *BinNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 			return s.block.NewFRem(l, r)
 		}
 		return s.block.NewSRem(l, r)
+	case lexer.TYPE_SHL:
+		return s.block.NewShl(l, r)
+	case lexer.TYPE_SHR:
+		return s.block.NewAShr(l, r)
+	case lexer.TYPE_BIT_OR:
+		return s.block.NewOr(l, r)
+	case lexer.TYPE_BIT_XOR:
+		return s.block.NewXor(l, r)
+	case lexer.TYPE_ESP:
+		return s.block.NewAnd(l, r)
 	default:
 		panic("unexpected op")
 	}
