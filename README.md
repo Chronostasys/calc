@@ -31,16 +31,19 @@ return: R->RET|(RET AE)
 empty: EM->NL
 define: D->VAR var TYPE NL
 
+inline_func: IFUN->FT SB
+
 
 all_types: TYPE->MUL*  BTYPE|AT|ST|IT
 basic_types: BTYPE->tp GPC?
 array_types: AT->LSB n RSB TYPE
+func_types: FT->FUNC FPS TYPE
 type_def: T->TP var GP TYPE
 struct_type: ST->STRUCT LB ((var TYPE NL)|NL)* RB
 interface_type: IT->INTERFACE LB ((var FPS TYPE NL)|NL)* RB
 asssign: A->MUL* VC ASSIGN AE
 
-all_exp: AE->BE|TPE
+all_exp: AE->BE|TPE|IFUNC
 exp: E->AF ((SHL|SHR) AF)*
 bool_exp: BE->BO ((AND|OR) BE)?
 bit_op: BO->C ((BO|ESP|XOR) C)*

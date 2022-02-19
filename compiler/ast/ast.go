@@ -49,6 +49,9 @@ type BinNode struct {
 func loadIfVar(l value.Value, s *Scope) value.Value {
 
 	if t, ok := l.Type().(*types.PointerType); ok {
+		if _, ok := t.ElemType.(*types.FuncType); ok {
+			return l
+		}
 		return s.block.NewLoad(t.ElemType, l)
 	}
 	return l

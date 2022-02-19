@@ -25,6 +25,45 @@ type TypeNode interface {
 	String(*Scope) string
 }
 
+type FuncTypeNode struct {
+	Args     *ParamsNode
+	Ret      TypeNode
+	ptrlevel int
+}
+
+func (v *FuncTypeNode) SetPtrLevel(i int) {
+	v.ptrlevel = i
+}
+func (v *FuncTypeNode) calc(s *Scope) (types.Type, error) {
+	var ret types.Type
+	if v.Ret != nil {
+		r, err := v.Ret.calc(s)
+		if err != nil {
+			return nil, err
+		}
+		ret = r
+	}
+	args := []types.Type{}
+	for _, v := range v.Args.Params {
+		arg, err := v.TP.calc(s)
+		if err != nil {
+			return nil, err
+		}
+		args = append(args, arg)
+	}
+	var fn types.Type
+	fn = types.NewFunc(ret, args...)
+	v.ptrlevel++
+	for i := 0; i < v.ptrlevel; i++ {
+		fn = types.NewPointer(fn)
+	}
+	v.ptrlevel--
+	return fn, nil
+}
+func (v *FuncTypeNode) String(*Scope) string {
+	panic("not impl")
+}
+
 type calcedTypeNode struct {
 	tp types.Type
 }
@@ -35,8 +74,13 @@ func (v *calcedTypeNode) SetPtrLevel(i int) {
 func (v *calcedTypeNode) calc(*Scope) (types.Type, error) {
 	return v.tp, nil
 }
-func (v *calcedTypeNode) String(*Scope) string {
-	panic("not impl")
+func (v *calcedTypeNode) String(s *Scope) string {
+	t, err := v.calc(s.globalScope)
+	if err != nil {
+		panic(err)
+	}
+	tp := strings.Trim(t.String(), "%*\"")
+	return tp
 }
 
 type ArrayTypeNode struct {

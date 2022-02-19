@@ -53,6 +53,9 @@ func main() int {
     bin := 0b010
     printIntln(bin)
     printIntln(g1.a)
+    var fu func () int
+    fu = testChain
+    fu()
     return 0
 }
 

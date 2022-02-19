@@ -180,7 +180,8 @@ type CallFuncNode struct {
 }
 
 func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
-	var fn *ir.Func
+	var fn value.Value
+	var fntp *types.FuncType
 
 	params := []value.Value{}
 	pvs := []value.Value{}
@@ -254,8 +255,9 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 				panic(err)
 			}
 		}
-		fn = fnv.(*ir.Func)
-		if _, ok := fn.Sig.Params[0].(*types.PointerType); ok {
+		fn = fnv
+		fntp = loadElmType(fn.Type()).(*types.FuncType)
+		if _, ok := fntp.Params[0].(*types.PointerType); ok {
 			alloca = deReference(alloca, s)
 		} else {
 			alloca = loadIfVar(alloca, s)
@@ -272,16 +274,19 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 			}
 			scope.paramGenerics = paramGenerics
 			if gfn := scope.getGenericFunc(token); gfn != nil {
-				fn = gfn(m, n.Generics...).(*ir.Func)
+				fn = gfn(m, n.Generics...)
+				fntp = loadElmType(fn.Type()).(*types.FuncType)
 			} else {
 				panic(fmt.Errorf("cannot find generic method %s", fnNode.Token))
 			}
 		} else {
-			fn = fnNode.calc(m, f, s).(*ir.Func)
+			v1 := fnNode.calc(m, f, s)
+			fn = loadIfVar(v1, s)
+			fntp = loadElmType(fn.Type()).(*types.FuncType)
 		}
 	}
 	for i, v := range pvs {
-		tp := fn.Params[i+poff].Typ
+		tp := fntp.Params[i+poff]
 		v1 := v
 		p, err := implicitCast(v1, tp, s)
 		if err != nil {
@@ -290,7 +295,7 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		params = append(params, p)
 	}
 
-	var re value.Value = s.block.NewCall(fn, params...)
+	var re value.Value = s.block.NewCall(loadIfVar(fn, s), params...)
 	if !re.Type().Equal(types.Void) {
 		// autoAlloc()
 		alloc := s.block.NewAlloca(re.Type())
