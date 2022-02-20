@@ -11,9 +11,12 @@ func genF() func () int {
     return func () int {
         ii = ii + 1
         printIntln(ii)
+        i := 0
         f := func () int {
             ii2 = ii2 + 1
             printIntln(ii2)
+            i = i + 1
+            printIntln(i)
             return 100
         }
         f()

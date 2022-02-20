@@ -442,12 +442,13 @@ func (n *SLNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 
 	}
 	trf = func(n Node) { // 闭包逃逸分析
+		// 在一个闭包中的逃逸点是闭包引用的外界变量
 		switch node := n.(type) {
 		case *DefineNode:
 			closuredef[node.ID] = true
 		case *DefAndAssignNode:
 			closuredef[node.ID] = true
-		case *VarBlockNode:
+		case *VarBlockNode: // 只有varblock第一段的变量构成逃逸
 			if !closuredef[node.Token] {
 				heapAllocTable[node.Token] = true
 				closurevar[node.Token] = true

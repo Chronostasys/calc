@@ -385,7 +385,7 @@ func (n *InlineFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	chs.closure = true
 	fields := []types.Type{}
 	vals := []value.Value{}
-	for k, _ := range n.closureVars {
+	for k := range n.closureVars {
 		v := &fieldval{}
 		v.idx = i
 		va, _ := s.searchVar(k)
@@ -399,6 +399,7 @@ func (n *InlineFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	st = types.NewStruct(fields...)
 	st = m.NewTypeDef(cname, st)
 
+	// alloc closure captured var
 	allo := heapAlloc(m, s, &calcedTypeNode{st})
 	for i, v := range vals {
 		ptr := s.block.NewGetElementPtr(st, allo, zero,
@@ -413,7 +414,7 @@ func (n *InlineFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		store(v, ptr, chs)
 		chs.addVar(ps[i].LocalName, &variable{v: ptr})
 	}
-	chs.freeFunc = func(s *Scope) {
+	chs.freeFunc = func(s *Scope) { // make closure var gcable
 		store(constant.NewNull(allo.Type().(*types.PointerType)), g, s)
 	}
 	n.Body.calc(m, fn, chs)
