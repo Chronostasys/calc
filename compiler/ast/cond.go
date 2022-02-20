@@ -15,6 +15,10 @@ type BoolConstNode struct {
 	Val bool
 }
 
+func (n *BoolConstNode) travel(f func(Node)) {
+	f(n)
+}
+
 func (n *BoolConstNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	return constant.NewBool(n.Val)
 }
@@ -24,6 +28,13 @@ type CompareNode struct {
 	Left  Node
 	Right Node
 }
+
+func (n *CompareNode) travel(f func(Node)) {
+	f(n)
+	n.Left.travel(f)
+	n.Right.travel(f)
+}
+
 type e struct {
 	IntE   enum.IPred
 	FloatE enum.FPred
@@ -79,6 +90,12 @@ type IfNode struct {
 	Statements Node
 }
 
+func (n *IfNode) travel(f func(Node)) {
+	f(n)
+	n.BoolExp.travel(f)
+	n.Statements.travel(f)
+}
+
 func (n *IfNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	blockID++
 	tt := f.NewBlock(strconv.Itoa(blockID))
@@ -101,6 +118,13 @@ type IfElseNode struct {
 	BoolExp    Node
 	Statements Node
 	ElSt       Node
+}
+
+func (n *IfElseNode) travel(f func(Node)) {
+	f(n)
+	n.BoolExp.travel(f)
+	n.Statements.travel(f)
+	n.ElSt.travel(f)
 }
 
 func (n *IfElseNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
@@ -132,6 +156,12 @@ type BoolExpNode struct {
 	Right Node
 }
 
+func (n *BoolExpNode) travel(f func(Node)) {
+	f(n)
+	n.Left.travel(f)
+	n.Right.travel(f)
+}
+
 func (n *BoolExpNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	l, r := loadIfVar(n.Left.calc(m, f, s), s), loadIfVar(n.Right.calc(m, f, s), s)
 	if n.Op == lexer.TYPE_AND {
@@ -143,6 +173,11 @@ func (n *BoolExpNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 
 type NotNode struct {
 	Bool Node
+}
+
+func (n *NotNode) travel(f func(Node)) {
+	f(n)
+	n.Bool.travel(f)
 }
 
 func (n *NotNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {

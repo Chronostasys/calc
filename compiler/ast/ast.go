@@ -38,6 +38,7 @@ func getstrtp() types.Type {
 
 type Node interface {
 	calc(*ir.Module, *ir.Func, *Scope) value.Value
+	travel(func(Node))
 }
 
 type BinNode struct {
@@ -111,6 +112,12 @@ func hasFloatType(b *ir.Block, ts ...value.Value) (bool, []value.Value) {
 	}
 
 	return hasfloat, re
+}
+
+func (n *BinNode) travel(f func(Node)) {
+	f(n)
+	n.Left.travel(f)
+	n.Right.travel(f)
 }
 
 func (n *BinNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
@@ -217,13 +224,21 @@ type NumNode struct {
 func (n *NumNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	return n.Val
 }
+func (n *NumNode) travel(f func(Node)) {
+	f(n)
+}
 
 type UnaryNode struct {
 	Op    int
 	Child Node
 }
 
-var zero = constant.NewInt(lexer.DefaultIntType(), 0)
+func (n *UnaryNode) travel(f func(Node)) {
+	f(n)
+	n.Child.travel(f)
+}
+
+var zero = constant.NewInt(types.I32, 0)
 
 func (n *UnaryNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	c := loadIfVar(n.Child.calc(m, f, s), s)
@@ -256,6 +271,11 @@ type VarBlockNode struct {
 	Next        *VarBlockNode
 	allocOnHeap bool
 }
+
+func (n *VarBlockNode) travel(f func(Node)) {
+	f(n)
+}
+
 type alloca interface {
 	setAlloc(onheap bool)
 }
@@ -329,6 +349,10 @@ type fakeNode struct {
 	v value.Value
 }
 
+func (n *fakeNode) travel(f func(Node)) {
+	f(n)
+}
+
 func (n *fakeNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	return n.v
 }
@@ -397,21 +421,59 @@ type escNode struct {
 	initNode alloca
 }
 
+func (n *SLNode) travel(f func(Node)) {
+	f(n)
+	for _, v := range n.Children {
+		v.travel(f)
+	}
+}
+
 func (n *SLNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	var escMap = map[string][]*escNode{}
 	var defMap = map[string]bool{}
 	var escPoint = []string{}
 	var heapAllocTable = map[string]bool{}
+	var closuredef = map[string]bool{}
+	var closurevar = map[string]bool{}
+	var trf func(n Node)
+	travel := func(fn *InlineFuncNode) {
+		fn.Body.travel(trf)
+		fn.closureVars = closurevar
+
+	}
+	trf = func(n Node) { // 闭包逃逸分析
+		switch node := n.(type) {
+		case *DefineNode:
+			closuredef[node.ID] = true
+		case *DefAndAssignNode:
+			closuredef[node.ID] = true
+		case *VarBlockNode:
+			if !closuredef[node.Token] {
+				heapAllocTable[node.Token] = true
+				closurevar[node.Token] = true
+			}
+		case *InlineFuncNode:
+			travel(node)
+
+		}
+	}
 	if strings.Contains(f.Ident(), "heapalloc") ||
 		strings.Contains(f.Ident(), "heapfree") ||
 		strings.Contains(f.Ident(), "MallocList") {
 		goto LOOP
+	}
+	if f.GlobalName == "main.genF" {
+		println()
 	}
 	// stackescape analysis 逃逸分析
 	for _, v := range n.Children {
 		switch node := v.(type) {
 		case *BinNode:
 			if node.Op == lexer.TYPE_ASSIGN {
+				if r, ok := node.Right.(*InlineFuncNode); ok {
+					closurevar = map[string]bool{}
+					travel(r)
+				}
 				left := getVarNode(node.Left).(*VarBlockNode)
 				right := getVarNode(node.Right)
 				if right == nil {
@@ -434,6 +496,9 @@ func (n *SLNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		case *DefAndAssignNode:
 			defMap[node.ID] = true
 			name := node.ID
+			if r, ok := node.Val.(*InlineFuncNode); ok {
+				travel(r)
+			}
 			right := getVarNode(node.Val)
 			if right == nil {
 				continue
@@ -449,7 +514,10 @@ func (n *SLNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 			}
 		case *DefineNode:
 			defMap[node.ID] = true
-		case *RetNode:
+		case *RetNode: // 逃逸点1：返回值
+			if r, ok := node.Exp.(*InlineFuncNode); ok {
+				travel(r)
+			}
 			right := getVarNode(node.Exp)
 			if right == nil {
 				continue
@@ -463,12 +531,13 @@ func (n *SLNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 			} else {
 				right.setAlloc(true)
 			}
-		case *CallFuncNode:
+		case *CallFuncNode: // 逃逸点2：方法参数
 			for _, v := range node.Params {
 				right := getVarNode(v)
 				if right == nil {
 					continue
 				}
+				// TODO TakeValNode & TakePtrNode
 				if r, ok := right.(*VarBlockNode); ok {
 					rname := r.Token
 					if !defMap[r.Token] {
@@ -479,7 +548,6 @@ func (n *SLNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 					right.setAlloc(true)
 				}
 			}
-
 		}
 	}
 	for _, v := range escPoint {
@@ -519,6 +587,13 @@ type ProgramNode struct {
 	Imports     *ImportNode
 	Children    []Node
 	GlobalScope *Scope
+}
+
+func (n *ProgramNode) travel(f func(Node)) {
+	f(n)
+	for _, v := range n.Children {
+		v.travel(f)
+	}
 }
 
 func Merge(ns ...*ProgramNode) *ProgramNode {
@@ -607,11 +682,18 @@ type EmptyNode struct {
 func (n *EmptyNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	return zero
 }
+func (n *EmptyNode) travel(f func(Node)) {
+	f(n)
+}
 
 type DefineNode struct {
 	ID  string
 	TP  TypeNode
 	Val value.Value
+}
+
+func (n *DefineNode) travel(f func(Node)) {
+	f(n)
 }
 
 func (n *DefineNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
@@ -640,6 +722,11 @@ type RetNode struct {
 	Exp Node
 }
 
+func (n *RetNode) travel(f func(Node)) {
+	f(n)
+	n.Exp.travel(f)
+}
+
 func (n *RetNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	if n.Exp == nil {
 		s.block.NewRet(nil)
@@ -649,6 +736,9 @@ func (n *RetNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	v, err := implicitCast(loadIfVar(ret, s), f.Sig.RetType, s)
 	if err != nil {
 		panic(err)
+	}
+	if s.freeFunc != nil {
+		s.freeFunc(s)
 	}
 	s.block.NewRet(v)
 	return zero
@@ -661,9 +751,18 @@ func (n *NilNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	return zero
 }
 
+func (n *NilNode) travel(f func(Node)) {
+	f(n)
+}
+
 type DefAndAssignNode struct {
 	Val Node
 	ID  string
+}
+
+func (n *DefAndAssignNode) travel(f func(Node)) {
+	f(n)
+	n.Val.travel(f)
 }
 
 func autoAlloc(m *ir.Module, id string, gtp TypeNode, tp types.Type, s *Scope) (v value.Value) {

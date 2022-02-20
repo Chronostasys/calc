@@ -269,6 +269,10 @@ func (p *Parser) allexp() ast.Node {
 	if err == nil {
 		return ast
 	}
+	ast, err = p.runWithCatch2(p.inlineFunc)
+	if err == nil {
+		return ast
+	}
 	n, err := p.boolexp()
 	if err != nil {
 		panic(err)

@@ -223,3 +223,18 @@ func (p *Parser) genericCallParams() (n []ast.TypeNode, err error) {
 		n = append(n, t)
 	}
 }
+
+func (p *Parser) inlineFunc() (n ast.Node, err error) {
+	fntp, err := p.funcTypes()
+	if err != nil {
+		return nil, err
+	}
+	fn := &ast.InlineFuncNode{
+		Fntype: fntp,
+	}
+	fn.Body, err = p.runWithCatch2(p.statementBlock)
+	if err != nil {
+		return nil, err
+	}
+	return fn, nil
+}

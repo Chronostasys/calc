@@ -1,0 +1,27 @@
+package main
+
+func testClosure() void {
+    exec(genF())
+    return
+}
+
+func genF() func () int {
+    ii := 100
+    ii2 := 0
+    return func () int {
+        ii = ii + 1
+        printIntln(ii)
+        f := func () int {
+            ii2 = ii2 + 1
+            printIntln(ii2)
+            return 100
+        }
+        f()
+        return 100
+    }
+}
+
+func exec(f func () int) void {
+    f()
+    return
+}

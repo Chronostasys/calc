@@ -61,6 +61,16 @@ func AddSTDFunc(m *ir.Module, s *Scope) {
 	f = m.NewFunc("memcpy", types.I8Ptr, p1, p2, ir.NewParam("len", lexer.DefaultIntType()))
 	s.globalScope.addVar(f.Name(), &variable{v: f})
 
+	p1 = ir.NewParam("tramp", types.I8Ptr)
+	p2 = ir.NewParam("func", types.I8Ptr)
+	p3 := ir.NewParam("nval", types.I8Ptr)
+	f = m.NewFunc("llvm.init.trampoline", types.Void, p1, p2, p3)
+	s.globalScope.addVar(f.Name(), &variable{v: f})
+
+	p1 = ir.NewParam("tramp", types.I8Ptr)
+	f = m.NewFunc("llvm.adjust.trampoline", types.I8Ptr, p1)
+	s.globalScope.addVar(f.Name(), &variable{v: f})
+
 	s.globalScope.addGeneric("unsafecast", func(m *ir.Module, s *Scope, gens ...TypeNode) value.Value {
 		tpin, _ := gens[0].calc(s)
 		tpout, _ := gens[1].calc(s)
@@ -87,7 +97,7 @@ func AddSTDFunc(m *ir.Module, s *Scope) {
 		if err != nil {
 			f = m.NewFunc(fnname, lexer.DefaultIntType())
 			b = f.NewBlock("")
-			sizePtr := b.NewGetElementPtr(tp, constant.NewNull(types.NewPointer(tp)), constant.NewInt(lexer.DefaultIntType(), 1))
+			sizePtr := b.NewGetElementPtr(tp, constant.NewNull(types.NewPointer(tp)), constant.NewInt(types.I32, 1))
 			size := b.NewPtrToInt(sizePtr, lexer.DefaultIntType())
 			b.NewRet(size)
 			fn = &variable{v: f}

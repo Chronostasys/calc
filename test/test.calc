@@ -54,8 +54,12 @@ func main() int {
     printIntln(bin)
     printIntln(g1.a)
     var fu func () int
-    fu = testChain
+    fu = func () int {
+        printIntln(3334)
+        return 100
+    }
     fu()
+    testClosure()
     return 0
 }
 

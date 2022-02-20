@@ -6,6 +6,7 @@ import (
 
 	"github.com/Chronostasys/calc/compiler/helper"
 	"github.com/llir/llvm/ir"
+	"github.com/llir/llvm/ir/constant"
 	"github.com/llir/llvm/ir/types"
 	"github.com/llir/llvm/ir/value"
 )
@@ -14,6 +15,10 @@ type ParamNode struct {
 	ID  string
 	TP  TypeNode
 	Val value.Value
+}
+
+func (n *ParamNode) travel(f func(Node)) {
+	f(n)
 }
 
 func (n *ParamNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
@@ -31,6 +36,13 @@ func (n *ParamNode) V() value.Value {
 type ParamsNode struct {
 	Params []*ParamNode
 	Ext    bool
+}
+
+func (n *ParamsNode) travel(f func(Node)) {
+	f(n)
+	for _, v := range n.Params {
+		v.travel(f)
+	}
 }
 
 func (n *ParamsNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
@@ -134,6 +146,12 @@ func (n *FuncNode) AddtoScope(s *Scope) {
 	}
 }
 
+func (n *FuncNode) travel(f func(Node)) {
+	f(n)
+	n.Params.travel(f)
+	n.Statements.travel(f)
+}
+
 func (n *FuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	if len(n.Generics) > 0 {
 		// generic function will be generated while call
@@ -177,6 +195,16 @@ type CallFuncNode struct {
 	parent   value.Value
 	Next     Node
 	Generics []TypeNode
+}
+
+func (n *CallFuncNode) travel(f func(Node)) {
+	f(n)
+	for _, v := range n.Params {
+		v.travel(f)
+	}
+	if n.Next != nil {
+		n.Next.travel(f)
+	}
 }
 
 func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
@@ -318,4 +346,77 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		re = n.Next.calc(m, f, s)
 	}
 	return re
+}
+
+type InlineFuncNode struct {
+	Fntype      TypeNode
+	Body        Node
+	closureVars map[string]bool
+}
+
+func (n *InlineFuncNode) travel(f func(Node)) {
+	f(n)
+	n.Body.travel(f)
+}
+
+var inlinefuncnum int
+
+func (n *InlineFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
+	fnt, err := n.Fntype.calc(s)
+	if err != nil {
+		panic(err)
+	}
+	fntp := fnt.(*types.PointerType).ElemType.(*types.FuncType)
+	ps := []*ir.Param{}
+	for i, v := range fntp.Params {
+		ps = append(ps, ir.NewParam(fmt.Sprintf("%d", i), v))
+	}
+	fname := fmt.Sprintf("inline.%d", inlinefuncnum)
+	cname := fmt.Sprintf("closure%d", inlinefuncnum)
+	cvarname := fmt.Sprintf("closurevar%d", inlinefuncnum)
+
+	inlinefuncnum++
+
+	// real emit loop
+	i := 0
+	fn := m.NewFunc(fname, fntp.RetType, ps...)
+	b := fn.NewBlock("")
+	chs := s.addChildScope(b)
+	chs.closure = true
+	fields := []types.Type{}
+	vals := []value.Value{}
+	for k, _ := range n.closureVars {
+		v := &fieldval{}
+		v.idx = i
+		va, _ := s.searchVar(k)
+		v.v = va.v
+		chs.trampolineVars[s.getFullName(k)] = v
+		i++
+		vals = append(vals, v.v)
+		fields = append(fields, v.v.Type())
+	}
+	var st types.Type
+	st = types.NewStruct(fields...)
+	st = m.NewTypeDef(cname, st)
+
+	allo := heapAlloc(m, s, &calcedTypeNode{st})
+	for i, v := range vals {
+		ptr := s.block.NewGetElementPtr(st, allo, zero,
+			constant.NewInt(types.I32, int64(i)))
+		store(v, ptr, s)
+	}
+	g := m.NewGlobalDef(cvarname, constant.NewZeroInitializer(allo.Type()))
+	store(allo, g, s)
+	chs.trampolineObj = loadIfVar(g, chs)
+	for i, v := range ps {
+		ptr := b.NewAlloca(v.Type())
+		store(v, ptr, chs)
+		chs.addVar(ps[i].LocalName, &variable{v: ptr})
+	}
+	chs.freeFunc = func(s *Scope) {
+		store(constant.NewNull(allo.Type().(*types.PointerType)), g, s)
+	}
+	n.Body.calc(m, fn, chs)
+
+	return fn
 }

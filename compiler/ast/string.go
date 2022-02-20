@@ -16,6 +16,9 @@ type StringNode struct {
 func (n *StringNode) setAlloc(onheap bool) {
 	n.onheap = onheap
 }
+func (n *StringNode) travel(f func(Node)) {
+	f(n)
+}
 
 func (n *StringNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 

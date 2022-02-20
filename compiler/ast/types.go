@@ -208,6 +208,10 @@ func (n *ArrayInitNode) setAlloc(onheap bool) {
 	n.allocOnHeap = onheap
 }
 
+func (n *ArrayInitNode) travel(f func(Node)) {
+	f(n)
+}
+
 func (n *ArrayInitNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	tp := n.Type
 	atype, err := tp.calc(s)
@@ -363,10 +367,18 @@ type StructInitNode struct {
 	allocOnHeap bool
 }
 
+func (n *StructInitNode) travel(f func(Node)) {
+	f(n)
+}
+
 type typeDefNode struct {
 	id       string
 	tp       types.Type
 	generics []string
+}
+
+func (n *typeDefNode) travel(f func(Node)) {
+	f(n)
 }
 
 func NewTypeDef(id string, tp TypeNode, generics []string, m *ir.Module, s *Scope) Node {

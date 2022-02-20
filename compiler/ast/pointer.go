@@ -9,6 +9,10 @@ type TakePtrNode struct {
 	Node Node
 }
 
+func (n *TakePtrNode) travel(f func(Node)) {
+	f(n)
+}
+
 func (n *TakePtrNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	v := n.Node.calc(m, f, s)
 	ptr := s.block.NewAlloca(v.Type())
@@ -19,6 +23,10 @@ func (n *TakePtrNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 type TakeValNode struct {
 	Level int
 	Node  Node
+}
+
+func (n *TakeValNode) travel(f func(Node)) {
+	f(n)
 }
 
 func (n *TakeValNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {

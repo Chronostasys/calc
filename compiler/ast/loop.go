@@ -14,6 +14,14 @@ type ForNode struct {
 	Statements   Node
 }
 
+func (n *ForNode) travel(f func(Node)) {
+	f(n)
+	n.Bool.travel(f)
+	n.DefineAssign.travel(f)
+	n.Assign.travel(f)
+	n.Statements.travel(f)
+}
+
 func (n *ForNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	blockID++
 	cond := f.NewBlock(strconv.Itoa(blockID))
@@ -57,6 +65,10 @@ func (n *ForNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 type BreakNode struct {
 }
 
+func (n *BreakNode) travel(f func(Node)) {
+	f(n)
+}
+
 func (n *BreakNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	if s.breakBlock == nil {
 		panic("cannot break out of loop")
@@ -74,4 +86,8 @@ func (n *ContinueNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	}
 	s.block.NewBr(s.continueBlock)
 	return zero
+}
+
+func (n *ContinueNode) travel(f func(Node)) {
+	f(n)
 }

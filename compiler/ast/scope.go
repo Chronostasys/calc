@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/llir/llvm/ir"
+	"github.com/llir/llvm/ir/constant"
 	"github.com/llir/llvm/ir/types"
 	"github.com/llir/llvm/ir/value"
 )
@@ -26,20 +27,31 @@ type Scope struct {
 	genericStructs    map[string]func(m *ir.Module, s *Scope, gens ...TypeNode) *typedef
 	genericMap        map[string]types.Type
 	heapAllocTable    map[string]bool
+	closure           bool
+	trampolineVars    map[string]*fieldval
+	trampolineObj     value.Value
 	m                 *ir.Module
 	generics          []types.Type
 	paramGenerics     [][]types.Type
 	currParam         int
 	rightValue        value.Value
 	assigned          bool
+	freeFunc          func(*Scope)
+}
+
+type fieldval struct {
+	idx int
+	v   value.Value
 }
 
 var externMap = map[string]bool{
-	"printf":    true,
-	"memset":    true,
-	"GC_malloc": true,
-	"memcpy":    true,
-	"Sleep":     true,
+	"printf":                 true,
+	"memset":                 true,
+	"GC_malloc":              true,
+	"memcpy":                 true,
+	"Sleep":                  true,
+	"llvm.init.trampoline":   true,
+	"llvm.adjust.trampoline": true,
 }
 
 func MergeGlobalScopes(ss ...*Scope) *Scope {
@@ -94,6 +106,7 @@ func newScope(block *ir.Block) *Scope {
 		genericFuncs:   make(map[string]func(m *ir.Module, s *Scope, gens ...TypeNode) value.Value),
 		genericMap:     make(map[string]types.Type),
 		genericStructs: make(map[string]func(m *ir.Module, s *Scope, gens ...TypeNode) *typedef),
+		trampolineVars: map[string]*fieldval{},
 	}
 	return sc
 }
@@ -113,6 +126,8 @@ func (s *Scope) addChildScope(block *ir.Block) *Scope {
 	child.globalScope = s.globalScope
 	child.Pkgname = s.Pkgname
 	child.m = s.m
+	child.closure = s.closure
+	child.trampolineVars = s.trampolineVars
 	s.childrenScopes = append(s.childrenScopes, child)
 	return child
 }
@@ -195,6 +210,19 @@ func (s *Scope) searchVar(id string) (*variable, error) {
 		val, ok := scope.vartable[id]
 		if ok {
 			s.generics = val.generics
+			if s.closure && s != scope {
+				if s.trampolineObj != nil {
+					if s.trampolineVars[id] == nil {
+						goto RET
+					}
+					v := s.block.NewGetElementPtr(loadElmType(s.trampolineObj.Type()),
+						s.trampolineObj, zero, constant.NewInt(
+							types.I32, int64(s.trampolineVars[id].idx)))
+					return &variable{v: loadIfVar(v, s)}, nil
+				}
+				s.trampolineVars[id] = &fieldval{v: val.v}
+			}
+		RET:
 			return val, nil
 		}
 		scope = scope.parent
