@@ -26,9 +26,10 @@ func_params: FPS->LP (RP|(EFP? FP(COMMA FP)* RP))
 ext_func_param: EFP->THIS FP
 func_param: FP->var TYPE
 statemnt_list: SL->S+
-statement: S->CS|BS|EM|D|A|R|(CF NL)|I|(DA NL)
+statement: S->CS|BS|EM|D|A|R|(CF NL)|I|(DA NL)|YI
 return: R->RET|(RET AE)
 empty: EM->NL
+yield: YI->YIELD AE NL
 define: D->VAR var TYPE NL
 
 inline_func: IFUN->FT SB

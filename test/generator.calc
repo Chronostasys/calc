@@ -1,0 +1,32 @@
+package main
+
+import (
+    "github.com/Chronostasys/calc/runtime/generator"
+)
+
+
+
+func testGenerator() generator.Generator<int> {
+    a := 1
+    yield a
+    a = a + 1
+    yield a
+    a = 100
+    // TODO support closure in generator
+    //f := func () int {
+    //    a = a + 1
+    //    printIntln(i)
+    //    return 100
+    //}
+    //f()
+    yield a
+}
+
+func rungenerator() void {
+    gen := testGenerator()
+    for ;gen.StepNext(); {
+        printIntln(gen.GetCurrent())
+    }
+    return
+}
+

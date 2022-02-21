@@ -238,3 +238,16 @@ func (p *Parser) inlineFunc() (n ast.Node, err error) {
 	}
 	return fn, nil
 }
+
+func (p *Parser) yield() (n ast.Node, err error) {
+	_, err = p.lexer.ScanType(lexer.TYPE_RES_YIELD)
+	if err != nil {
+		return nil, err
+	}
+	exp, err := p.runWithCatch(p.allexp)
+	if err != nil {
+		return nil, err
+	}
+	p.empty()
+	return &ast.YieldNode{Exp: exp}, nil
+}

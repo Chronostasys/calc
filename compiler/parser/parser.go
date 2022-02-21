@@ -142,6 +142,10 @@ func (p *Parser) statement() ast.Node {
 	if err == nil {
 		return ast
 	}
+	ast, err = p.runWithCatch2(p.yield)
+	if err == nil {
+		return ast
+	}
 	ast, err = p.runWithCatch2(p.forloop)
 	if err == nil {
 		return ast
@@ -379,7 +383,7 @@ func (p *Parser) defineAndAssign() (n ast.Node, err error) {
 	}
 VAL:
 	val := p.allexp()
-	return &ast.DefAndAssignNode{Val: val, ID: id}, nil
+	return &ast.DefAndAssignNode{ValNode: val, ID: id}, nil
 }
 
 func (p *Parser) breakST() (n ast.Node, err error) {

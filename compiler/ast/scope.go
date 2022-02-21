@@ -37,6 +37,8 @@ type Scope struct {
 	rightValue        value.Value
 	assigned          bool
 	freeFunc          func(*Scope)
+	yieldRet          value.Value
+	yieldBlock        value.Value
 }
 
 type fieldval struct {
@@ -210,19 +212,13 @@ func (s *Scope) searchVar(id string) (*variable, error) {
 		val, ok := scope.vartable[id]
 		if ok {
 			s.generics = val.generics
-			if s.closure && s != scope {
-				if s.trampolineObj != nil {
-					if s.trampolineVars[id] == nil {
-						goto RET
-					}
-					v := s.block.NewGetElementPtr(loadElmType(s.trampolineObj.Type()),
-						s.trampolineObj, zero, constant.NewInt(
-							types.I32, int64(s.trampolineVars[id].idx)))
-					return &variable{v: loadIfVar(v, s)}, nil
-				}
-				s.trampolineVars[id] = &fieldval{v: val.v}
+			if s.closure && s != scope && s.trampolineObj != nil &&
+				s.trampolineVars[id] != nil {
+				v := s.block.NewGetElementPtr(loadElmType(s.trampolineObj.Type()),
+					s.trampolineObj, zero, constant.NewInt(
+						types.I32, int64(s.trampolineVars[id].idx)))
+				return &variable{v: loadIfVar(v, s)}, nil
 			}
-		RET:
 			return val, nil
 		}
 		scope = scope.parent

@@ -70,6 +70,7 @@ const (
 	TYPE_SHR           // "<<" 算术右移
 	TYPE_BIT_OR        // "|"
 	TYPE_BIT_XOR       // "^"
+	TYPE_RES_YIELD     // "yield"
 )
 
 var (
@@ -102,6 +103,7 @@ var (
 		"string":    TYPE_RES_STR,
 		"import":    TYPE_RES_IMPORT,
 		"op":        TYPE_RES_OP,
+		"yield":     TYPE_RES_YIELD,
 	}
 	reservedTypes = map[string]int{
 		"int":     TYPE_RES_INT,

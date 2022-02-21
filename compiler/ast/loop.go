@@ -16,9 +16,16 @@ type ForNode struct {
 
 func (n *ForNode) travel(f func(Node)) {
 	f(n)
-	n.Bool.travel(f)
-	n.DefineAssign.travel(f)
-	n.Assign.travel(f)
+	if n.Bool != nil {
+		n.Bool.travel(f)
+	}
+	if n.DefineAssign != nil {
+		n.DefineAssign.travel(f)
+	}
+	if n.Assign != nil {
+		n.Assign.travel(f)
+	}
+
 	n.Statements.travel(f)
 }
 

@@ -60,7 +60,23 @@ func main() int {
     }
     fu()
     testClosure()
+    var gi gen<int>
+    gi = &genimpl{}
+    printIntln(gi.Get())
+    rungenerator()
     return 0
+}
+
+type genimpl struct {
+
+}
+
+func Get(this gi genimpl) int {
+    return 0
+}
+
+type gen<T> interface {
+    Get() T
 }
 
 var g1 = test{a:10}

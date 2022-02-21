@@ -463,9 +463,6 @@ func (n *SLNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		strings.Contains(f.Ident(), "MallocList") {
 		goto LOOP
 	}
-	if f.GlobalName == "main.genF" {
-		println()
-	}
 	// stackescape analysis 逃逸分析
 	for _, v := range n.Children {
 		switch node := v.(type) {
@@ -497,10 +494,10 @@ func (n *SLNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		case *DefAndAssignNode:
 			defMap[node.ID] = true
 			name := node.ID
-			if r, ok := node.Val.(*InlineFuncNode); ok {
+			if r, ok := node.ValNode.(*InlineFuncNode); ok {
 				travel(r)
 			}
-			right := getVarNode(node.Val)
+			right := getVarNode(node.ValNode)
 			if right == nil {
 				continue
 			}
@@ -687,10 +684,19 @@ func (n *EmptyNode) travel(f func(Node)) {
 	f(n)
 }
 
+type defNode interface {
+	setVal(func(s *Scope) value.Value)
+}
+
 type DefineNode struct {
 	ID  string
 	TP  TypeNode
 	Val value.Value
+	vf  func(s *Scope) value.Value
+}
+
+func (n *DefineNode) setVal(f func(s *Scope) value.Value) {
+	n.vf = f
 }
 
 func (n *DefineNode) travel(f func(Node)) {
@@ -698,6 +704,11 @@ func (n *DefineNode) travel(f func(Node)) {
 }
 
 func (n *DefineNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
+	if n.vf != nil {
+		v := n.vf(s)
+		s.addVar(n.ID, &variable{v: v})
+		return v
+	}
 	tp, err := n.TP.calc(s)
 	if err != nil {
 		panic(err)
@@ -725,6 +736,9 @@ type RetNode struct {
 
 func (n *RetNode) travel(f func(Node)) {
 	f(n)
+	if n.Exp == nil {
+		return
+	}
 	n.Exp.travel(f)
 }
 
@@ -757,13 +771,18 @@ func (n *NilNode) travel(f func(Node)) {
 }
 
 type DefAndAssignNode struct {
-	Val Node
-	ID  string
+	ValNode Node
+	ID      string
+	Val     func(s *Scope) value.Value
+}
+
+func (n *DefAndAssignNode) setVal(v func(s *Scope) value.Value) {
+	n.Val = v
 }
 
 func (n *DefAndAssignNode) travel(f func(Node)) {
 	f(n)
-	n.Val.travel(f)
+	n.ValNode.travel(f)
 }
 
 func autoAlloc(m *ir.Module, id string, gtp TypeNode, tp types.Type, s *Scope) (v value.Value) {
@@ -777,6 +796,11 @@ func autoAlloc(m *ir.Module, id string, gtp TypeNode, tp types.Type, s *Scope) (
 }
 
 func (n *DefAndAssignNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
+	if n.Val != nil {
+		v := n.Val(s)
+		s.addVar(n.ID, &variable{v: v})
+		return v
+	}
 	global := false
 	if f == nil {
 		global = true
@@ -787,7 +811,7 @@ func (n *DefAndAssignNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value 
 			s.block = nil
 		}()
 	}
-	rawval := n.Val.calc(m, f, s)
+	rawval := n.ValNode.calc(m, f, s)
 	val := loadIfVar(rawval, s)
 	var v value.Value
 	var tp types.Type

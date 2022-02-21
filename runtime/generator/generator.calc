@@ -1,0 +1,6 @@
+package generator
+
+type Generator<T> interface {
+    StepNext() bool
+    GetCurrent() T
+}
