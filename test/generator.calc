@@ -18,11 +18,10 @@ func testGenerator() generator.Generator<int> {
     }
     f()
     fg := func () generator.Generator<int> {
-        a := 1
         yield a
         a = a + 1
         yield a
-        a = 100
+        a = a * 2
         yield a
     }
     gen := fg()

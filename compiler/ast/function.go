@@ -189,6 +189,7 @@ func buildGenerator(rtp types.Type, ps []*ir.Param,
 	s, childScope *Scope, tpname string, blockAddrId int,
 	idxmap map[*ir.Param]int, context *ctx, tp types.Type,
 	sta Node) {
+
 	// 原理见https://mapping-high-level-constructs-to-llvm-ir.readthedocs.io/en/latest/advanced-constructs/generators.html
 	stp := rtp
 	gencount++
@@ -220,7 +221,18 @@ func buildGenerator(rtp types.Type, ps []*ir.Param,
 
 	generatorScope.block = realentry
 
+	// 转移闭包相关数据
+	generatorScope.closure = childScope.closure
+	generatorScope.trampolineObjG = childScope.trampolineObjG
+	generatorScope.trampolineVars = childScope.trampolineVars
+
+	// 生成函数体代码
 	sta.calc(s.m, stepNext, generatorScope)
+
+	// 闭包清理
+	if childScope.freeFunc != nil {
+		childScope.freeFunc(generatorScope)
+	}
 	generatorScope.block.NewRet(constant.False)
 
 	entry.NewIndirectBr(&blockAddress{Value: loadIfVar(nextBlock, &Scope{block: entry})},
@@ -256,9 +268,6 @@ func buildGenerator(rtp types.Type, ps []*ir.Param,
 	r, err := implicitCast(st, tp, childScope)
 	if err != nil {
 		panic(err)
-	}
-	if childScope.freeFunc != nil {
-		childScope.freeFunc(childScope)
 	}
 	childScope.block.NewRet(r) // 返回context（即generator）
 }
@@ -531,7 +540,7 @@ func (n *InlineFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	}
 	g := m.NewGlobalDef(cvarname, constant.NewZeroInitializer(allo.Type()))
 	store(allo, g, s)
-	chs.trampolineObj = loadIfVar(g, chs)
+	chs.trampolineObjG = g
 	chs.freeFunc = func(s *Scope) { // make closure var gcable
 		store(constant.NewNull(allo.Type().(*types.PointerType)), g, s)
 	}
