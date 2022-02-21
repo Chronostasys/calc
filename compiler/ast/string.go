@@ -13,6 +13,10 @@ type StringNode struct {
 	onheap bool
 }
 
+func (b *StringNode) tp() TypeNode {
+	return &calcedTypeNode{getstrtp()}
+}
+
 func (n *StringNode) setAlloc(onheap bool) {
 	n.onheap = onheap
 }

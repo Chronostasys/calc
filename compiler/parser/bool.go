@@ -7,7 +7,7 @@ import (
 	"github.com/Chronostasys/calc/compiler/lexer"
 )
 
-func (p *Parser) boolexp() (node ast.Node, err error) {
+func (p *Parser) boolexp() (node ast.ExpNode, err error) {
 	ch := p.lexer.SetCheckpoint()
 	defer func() {
 		if err != nil {
@@ -38,7 +38,7 @@ func (p *Parser) boolexp() (node ast.Node, err error) {
 	return
 }
 
-func (p *Parser) bitOp() (node ast.Node, err error) {
+func (p *Parser) bitOp() (node ast.ExpNode, err error) {
 	ch := p.lexer.SetCheckpoint()
 	defer func() {
 		if err != nil {
@@ -77,7 +77,7 @@ func (p *Parser) bitOp() (node ast.Node, err error) {
 
 }
 
-func (p *Parser) boolean() (node ast.Node, err error) {
+func (p *Parser) boolean() (node ast.ExpNode, err error) {
 	ch1 := p.lexer.SetCheckpoint()
 	defer func() {
 		if err != nil {
@@ -92,7 +92,7 @@ func (p *Parser) boolean() (node ast.Node, err error) {
 	if err == nil {
 		return &ast.BoolConstNode{Val: false}, nil
 	}
-	node, err = p.runWithCatch(p.exp)
+	node, err = p.runWithCatchExp(p.exp)
 	if err == nil {
 		return node, nil
 	}
@@ -128,14 +128,14 @@ func (p *Parser) boolean() (node ast.Node, err error) {
 	return nil, fmt.Errorf("parse failed")
 }
 
-func (p *Parser) compare() (node ast.Node, err error) {
+func (p *Parser) compare() (node ast.ExpNode, err error) {
 	ch := p.lexer.SetCheckpoint()
 	defer func() {
 		if err != nil {
 			p.lexer.GobackTo(ch)
 		}
 	}()
-	node, err = p.runWithCatch2(p.boolean)
+	node, err = p.runWithCatch2Exp(p.boolean)
 	if err != nil {
 		return nil, err
 	}
@@ -156,7 +156,7 @@ func (p *Parser) compare() (node ast.Node, err error) {
 			p.lexer.GobackTo(check)
 			return node, nil
 		}
-		n.Right, err = p.runWithCatch2(p.boolean)
+		n.Right, err = p.runWithCatch2Exp(p.boolean)
 		if err != nil {
 			return nil, err
 		}

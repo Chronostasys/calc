@@ -97,8 +97,8 @@ func (p *Parser) function() ast.Node {
 	return fn
 }
 
-func (p *Parser) callFunc() ast.Node {
-	fnnode, err := p.runWithCatch2(p.varChain)
+func (p *Parser) callFunc() ast.ExpNode {
+	fnnode, err := p.runWithCatch2Exp(p.varChain)
 	if err != nil {
 		panic(err)
 	}
@@ -136,7 +136,7 @@ END:
 		if err != nil {
 			break
 		}
-		inner, err := p.runWithCatch(p.callFunc)
+		inner, err := p.runWithCatchExp(p.callFunc)
 		if err != nil {
 			inner, err = p.varChain()
 			if err != nil {
@@ -224,7 +224,7 @@ func (p *Parser) genericCallParams() (n []ast.TypeNode, err error) {
 	}
 }
 
-func (p *Parser) inlineFunc() (n ast.Node, err error) {
+func (p *Parser) inlineFunc() (n ast.ExpNode, err error) {
 	fntp, err := p.funcTypes()
 	if err != nil {
 		return nil, err
@@ -244,7 +244,7 @@ func (p *Parser) yield() (n ast.Node, err error) {
 	if err != nil {
 		return nil, err
 	}
-	exp, err := p.runWithCatch(p.allexp)
+	exp, err := p.runWithCatchExp(p.allexp)
 	if err != nil {
 		return nil, err
 	}

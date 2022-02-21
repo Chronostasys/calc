@@ -84,7 +84,7 @@ func (p *Parser) assign() (n ast.Node, err error) {
 		}
 		level++
 	}
-	node, err := p.runWithCatch2(p.varChain)
+	node, err := p.runWithCatch2Exp(p.varChain)
 	if err != nil {
 		return nil, err
 	}
@@ -268,12 +268,12 @@ func (p *Parser) program() *ast.ProgramNode {
 	return n
 }
 
-func (p *Parser) allexp() ast.Node {
-	ast, err := p.runWithCatch2(p.takePtrExp)
+func (p *Parser) allexp() ast.ExpNode {
+	ast, err := p.runWithCatch2Exp(p.takePtrExp)
 	if err == nil {
 		return ast
 	}
-	ast, err = p.runWithCatch2(p.inlineFunc)
+	ast, err = p.runWithCatch2Exp(p.inlineFunc)
 	if err == nil {
 		return ast
 	}
@@ -298,6 +298,32 @@ func (p *Parser) runWithCatch(f func() ast.Node) (node ast.Node, err error) {
 	return
 }
 func (p *Parser) runWithCatch2(f func() (ast.Node, error)) (node ast.Node, err error) {
+	ch := p.lexer.SetCheckpoint()
+	defer func() {
+		i := recover()
+		if i != nil {
+			err = fmt.Errorf("%v", i)
+		}
+		if err != nil {
+			p.lexer.GobackTo(ch)
+		}
+	}()
+	node, err = f()
+	return
+}
+func (p *Parser) runWithCatchExp(f func() ast.ExpNode) (node ast.ExpNode, err error) {
+	ch := p.lexer.SetCheckpoint()
+	defer func() {
+		i := recover()
+		if i != nil {
+			p.lexer.GobackTo(ch)
+			err = fmt.Errorf("%v", i)
+		}
+	}()
+	node = f()
+	return
+}
+func (p *Parser) runWithCatch2Exp(f func() (ast.ExpNode, error)) (node ast.ExpNode, err error) {
 	ch := p.lexer.SetCheckpoint()
 	defer func() {
 		i := recover()
@@ -435,7 +461,7 @@ func (p *Parser) forloop() (n ast.Node, err error) {
 	return fn, nil
 }
 
-func (p *Parser) structInit() (n ast.Node, err error) {
+func (p *Parser) structInit() (n ast.ExpNode, err error) {
 	tp, err := p.allTypes()
 	if err != nil {
 		return nil, err
@@ -478,7 +504,7 @@ func (p *Parser) structInit() (n ast.Node, err error) {
 	return stNode, nil
 }
 
-func (p *Parser) arrayInit() (n ast.Node, err error) {
+func (p *Parser) arrayInit() (n ast.ExpNode, err error) {
 	an := &ast.ArrayInitNode{}
 	tp, err := p.arrayTypes()
 	if err != nil {
@@ -511,28 +537,28 @@ func (p *Parser) arrayInit() (n ast.Node, err error) {
 	return an, err
 }
 
-func (p *Parser) takePtrExp() (n ast.Node, err error) {
+func (p *Parser) takePtrExp() (n ast.ExpNode, err error) {
 	_, err = p.lexer.ScanType(lexer.TYPE_ESP)
 	if err != nil {
 		return nil, err
 	}
-	var node ast.Node
-	node, err = p.runWithCatch2(p.arrayInit)
+	var node ast.ExpNode
+	node, err = p.runWithCatch2Exp(p.arrayInit)
 	if err == nil {
 		return &ast.TakePtrNode{Node: node}, nil
 	}
-	node, err = p.runWithCatch2(p.structInit)
+	node, err = p.runWithCatch2Exp(p.structInit)
 	if err == nil {
 		return &ast.TakePtrNode{Node: node}, nil
 	}
-	node, err = p.runWithCatch2(p.varChain)
+	node, err = p.runWithCatch2Exp(p.varChain)
 	if err != nil {
 		return nil, err
 	}
 	return &ast.TakePtrNode{Node: node}, nil
 
 }
-func (p *Parser) takeValExp() (n ast.Node, err error) {
+func (p *Parser) takeValExp() (n ast.ExpNode, err error) {
 	level := 0
 	for {
 		_, err = p.lexer.ScanType(lexer.TYPE_MUL)
@@ -541,7 +567,7 @@ func (p *Parser) takeValExp() (n ast.Node, err error) {
 		}
 		level++
 	}
-	var node ast.Node
+	var node ast.ExpNode
 	defer func() {
 		if err != nil {
 			return
@@ -550,20 +576,20 @@ func (p *Parser) takeValExp() (n ast.Node, err error) {
 			n = node
 		}
 	}()
-	node, err = p.runWithCatch2(p.arrayInit)
+	node, err = p.runWithCatch2Exp(p.arrayInit)
 	if err == nil {
 		return &ast.TakeValNode{Node: node, Level: level}, nil
 	}
-	node, err = p.runWithCatch2(p.structInit)
+	node, err = p.runWithCatch2Exp(p.structInit)
 	if err == nil {
 		return &ast.TakeValNode{Node: node, Level: level}, nil
 	}
 
-	node, err = p.runWithCatch(p.callFunc)
+	node, err = p.runWithCatchExp(p.callFunc)
 	if err == nil {
 		return &ast.TakeValNode{Node: node, Level: level}, nil
 	}
-	node, err = p.runWithCatch2(p.varChain)
+	node, err = p.runWithCatch2Exp(p.varChain)
 	if err != nil {
 		return nil, err
 	}
@@ -571,7 +597,7 @@ func (p *Parser) takeValExp() (n ast.Node, err error) {
 
 }
 
-func (p *Parser) varChain() (n ast.Node, err error) {
+func (p *Parser) varChain() (n ast.ExpNode, err error) {
 	head, err := p.varBlock()
 	if err != nil {
 		return nil, err
@@ -616,7 +642,7 @@ func (p *Parser) varBlock() (n *ast.VarBlockNode, err error) {
 	return n, nil
 }
 
-func (p *Parser) nilExp() (n ast.Node, err error) {
+func (p *Parser) nilExp() (n ast.ExpNode, err error) {
 	_, err = p.lexer.ScanType(lexer.TYPE_RES_NIL)
 	if err != nil {
 		return nil, err

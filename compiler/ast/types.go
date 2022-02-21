@@ -19,16 +19,37 @@ type BasicTypeNode struct {
 	Pkg      string
 }
 
+func (n *BasicTypeNode) GetPtrLevel() int {
+	return n.PtrLevel
+}
+func (n *BasicTypeNode) Clone() TypeNode {
+	return &BasicTypeNode{
+		n.ResType, n.CustomTp, n.PtrLevel, n.Generics, n.Pkg,
+	}
+}
+
 type TypeNode interface {
 	calc(*Scope) (types.Type, error)
 	SetPtrLevel(int)
+	GetPtrLevel() int
 	String(*Scope) string
+	Clone() TypeNode
 }
 
 type FuncTypeNode struct {
 	Args     *ParamsNode
 	Ret      TypeNode
 	ptrlevel int
+}
+
+func (n *FuncTypeNode) Clone() TypeNode {
+	return &FuncTypeNode{
+		n.Args, n.Ret, n.ptrlevel,
+	}
+}
+
+func (n *FuncTypeNode) GetPtrLevel() int {
+	return n.ptrlevel
 }
 
 func (v *FuncTypeNode) SetPtrLevel(i int) {
@@ -68,6 +89,14 @@ type calcedTypeNode struct {
 	tp types.Type
 }
 
+func (n *calcedTypeNode) Clone() TypeNode {
+	panic("not impl")
+}
+
+func (n *calcedTypeNode) GetPtrLevel() int {
+	panic("not impl")
+}
+
 func (v *calcedTypeNode) SetPtrLevel(i int) {
 	panic("not impl")
 }
@@ -87,6 +116,16 @@ type ArrayTypeNode struct {
 	Len      int
 	ElmType  TypeNode
 	PtrLevel int
+}
+
+func (n *ArrayTypeNode) Clone() TypeNode {
+	return &ArrayTypeNode{
+		n.Len, n.ElmType, n.PtrLevel,
+	}
+}
+
+func (n *ArrayTypeNode) GetPtrLevel() int {
+	return n.PtrLevel
 }
 
 func (v *ArrayTypeNode) SetPtrLevel(i int) {
@@ -204,6 +243,10 @@ type ArrayInitNode struct {
 	allocOnHeap bool
 }
 
+func (n *ArrayInitNode) tp() TypeNode {
+	return n.Type
+}
+
 func (n *ArrayInitNode) setAlloc(onheap bool) {
 	n.allocOnHeap = onheap
 }
@@ -294,6 +337,16 @@ type StructDefNode struct {
 	fields   map[string]*field
 }
 
+func (n *StructDefNode) Clone() TypeNode {
+	return &StructDefNode{
+		n.ptrlevel, n.Fields, n.fields,
+	}
+}
+
+func (n *StructDefNode) GetPtrLevel() int {
+	return n.ptrlevel
+}
+
 func (v *StructDefNode) SetPtrLevel(i int) {
 	v.ptrlevel = i
 }
@@ -342,6 +395,16 @@ type InterfaceDefNode struct {
 	Funcs    map[string]*FuncNode
 }
 
+func (n *InterfaceDefNode) Clone() TypeNode {
+	return &InterfaceDefNode{
+		n.ptrlevel, n.Funcs,
+	}
+}
+
+func (n *InterfaceDefNode) GetPtrLevel() int {
+	return n.ptrlevel
+}
+
 func (v *InterfaceDefNode) SetPtrLevel(i int) {
 	v.ptrlevel = i
 }
@@ -365,6 +428,10 @@ type StructInitNode struct {
 	TP          TypeNode
 	Fields      map[string]Node
 	allocOnHeap bool
+}
+
+func (b *StructInitNode) tp() TypeNode {
+	return b.TP
 }
 
 func (n *StructInitNode) travel(f func(Node)) {

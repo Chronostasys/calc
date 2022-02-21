@@ -6,7 +6,13 @@ import (
 )
 
 type TakePtrNode struct {
-	Node Node
+	Node ExpNode
+}
+
+func (n *TakePtrNode) tp() TypeNode {
+	tp := n.Node.tp().Clone()
+	tp.SetPtrLevel(tp.GetPtrLevel() + 1)
+	return tp
 }
 
 func (n *TakePtrNode) travel(f func(Node)) {
@@ -22,11 +28,16 @@ func (n *TakePtrNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 
 type TakeValNode struct {
 	Level int
-	Node  Node
+	Node  ExpNode
 }
 
 func (n *TakeValNode) travel(f func(Node)) {
 	f(n)
+}
+func (n *TakeValNode) tp() TypeNode {
+	tp := n.Node.tp().Clone()
+	tp.SetPtrLevel(tp.GetPtrLevel() - 1)
+	return tp
 }
 
 func (n *TakeValNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {

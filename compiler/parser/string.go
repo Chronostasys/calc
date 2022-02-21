@@ -5,7 +5,7 @@ import (
 	"github.com/Chronostasys/calc/compiler/lexer"
 )
 
-func (p *Parser) strExp() (n ast.Node, err error) {
+func (p *Parser) strExp() (n ast.ExpNode, err error) {
 	str, err := p.lexer.ScanType(lexer.TYPE_STR)
 	if err != nil {
 		return nil, err

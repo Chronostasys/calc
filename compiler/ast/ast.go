@@ -41,10 +41,22 @@ type Node interface {
 	travel(func(Node))
 }
 
+type ExpNode interface {
+	Node
+	tp() TypeNode
+}
+
 type BinNode struct {
 	Op    int
-	Left  Node
-	Right Node
+	Left  ExpNode
+	Right ExpNode
+}
+
+func (b *BinNode) tp() TypeNode {
+	if _, ok := b.Left.(*NilNode); ok {
+		return b.Right.tp()
+	}
+	return b.Left.tp()
 }
 
 func loadIfVar(l value.Value, s *Scope) value.Value {
@@ -227,12 +239,18 @@ func (n *NumNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 func (n *NumNode) travel(f func(Node)) {
 	f(n)
 }
+func (n *NumNode) tp() TypeNode {
+	return &calcedTypeNode{n.Val.Type()}
+}
 
 type UnaryNode struct {
 	Op    int
-	Child Node
+	Child ExpNode
 }
 
+func (n *UnaryNode) tp() TypeNode {
+	return n.Child.tp()
+}
 func (n *UnaryNode) travel(f func(Node)) {
 	f(n)
 	n.Child.travel(f)
@@ -270,6 +288,16 @@ type VarBlockNode struct {
 	parent      value.Value
 	Next        *VarBlockNode
 	allocOnHeap bool
+}
+
+var (
+	tpm = ir.NewModule()
+	tpf = tpm.NewFunc("tmp", types.Void)
+	tps = newScope(tpf.NewBlock(""))
+)
+
+func (b *VarBlockNode) tp() TypeNode {
+	return &calcedTypeNode{b.calc(tpm, tpf, tps).Type()}
 }
 
 func (n *VarBlockNode) travel(f func(Node)) {
@@ -535,7 +563,7 @@ func (n *SLNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 				if right == nil {
 					continue
 				}
-				// TODO TakeValNode & TakePtrNode
+				// TODO TakeValNode & TakePtrNode? 这不确定有没有问题
 				if r, ok := right.(*VarBlockNode); ok {
 					rname := r.Token
 					if !defMap[r.Token] {
@@ -762,6 +790,10 @@ func (n *RetNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 type NilNode struct {
 }
 
+func (n *NilNode) tp() TypeNode {
+	return nil
+}
+
 func (n *NilNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	return zero
 }
@@ -771,7 +803,7 @@ func (n *NilNode) travel(f func(Node)) {
 }
 
 type DefAndAssignNode struct {
-	ValNode Node
+	ValNode ExpNode
 	ID      string
 	Val     func(s *Scope) value.Value
 }
@@ -798,6 +830,13 @@ func autoAlloc(m *ir.Module, id string, gtp TypeNode, tp types.Type, s *Scope) (
 func (n *DefAndAssignNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	if n.Val != nil {
 		v := n.Val(s)
+		rawval := n.ValNode.calc(m, f, s)
+		val := loadIfVar(rawval, s)
+		val, err := implicitCast(val, getElmType(v.Type()), s)
+		if err != nil {
+			panic(err)
+		}
+		store(val, v, s)
 		s.addVar(n.ID, &variable{v: v})
 		return v
 	}

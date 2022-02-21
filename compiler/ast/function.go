@@ -51,14 +51,12 @@ func (n *ParamsNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 }
 
 type FuncNode struct {
-	Params       *ParamsNode
-	ID           string
-	RetType      TypeNode
-	Statements   Node
-	Fn           *ir.Func
-	DefaultBlock *ir.Block
-	Generics     []string
-	generator    bool
+	Params     *ParamsNode
+	ID         string
+	RetType    TypeNode
+	Statements Node
+	Generics   []string
+	generator  bool
 }
 
 func (n *FuncNode) AddtoScope(s *Scope) {
@@ -119,11 +117,11 @@ func (n *FuncNode) AddtoScope(s *Scope) {
 				panic(err)
 			}
 			fun := m.NewFunc(s.getFullName(sig), tp, ps...)
-			n.Fn = fun
+
 			s.globalScope.addVar(sig, &variable{v: fun})
 			b := fun.NewBlock("")
 			childScope := s.addChildScope(b)
-			n.DefaultBlock = b
+
 			for i, v := range ps {
 				ptr := b.NewAlloca(v.Type())
 				store(v, ptr, childScope)
@@ -163,6 +161,108 @@ func (n *FuncNode) travel(f func(Node)) {
 
 var gencount = 0
 
+func buildGenaratorCtx(st Node, ret TypeNode, s *Scope, ps []*ir.Param) (
+	tpname string,
+	rtp types.Type,
+	idxmap map[*ir.Param]int, blockAddrId int, context *ctx) {
+
+	idxmap = map[*ir.Param]int{}
+	tps, c := buildCtx(st.(*SLNode), s, []types.Type{})
+	context = c
+	for _, v := range ps {
+		tps = append(tps, v.Type())
+		c.idxmap = append(c.idxmap, &ctx{id: c.i, father: c})
+		idxmap[v] = c.i
+		c.i++
+	}
+	blockAddrId = c.i
+	tps = append(tps, types.I8Ptr) // next block address
+	inner, _ := ret.(*BasicTypeNode).Generics[0].calc(s)
+	tps = append(tps, inner) // return value
+	rtp = types.NewStruct(tps...)
+	tpname = fmt.Sprintf("_%dgeneratorctx", gencount)
+	rtp = s.m.NewTypeDef(s.getFullName(tpname), rtp)
+	return
+}
+
+func buildGenerator(rtp types.Type, ps []*ir.Param,
+	s, childScope *Scope, tpname string, blockAddrId int,
+	idxmap map[*ir.Param]int, context *ctx, tp types.Type,
+	sta Node) {
+	// 原理见https://mapping-high-level-constructs-to-llvm-ir.readthedocs.io/en/latest/advanced-constructs/generators.html
+	stp := rtp
+	gencount++
+	b := childScope.block
+
+	// 生成generator的StepNext函数
+	snname := s.getFullName(tpname + "." + "StepNext")
+	p := ir.NewParam("ctx", types.NewPointer(rtp))
+	stepNext := s.m.NewFunc(snname, types.I1, p)
+	entry := stepNext.NewBlock("")
+	generatorScope := s.addChildScope(entry)
+	ret := entry.NewGetElementPtr(stp, p, zero, constant.NewInt(types.I32, int64(
+		blockAddrId+1,
+	)))
+	nextBlock := entry.NewGetElementPtr(stp, p, zero, constant.NewInt(types.I32, int64(
+		blockAddrId,
+	)))
+	generatorScope.yieldBlock = nextBlock
+	generatorScope.yieldRet = ret
+	for _, v := range ps { // 取出函数的参数
+		ptr := b.NewGetElementPtr(stp, p, zero, constant.NewInt(types.I32, int64(
+			idxmap[v],
+		)))
+		generatorScope.addVar(v.LocalName, &variable{v: ptr})
+	}
+
+	context.setVals(p, generatorScope)
+	realentry := stepNext.NewBlock("entry")
+
+	generatorScope.block = realentry
+
+	sta.calc(s.m, stepNext, generatorScope)
+	generatorScope.block.NewRet(constant.False)
+
+	entry.NewIndirectBr(&blockAddress{Value: loadIfVar(nextBlock, &Scope{block: entry})},
+		stepNext.Blocks...)
+	s.globalScope.addVar(snname, &variable{v: stepNext})
+
+	// 生成generator的GetCurrent函数
+	gcname := s.getFullName(tpname + "." + "GetCurrent")
+	p = ir.NewParam("ctx", types.NewPointer(rtp))
+	getcurrent := s.m.NewFunc(gcname, tp, p)
+	gcentry := getcurrent.NewBlock("")
+	chs := s.addChildScope(gcentry)
+	retptr := gcentry.NewGetElementPtr(stp, p, zero, constant.NewInt(types.I32, int64(
+		blockAddrId+1,
+	)))
+	gcentry.NewRet(loadIfVar(retptr, chs))
+	s.globalScope.addVar(gcname, &variable{v: getcurrent})
+
+	// generator setup方法
+	st := heapAlloc(s.m, childScope, &calcedTypeNode{stp})
+	for _, v := range ps { // 保存函数的参数
+		ptr := b.NewGetElementPtr(stp, st, zero, constant.NewInt(types.I32, int64(
+			idxmap[v],
+		)))
+		store(v, ptr, childScope)
+		// childScope.addVar(psn.Params[i].ID, &variable{v: ptr})
+	}
+	// 存下一个block地址
+	ptr := b.NewGetElementPtr(stp, st, zero, constant.NewInt(types.I32, int64(
+		blockAddrId,
+	)))
+	store(constant.NewBlockAddress(stepNext, realentry), ptr, childScope)
+	r, err := implicitCast(st, tp, childScope)
+	if err != nil {
+		panic(err)
+	}
+	if childScope.freeFunc != nil {
+		childScope.freeFunc(childScope)
+	}
+	childScope.block.NewRet(r) // 返回context（即generator）
+}
+
 func (n *FuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	if len(n.Generics) > 0 {
 		// generic function will be generated while call
@@ -179,104 +279,16 @@ func (n *FuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	if err != nil {
 		panic(err)
 	}
-	rtp := tp
-	idxmap := map[*ir.Param]int{}
-	var tpname string
-	var blockAddrId int
-	var context *ctx
-	if n.generator {
-		tps, c := buildCtx(n.Statements.(*SLNode), s, []types.Type{})
-		context = c
-		for _, v := range ps {
-			tps = append(tps, v.Type())
-			c.idxmap = append(c.idxmap, &ctx{id: c.i, father: c})
-			idxmap[v] = c.i
-			c.i++
-		}
-		blockAddrId = c.i
-		tps = append(tps, types.I8Ptr) // next block address
-		inner, _ := n.RetType.(*BasicTypeNode).Generics[0].calc(s)
-		tps = append(tps, inner) // return value
-		rtp = types.NewStruct(tps...)
-		tpname = fmt.Sprintf("_%dgeneratorctx", gencount)
-		rtp = m.NewTypeDef(s.getFullName(tpname), rtp)
-	}
 	fn := m.NewFunc(s.getFullName(n.ID), tp, ps...)
-	n.Fn = fn
+
 	b := fn.NewBlock("")
 	childScope.block = b
 
-	n.DefaultBlock = b
-
 	if n.generator {
-		// 原理见https://mapping-high-level-constructs-to-llvm-ir.readthedocs.io/en/latest/advanced-constructs/generators.html
-		stp := rtp
-		gencount++
-
-		// 生成generator的StepNext函数
-		snname := s.getFullName(tpname + "." + "StepNext")
-		p := ir.NewParam("ctx", types.NewPointer(rtp))
-		stepNext := m.NewFunc(snname, types.I1, p)
-		entry := stepNext.NewBlock("")
-		generatorScope := s.addChildScope(entry)
-		ret := entry.NewGetElementPtr(stp, p, zero, constant.NewInt(types.I32, int64(
-			blockAddrId+1,
-		)))
-		nextBlock := entry.NewGetElementPtr(stp, p, zero, constant.NewInt(types.I32, int64(
-			blockAddrId,
-		)))
-		generatorScope.yieldBlock = nextBlock
-		generatorScope.yieldRet = ret
-		for i, v := range ps { // 取出函数的参数
-			ptr := b.NewGetElementPtr(stp, p, zero, constant.NewInt(types.I32, int64(
-				idxmap[v],
-			)))
-			generatorScope.addVar(psn.Params[i].ID, &variable{v: ptr})
-		}
-
-		context.setVals(p, generatorScope)
-		realentry := stepNext.NewBlock("entry")
-
-		generatorScope.block = realentry
-
-		n.Statements.calc(m, stepNext, generatorScope)
-		generatorScope.block.NewRet(constant.False)
-
-		entry.NewIndirectBr(&blockAddress{Value: loadIfVar(nextBlock, &Scope{block: entry})},
-			stepNext.Blocks...)
-		s.addVar(snname, &variable{v: stepNext})
-
-		// 生成generator的GetCurrent函数
-		gcname := s.getFullName(tpname + "." + "GetCurrent")
-		p = ir.NewParam("ctx", types.NewPointer(rtp))
-		getcurrent := m.NewFunc(gcname, tp, p)
-		gcentry := getcurrent.NewBlock("")
-		chs := s.addChildScope(gcentry)
-		retptr := gcentry.NewGetElementPtr(stp, p, zero, constant.NewInt(types.I32, int64(
-			blockAddrId+1,
-		)))
-		gcentry.NewRet(loadIfVar(retptr, chs))
-		s.addVar(gcname, &variable{v: getcurrent})
-
-		// generator setup方法
-		st := heapAlloc(m, childScope, &calcedTypeNode{stp})
-		for _, v := range ps { // 保存函数的参数
-			ptr := b.NewGetElementPtr(stp, st, zero, constant.NewInt(types.I32, int64(
-				idxmap[v],
-			)))
-			store(v, ptr, childScope)
-			// childScope.addVar(psn.Params[i].ID, &variable{v: ptr})
-		}
-		// 存下一个block地址
-		ptr := b.NewGetElementPtr(stp, st, zero, constant.NewInt(types.I32, int64(
-			blockAddrId,
-		)))
-		store(constant.NewBlockAddress(stepNext, realentry), ptr, childScope)
-		r, err := implicitCast(st, tp, childScope)
-		if err != nil {
-			panic(err)
-		}
-		childScope.block.NewRet(r) // 返回context（即generator）
+		tpname, rtp, idxmap, blockAddrId, context := buildGenaratorCtx(
+			n.Statements, n.RetType, s, ps)
+		buildGenerator(rtp, ps, s, childScope, tpname,
+			blockAddrId, idxmap, context, tp, n.Statements)
 	} else {
 		for i, v := range ps {
 			ptr := b.NewAlloca(v.Type())
@@ -285,7 +297,7 @@ func (n *FuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		}
 		n.Statements.calc(m, fn, childScope)
 	}
-	s.addVar(n.ID, &variable{v: n.Fn})
+	s.addVar(n.ID, &variable{v: fn})
 
 	if n.ID == "main" {
 		s.globalScope.vartable["main"].v = fn
@@ -299,6 +311,10 @@ type CallFuncNode struct {
 	parent   value.Value
 	Next     Node
 	Generics []TypeNode
+}
+
+func (n *CallFuncNode) tp() TypeNode {
+	panic("not impl")
 }
 
 func (n *CallFuncNode) travel(f func(Node)) {
@@ -462,6 +478,9 @@ func (n *InlineFuncNode) travel(f func(Node)) {
 	f(n)
 	n.Body.travel(f)
 }
+func (n *InlineFuncNode) tp() TypeNode {
+	return n.Fntype
+}
 
 var inlinefuncnum int
 
@@ -481,7 +500,7 @@ func (n *InlineFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 
 	inlinefuncnum++
 
-	// real emit loop
+	// build closure
 	i := 0
 	fn := m.NewFunc(fname, fntp.RetType, ps...)
 	b := fn.NewBlock("")
@@ -513,15 +532,33 @@ func (n *InlineFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	g := m.NewGlobalDef(cvarname, constant.NewZeroInitializer(allo.Type()))
 	store(allo, g, s)
 	chs.trampolineObj = loadIfVar(g, chs)
-	for i, v := range ps {
-		ptr := b.NewAlloca(v.Type())
-		store(v, ptr, chs)
-		chs.addVar(ps[i].LocalName, &variable{v: ptr})
-	}
 	chs.freeFunc = func(s *Scope) { // make closure var gcable
 		store(constant.NewNull(allo.Type().(*types.PointerType)), g, s)
 	}
-	n.Body.calc(m, fn, chs)
+
+	lableid := 0
+	generator := false
+	n.travel(func(no Node) {
+		if node, ok := no.(*YieldNode); ok {
+			generator = true
+			lableid++
+			node.label = fmt.Sprintf(".yield%d", lableid)
+		}
+	})
+
+	if generator {
+		tpname, rtp, idxmap, blockAddrId, context := buildGenaratorCtx(
+			n.Body, n.Fntype.(*FuncTypeNode).Ret, s, ps)
+		buildGenerator(rtp, ps, s, chs, tpname,
+			blockAddrId, idxmap, context, fn.Sig.RetType, n.Body)
+	} else {
+		for i, v := range ps {
+			ptr := b.NewAlloca(v.Type())
+			store(v, ptr, chs)
+			chs.addVar(ps[i].LocalName, &variable{v: ptr})
+		}
+		n.Body.calc(m, fn, chs)
+	}
 
 	return fn
 }

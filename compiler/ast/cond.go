@@ -15,6 +15,9 @@ type BoolConstNode struct {
 	Val bool
 }
 
+func (n *BoolConstNode) tp() TypeNode {
+	return &calcedTypeNode{types.I1}
+}
 func (n *BoolConstNode) travel(f func(Node)) {
 	f(n)
 }
@@ -25,8 +28,15 @@ func (n *BoolConstNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 
 type CompareNode struct {
 	Op    int
-	Left  Node
-	Right Node
+	Left  ExpNode
+	Right ExpNode
+}
+
+func (b *CompareNode) tp() TypeNode {
+	if _, ok := b.Left.(*NilNode); ok {
+		return b.Right.tp()
+	}
+	return b.Left.tp()
 }
 
 func (n *CompareNode) travel(f func(Node)) {
@@ -152,10 +162,16 @@ func (n *IfElseNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 
 type BoolExpNode struct {
 	Op    int
-	Left  Node
-	Right Node
+	Left  ExpNode
+	Right ExpNode
 }
 
+func (b *BoolExpNode) tp() TypeNode {
+	if _, ok := b.Left.(*NilNode); ok {
+		return b.Right.tp()
+	}
+	return b.Left.tp()
+}
 func (n *BoolExpNode) travel(f func(Node)) {
 	f(n)
 	n.Left.travel(f)
@@ -172,7 +188,11 @@ func (n *BoolExpNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 }
 
 type NotNode struct {
-	Bool Node
+	Bool ExpNode
+}
+
+func (n *NotNode) tp() TypeNode {
+	return n.Bool.tp()
 }
 
 func (n *NotNode) travel(f func(Node)) {

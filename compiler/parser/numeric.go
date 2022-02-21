@@ -9,13 +9,13 @@ import (
 	"github.com/llir/llvm/ir/types"
 )
 
-func (p *Parser) number() (n ast.Node) {
-	n, err := p.runWithCatch2(p.strExp)
+func (p *Parser) number() (n ast.ExpNode) {
+	n, err := p.runWithCatch2Exp(p.strExp)
 	if err == nil {
 		return n
 	}
 	ch := p.lexer.SetCheckpoint()
-	n, err = p.runWithCatch2(p.takeValExp)
+	n, err = p.runWithCatch2Exp(p.takeValExp)
 	if err == nil {
 		return n
 	}
@@ -56,7 +56,7 @@ func (p *Parser) number() (n ast.Node) {
 	return i
 }
 
-func (p *Parser) factor() ast.Node {
+func (p *Parser) factor() ast.ExpNode {
 	a := p.symbol()
 	ch := p.lexer.SetCheckpoint()
 	code, _, eos := p.lexer.Scan()
@@ -77,7 +77,7 @@ func (p *Parser) factor() ast.Node {
 	return a
 }
 
-func (p *Parser) exp() ast.Node {
+func (p *Parser) exp() ast.ExpNode {
 	a := p.addedFactor()
 	ch := p.lexer.SetCheckpoint()
 	code, _, eos := p.lexer.Scan()
@@ -96,7 +96,7 @@ func (p *Parser) exp() ast.Node {
 	}
 	return a
 }
-func (p *Parser) addedFactor() ast.Node {
+func (p *Parser) addedFactor() ast.ExpNode {
 	a := p.factor()
 	ch := p.lexer.SetCheckpoint()
 	code, _, eos := p.lexer.Scan()
@@ -116,7 +116,7 @@ func (p *Parser) addedFactor() ast.Node {
 	return a
 }
 
-func (p *Parser) symbol() ast.Node {
+func (p *Parser) symbol() ast.ExpNode {
 	ch := p.lexer.SetCheckpoint()
 	code, _, eos := p.lexer.Scan()
 	if eos {
