@@ -192,7 +192,9 @@ func (v *BasicTypeNode) calc(sc *Scope) (types.Type, error) {
 							k := v.String(fakes)
 							ss := strings.Split(k, ".")
 							k = ss[len(ss)-1]
-							oris.genericMap[k] = gs[i]
+							if i < len(gs) {
+								oris.genericMap[k] = gs[i]
+							}
 						}
 					}
 				}

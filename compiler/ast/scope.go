@@ -143,7 +143,9 @@ func (s *Scope) addVar(id string, val *variable) error {
 	if ok {
 		return errRedef
 	}
-	val.generics = s.generics
+	if val.generics == nil {
+		val.generics = s.generics
+	}
 	s.vartable[id] = val
 	return nil
 }
@@ -212,7 +214,8 @@ func (s *Scope) searchVar(id string) (*variable, error) {
 		}
 		val, ok := scope.vartable[id]
 		if ok {
-			s.generics = val.generics
+			s.generics = make([]types.Type, len(val.generics))
+			copy(s.generics, val.generics)
 			if s.closure && s != scope && s.trampolineObjG != nil &&
 				s.trampolineVars[id] != nil {
 				trampolineObj := s.trampolineObj

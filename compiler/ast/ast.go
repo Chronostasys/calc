@@ -469,7 +469,7 @@ func (n *SLNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		fn.closureVars = closurevar
 
 	}
-	trf = func(n Node) { // 闭包逃逸分析
+	trf = func(n Node) { // // 逃逸点4：闭包
 		// 在一个闭包中的逃逸点是闭包引用的外界变量
 		switch node := n.(type) {
 		case *DefineNode:
@@ -576,6 +576,9 @@ func (n *SLNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 			}
 		}
 	}
+	for _, v := range f.Params { // 逃逸点3：给入参赋值
+		escPoint = append(escPoint, "extern.."+v.LocalName)
+	}
 	for _, v := range escPoint {
 		if defMap[v] {
 			heapAllocTable[v] = true
@@ -602,7 +605,7 @@ func findEsc(next []*escNode, defMap map[string]bool, heapAllocTable map[string]
 			next = escMap[v.token]
 			delete(escMap, v.token)
 			findEsc(next, defMap, heapAllocTable, escMap)
-		} else {
+		} else if v.initNode != nil {
 			v.initNode.setAlloc(true)
 		}
 	}
@@ -713,7 +716,9 @@ func (n *EmptyNode) travel(f func(Node)) {
 }
 
 type defNode interface {
+	Node
 	setVal(func(s *Scope) value.Value)
+	getID() string
 }
 
 type DefineNode struct {
@@ -729,6 +734,9 @@ func (n *DefineNode) setVal(f func(s *Scope) value.Value) {
 
 func (n *DefineNode) travel(f func(Node)) {
 	f(n)
+}
+func (n *DefineNode) getID() string {
+	return n.ID
 }
 
 func (n *DefineNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
@@ -803,9 +811,13 @@ func (n *NilNode) travel(f func(Node)) {
 }
 
 type DefAndAssignNode struct {
-	ValNode ExpNode
+	ValNode Node
 	ID      string
 	Val     func(s *Scope) value.Value
+}
+
+func (n *DefAndAssignNode) getID() string {
+	return n.ID
 }
 
 func (n *DefAndAssignNode) setVal(v func(s *Scope) value.Value) {

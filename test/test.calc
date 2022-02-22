@@ -64,6 +64,7 @@ func main() int {
     gi = &genimpl{}
     printIntln(gi.Get())
     rungenerator()
+    testLinkedList()
     return 0
 }
 

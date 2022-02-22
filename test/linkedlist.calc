@@ -1,0 +1,19 @@
+package main
+
+import (
+    "github.com/Chronostasys/calc/runtime/linkedlist"
+)
+
+
+func testLinkedList() void {
+    li := linkedlist.New<int>()
+    li.Push(1)
+    li.Push(2)
+    li.Push(3)
+    printIntln(li[2])
+    printIntln(li.Len())
+    printIntln(li.Shift())
+    printIntln(li.Pop())
+    printIntln(li.Len())
+    return
+}

@@ -49,8 +49,6 @@ func rungenerator() void {
     for ;gen.StepNext(); {
         printIntln(gen.GetCurrent())
     }
-    li := linkedlist.New<int>()
-    
     return
 }
 

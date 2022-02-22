@@ -123,8 +123,12 @@ func (n *FuncNode) AddtoScope(s *Scope) {
 				panic(err)
 			}
 			fun := m.NewFunc(s.getFullName(sig), tp, ps...)
+			gs := s.generics
+			defer func() {
+				s.generics = gs
+			}()
 
-			s.globalScope.addVar(sig, &variable{v: fun})
+			s.globalScope.addVar(sig, &variable{v: fun, generics: s.generics})
 			b := fun.NewBlock("")
 			childScope := s.addChildScope(b)
 
@@ -483,6 +487,7 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		}
 		re = n.Next.calc(m, f, s)
 	}
+	s.generics = scope.generics
 	return re
 }
 

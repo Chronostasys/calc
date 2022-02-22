@@ -1,13 +1,91 @@
 package linkedlist
 
-type node<T> struct {
+type Node<T> struct {
     val T
-    next *node<T>
+    next *Node<T>
+    prev *Node<T>
 }
 
 type List<T> struct {
-    first node<T>
+    first *Node<T>
+    tail *Node<T>
+    len int
 }
+
+func UnShift<T>(this li *List<T>, t T) void {
+    li.len = li.len + 1
+    n := &Node<T>{val:t}
+    if li.first==nil {
+        li.first = n
+        li.tail = n
+        return
+    }
+    n.next = li.first
+    li.first.prev = n
+    li.first = n
+    return
+}
+
+
+func Push<T>(this li *List<T>, t T) void {
+    li.len = li.len + 1
+    n := &Node<T>{val:t}
+    if li.first==nil {
+        li.first = n
+        li.tail = n
+        return
+    }
+
+    li.tail.next = n
+    n.prev = li.tail
+    li.tail = n
+    return
+}
+func Len<T>(this li *List<T>) int {
+    return li.len
+}
+
+func IndexOp<T>(this li *List<T>, index int) T {
+    i := 0
+    var n *Node<T>
+    for n = li.first;i!=index;n=n.next {
+        i=i+1
+    }
+    return n.val
+}
+
+func Shift<T>(this li *List<T>) T {
+    n := li.first
+    li.remove(n)
+    return n.val
+}
+func Pop<T>(this li *List<T>) T {
+    n := li.tail
+    li.remove(n)
+    return n.val
+}
+
+
+
+func remove<T>(this li *List<T>, n *Node<T>) void {
+    li.len = li.len - 1
+    if n.prev==nil&&n.next==nil {
+        li.first = nil
+        li.tail = nil
+    }else if n.prev==nil{
+        li.first = n.next
+        n.next.prev = nil
+    }else if n.next==nil{
+        li.tail = n.prev
+        li.tail.next = nil
+    }else {
+        n.prev.next = n.next
+        n.next.prev = n.prev
+    }
+    return
+}
+
+
 
 func New<T>() *List<T> {
     return &List<T>{}

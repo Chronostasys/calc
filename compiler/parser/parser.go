@@ -435,9 +435,14 @@ func (p *Parser) forloop() (n ast.Node, err error) {
 		return nil, err
 	}
 	fn := &ast.ForNode{}
-	def, err := p.defineAndAssign()
+	def, err := p.runWithCatch2(p.defineAndAssign)
 	if err == nil {
 		fn.DefineAssign = def
+	} else {
+		def, err := p.runWithCatch2(p.assign)
+		if err == nil {
+			fn.DefineAssign = def
+		}
 	}
 	_, err = p.lexer.ScanType(lexer.TYPE_SEMI)
 	if err != nil {

@@ -41,9 +41,14 @@ func (n *ForNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	child := s.addChildScope(body)
 	condScope := s.addChildScope(cond)
 	name := ""
+	def := false
 	if n.DefineAssign != nil {
 		n.DefineAssign.calc(m, f, s)
-		name = n.DefineAssign.(*DefAndAssignNode).ID
+		var n1 *DefAndAssignNode
+		n1, def = n.DefineAssign.(*DefAndAssignNode)
+		if def {
+			name = n1.ID
+		}
 	}
 	if n.Bool != nil {
 		s.block.NewCondBr(loadIfVar(n.Bool.calc(m, f, s), s), body, end)
@@ -61,7 +66,7 @@ func (n *ForNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		cond.NewBr(body)
 	}
 	child.block.NewBr(cond)
-	if n.DefineAssign != nil {
+	if n.DefineAssign != nil && def {
 		// a trick, ensure loop var cannot be use out of loop
 		child.vartable[name] = s.vartable[name]
 		delete(s.vartable, name)
