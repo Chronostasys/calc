@@ -19,7 +19,7 @@
 ```
 program: P->PD NL* IS? (FN|NL|T|D|DA)+
 call_func: CF->VC GPC? LP (RP|(E(COMMA AE)* RP)) (DOT CF|VC)*
-generic_params: GP->SM TYPE (COMMA var)* LG
+generic_params: GP->SM var (COMMA var)* LG
 generic_call_params: GPC->SM TYPE (COMMA TYPE)* LG
 function: FN->FUNC var GP? FPS TYPE SB
 func_params: FPS->LP (RP|(EFP? FP(COMMA FP)* RP))

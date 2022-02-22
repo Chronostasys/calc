@@ -195,6 +195,17 @@ func (l *Lexer) GobackTo(c Checkpoint) {
 }
 
 func (l *Lexer) ScanType(code int) (token string, err error) {
+	if code == TYPE_LG {
+		chp := l.SetCheckpoint()
+		ch, end := l.getChSkipEmpty()
+		if end {
+			return "", ErrEOS
+		}
+		if ch == '>' {
+			return ">", nil
+		}
+		l.GobackTo(chp)
+	}
 	ch := l.SetCheckpoint()
 	c, t, e := l.Scan()
 	if c == code {

@@ -46,6 +46,9 @@ func testGenerator() generator.Generator<int> {
 
 func rungenerator() void {
     gen := testGenerator()
+    li := linkedlist.New<generator.Generator<int>>()
+    li.Push(gen)
+    gen = li.Shift()
     for ;gen.StepNext(); {
         printIntln(gen.GetCurrent())
     }

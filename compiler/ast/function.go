@@ -68,6 +68,7 @@ func (n *FuncNode) AddtoScope(s *Scope) {
 			node.label = fmt.Sprintf(".yield%d", lableid)
 		}
 	})
+
 	if len(n.Generics) > 0 {
 		s.globalScope.addGeneric(n.ID, func(m *ir.Module, s *Scope, gens ...TypeNode) value.Value {
 			psn := n.Params

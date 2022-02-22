@@ -156,6 +156,7 @@ func (s *Scope) getFullName(id string) string {
 	if id[0] == '{' { // anonymous struct
 		return id
 	}
+	id = strings.Replace(id, "\\22", "\"", -1)
 	if externMap[id] {
 		return id
 	}

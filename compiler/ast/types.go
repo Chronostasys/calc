@@ -185,15 +185,19 @@ func (v *BasicTypeNode) calc(sc *Scope) (types.Type, error) {
 			if len(v.Generics) > 0 {
 				gfn := sc.getGenericStruct(tpname)
 				if oris.paramGenerics != nil {
-					gs := oris.paramGenerics[oris.currParam]
-					if gs != nil {
-						fakes := NewGlobalScope(ir.NewModule())
-						for i, v := range v.Generics {
-							k := v.String(fakes)
-							ss := strings.Split(k, ".")
-							k = ss[len(ss)-1]
-							if i < len(gs) {
-								oris.genericMap[k] = gs[i]
+					if oris.currParam < len(oris.paramGenerics) {
+						gs := oris.paramGenerics[oris.currParam]
+						if gs != nil {
+							for i, v := range v.Generics {
+								if len(v.(*BasicTypeNode).CustomTp) == 0 {
+									break
+								}
+								k := v.(*BasicTypeNode).CustomTp[0]
+								ss := strings.Split(k, ".")
+								k = ss[len(ss)-1]
+								if i < len(gs) {
+									oris.genericMap[k] = gs[i]
+								}
 							}
 						}
 					}
