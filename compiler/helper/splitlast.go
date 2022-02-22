@@ -16,6 +16,6 @@ func SplitLast(str, sep string) []string {
 	return []string{first, last}
 }
 
-func Trin(str string) string {
+func Trim(str string) string {
 	return strings.Trim(str, "%*\"")
 }

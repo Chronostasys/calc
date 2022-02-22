@@ -494,6 +494,16 @@ func NewTypeDef(id string, tp TypeNode, generics []string, m *ir.Module, s *Scop
 		if td := s.globalScope.getStruct(sig); td != nil {
 			return td
 		}
+
+		// 提前定义好类型占位符，这样才能允许自引用
+		tmpss := types.NewStruct()
+		tmpss.SetName(s.getFullName(sig))
+
+		td := &typedef{
+			structType: tmpss,
+			generics:   generictypes,
+		}
+		s.globalScope.addStruct(sig, td)
 		s.genericMap = genericMap
 		t, err := tp.calc(s)
 		if tt, ok := t.(*interf); ok {
@@ -509,12 +519,14 @@ func NewTypeDef(id string, tp TypeNode, generics []string, m *ir.Module, s *Scop
 		if n, ok := tp.(*StructDefNode); ok {
 			fidx = n.fields
 		}
-		td := &typedef{
-			structType: m.NewTypeDef(s.getFullName(sig), t),
-			fieldsIdx:  fidx,
-			generics:   generictypes,
-		}
-		s.globalScope.addStruct(sig, td)
+		td.structType = m.NewTypeDef(s.getFullName(sig), t)
+		td.fieldsIdx = fidx
+		// td := &typedef{
+		// 	structType: m.NewTypeDef(s.getFullName(sig), t),
+		// 	fieldsIdx:  fidx,
+		// 	generics:   generictypes,
+		// }
+		// s.globalScope.addStruct(sig, td)
 		return td
 	}
 	s.addGenericStruct(id, deffunc)

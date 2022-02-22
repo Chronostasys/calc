@@ -89,6 +89,12 @@ func (n *FuncNode) AddtoScope(s *Scope) {
 			}
 			if len(gens) == 0 {
 				defparams()
+			} else {
+				old := s.genericMap
+				s.genericMap = make(map[string]types.Type)
+				defer func() {
+					s.genericMap = old
+				}()
 			}
 			for i, v := range n.Generics {
 				var tp types.Type

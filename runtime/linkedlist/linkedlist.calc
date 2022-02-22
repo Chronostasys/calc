@@ -1,0 +1,14 @@
+package linkedlist
+
+type node<T> struct {
+    val T
+    next *node<T>
+}
+
+type List<T> struct {
+    first node<T>
+}
+
+func New<T>() *List<T> {
+    return &List<T>{}
+}

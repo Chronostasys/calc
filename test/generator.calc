@@ -2,6 +2,7 @@ package main
 
 import (
     "github.com/Chronostasys/calc/runtime/generator"
+    "github.com/Chronostasys/calc/runtime/linkedlist"
 )
 
 
@@ -48,6 +49,8 @@ func rungenerator() void {
     for ;gen.StepNext(); {
         printIntln(gen.GetCurrent())
     }
+    li := linkedlist.New<int>()
+    
     return
 }
 
