@@ -139,7 +139,8 @@ func (l *Lexer) SetInput(s string) {
 }
 
 func (l *Lexer) Peek() (ch rune, end bool) {
-	if l.pos >= len(l.input) {
+	le := len(l.runes)
+	if l.pos >= le {
 		return ch, true
 	}
 	ch = l.runes[l.pos]
@@ -223,8 +224,8 @@ func (l *Lexer) PrintCurrent() {
 	if start < 0 {
 		start = 0
 	}
-	if end > len(l.input) {
-		end = len(l.input)
+	if end > len(l.runes) {
+		end = len(l.runes)
 	}
 	fmt.Println(l.input[start:end])
 }

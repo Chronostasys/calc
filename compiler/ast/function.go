@@ -421,6 +421,9 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		} else {
 			var va *variable
 			va, err = scope.searchVar(name)
+			if va == nil {
+				panic(fmt.Sprintf("var %s not found", name))
+			}
 			fnv = va.v
 			if err != nil {
 				panic(err)
