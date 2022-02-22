@@ -29,7 +29,7 @@ statemnt_list: SL->S+
 statement: S->CS|BS|EM|D|A|R|(CF NL)|I|(DA NL)|YI
 return: R->RET|(RET AE)
 empty: EM->NL
-yield: YI->YIELD AE NL
+yield: YI->YIELD AE? NL
 define: D->VAR var TYPE NL
 
 inline_func: IFUN->FT SB

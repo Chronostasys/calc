@@ -242,7 +242,10 @@ func buildGenerator(rtp types.Type, ps []*ir.Param,
 	// 生成generator的GetCurrent函数
 	gcname := s.getFullName(tpname + "." + "GetCurrent")
 	p = ir.NewParam("ctx", types.NewPointer(rtp))
-	getcurrent := s.m.NewFunc(gcname, tp, p)
+	t := tp.(*interf)
+	s.genericMap = t.genericMaps
+	tt, _ := t.interfaceFuncs["GetCurrent"].RetType.calc(s)
+	getcurrent := s.m.NewFunc(gcname, tt, p)
 	gcentry := getcurrent.NewBlock("")
 	chs := s.addChildScope(gcentry)
 	retptr := gcentry.NewGetElementPtr(stp, p, zero, constant.NewInt(types.I32, int64(

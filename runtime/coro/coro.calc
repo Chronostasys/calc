@@ -1,0 +1,7 @@
+package coro
+
+type StateMachine interface {
+    StepNext() bool
+}
+
+

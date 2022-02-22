@@ -244,10 +244,7 @@ func (p *Parser) yield() (n ast.Node, err error) {
 	if err != nil {
 		return nil, err
 	}
-	exp, err := p.runWithCatchExp(p.allexp)
-	if err != nil {
-		return nil, err
-	}
+	exp, _ := p.runWithCatchExp(p.allexp)
 	p.empty()
 	return &ast.YieldNode{Exp: exp}, nil
 }

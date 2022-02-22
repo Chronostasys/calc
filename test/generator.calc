@@ -28,6 +28,18 @@ func testGenerator() generator.Generator<int> {
     for ;gen.StepNext(); {
         printIntln(gen.GetCurrent())
     }
+    fg1 := func () generator.Generator<float> {
+        yield 0.1
+        a = a + 1
+        yield 0.1
+        a = a * 2
+        yield 0.1
+    }
+    gen1 := fg1()
+    for ;gen1.StepNext(); {
+        printFloatln(gen1.GetCurrent())
+    }
+
     yield a
 }
 

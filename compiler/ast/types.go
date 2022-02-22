@@ -221,6 +221,9 @@ func (v *BasicTypeNode) calc(sc *Scope) (types.Type, error) {
 			if sc.Pkgname != v.Pkg {
 				sc = ScopeMap[v.Pkg]
 			}
+			for k, v := range oris.genericMap {
+				sc.genericMap[k] = v
+			}
 			getTp()
 		} else {
 			sc = ScopeMap[v.CustomTp[0]]
@@ -388,6 +391,7 @@ type interf struct {
 	*types.IntType
 	interfaceFuncs map[string]*FuncNode
 	innerType      types.Type
+	genericMaps    map[string]types.Type
 }
 
 type InterfaceDefNode struct {
@@ -492,6 +496,12 @@ func NewTypeDef(id string, tp TypeNode, generics []string, m *ir.Module, s *Scop
 		}
 		s.genericMap = genericMap
 		t, err := tp.calc(s)
+		if tt, ok := t.(*interf); ok {
+			tt.genericMaps = make(map[string]types.Type)
+			for k, v := range genericMap {
+				tt.genericMaps[k] = v
+			}
+		}
 		if err != nil {
 			panic(err)
 		}

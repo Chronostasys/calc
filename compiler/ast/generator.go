@@ -96,6 +96,9 @@ func buildCtx(sl *SLNode, s *Scope, tps []types.Type) ([]types.Type, *ctx) {
 
 		}
 	}
+	tps = append(tps, types.NewPointer(types.NewFunc(types.Void)))
+	c.idxmap = append(c.idxmap, &ctx{id: c.i, father: c})
+	c.i++
 	for _, v := range sl.Children {
 		trf(v)
 	}
@@ -109,17 +112,25 @@ type YieldNode struct {
 
 func (n *YieldNode) travel(f func(Node)) {
 	f(n)
-	n.Exp.travel(f)
+	if n.Exp != nil {
+		n.Exp.travel(f)
+	}
 }
 
 func (n *YieldNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
-	v := n.Exp.calc(m, f, s)
-	store(loadIfVar(v, s), s.yieldRet, s)
+	if n.Exp != nil {
+		v := n.Exp.calc(m, f, s)
+		v, err := implicitCast(loadIfVar(v, s), getElmType(s.yieldRet.Type()), s)
+		if err != nil {
+			panic(err)
+		}
+		store(v, s.yieldRet, s)
+	}
 	nb := f.NewBlock(n.label)
 	store(constant.NewBlockAddress(f, nb), s.yieldBlock, s)
 	s.block.NewRet(constant.True)
 	s.block = nb
-	return v
+	return zero
 }
 
 type blockAddress struct {
