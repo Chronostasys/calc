@@ -3,6 +3,7 @@ package main
 import (
     "github.com/Chronostasys/calc/runtime/generator"
     "github.com/Chronostasys/calc/runtime/linkedlist"
+    "github.com/Chronostasys/calc/runtime/coro"
 )
 
 
@@ -45,13 +46,19 @@ func testGenerator() generator.Generator<int> {
 }
 
 func rungenerator() void {
+    printIntln(1111)
     gen := testGenerator()
+    printIntln(2222)
     li := linkedlist.New<generator.Generator<int>>()
     li.Push(gen)
     gen = li.Shift()
+    printIntln(3333)
     for ;gen.StepNext(); {
         printIntln(gen.GetCurrent())
     }
+     
+    sch := coro.NewScheduler()
+    sch.QueueTask(gen)
     return
 }
 

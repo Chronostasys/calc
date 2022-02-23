@@ -89,6 +89,8 @@ func (p *Parser) function() ast.Node {
 		panic(err)
 	}
 	fn.RetType = tp
+	_, err = p.lexer.ScanType(lexer.TYPE_RES_ASYNC)
+	fn.Async = err == nil
 	fn.Statements, err = p.statementBlock()
 	if err != nil {
 		panic(err)
@@ -232,6 +234,8 @@ func (p *Parser) inlineFunc() (n ast.ExpNode, err error) {
 	fn := &ast.InlineFuncNode{
 		Fntype: fntp,
 	}
+	_, err = p.lexer.ScanType(lexer.TYPE_RES_ASYNC)
+	fn.Async = err == nil
 	fn.Body, err = p.runWithCatch2(p.statementBlock)
 	if err != nil {
 		return nil, err

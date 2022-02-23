@@ -1,7 +1,42 @@
 package coro
 
+import (
+    "github.com/Chronostasys/calc/runtime/linkedlist"
+)
+
 type StateMachine interface {
     StepNext() bool
 }
+
+type defaultScheduler struct {
+    tasks *linkedlist.List<StateMachine>
+}
+
+type Scheduler interface {
+    QueueTask(s StateMachine) void
+    Exec() void
+}
+
+
+func NewScheduler() Scheduler {
+    return &defaultScheduler{
+        tasks: linkedlist.New<StateMachine>(),
+    }
+}
+
+func QueueTask(this s *defaultScheduler, st StateMachine) void {
+    s.tasks.Push(st)
+    return
+}
+
+func Exec(this s *defaultScheduler) void {
+    for ;s.tasks.Len()>0; {
+        t := s.tasks.Shift()
+        for ;t.StepNext(); {
+        }
+    }
+    return
+}
+
 
 

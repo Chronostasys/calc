@@ -71,6 +71,8 @@ const (
 	TYPE_BIT_OR        // "|"
 	TYPE_BIT_XOR       // "^"
 	TYPE_RES_YIELD     // "yield"
+	TYPE_RES_ASYNC     // "async"
+	TYPE_RES_AWAIT     // "await"
 )
 
 var (
@@ -104,6 +106,8 @@ var (
 		"import":    TYPE_RES_IMPORT,
 		"op":        TYPE_RES_OP,
 		"yield":     TYPE_RES_YIELD,
+		"async":     TYPE_RES_ASYNC,
+		"await":     TYPE_RES_AWAIT,
 	}
 	reservedTypes = map[string]int{
 		"int":     TYPE_RES_INT,

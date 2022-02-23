@@ -175,11 +175,11 @@ func (n *BinNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 			return rawL
 		}
 		val := rawL
-		r, err := implicitCast(r, l.Type(), s)
+		r1, err := implicitCast(r, l.Type(), s)
 		if err != nil {
 			panic(err)
 		}
-		store(r, val, s)
+		store(r1, val, s)
 		return zero
 	case lexer.TYPE_PS:
 		if hasF {
@@ -216,7 +216,9 @@ func getVarNode(n Node) alloca {
 }
 
 func store(r, lptr value.Value, s *Scope) value.Value {
-	if r.Type().Equal(lptr.Type().(*types.PointerType).ElemType) {
+	elmtp := lptr.Type().(*types.PointerType).ElemType
+	rtp := r.Type()
+	if rtp.Equal(elmtp) {
 		s.block.NewStore(r, lptr)
 		return lptr
 	}
@@ -426,12 +428,6 @@ func deReference(va value.Value, s *Scope) value.Value {
 			if _, ok := tpptr.(*types.PointerType); ok {
 				va = s.block.NewLoad(tpptr, va)
 			} else {
-				if inter, ok := tpptr.(*interf); ok {
-					// interface type, return it's real type
-					realTP := inter.innerType
-
-					return s.block.NewIntToPtr(s.block.NewLoad(tpptr, va), types.NewPointer(realTP))
-				}
 				break
 			}
 		}
@@ -784,7 +780,8 @@ func (n *RetNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		return zero
 	}
 	ret := n.Exp.calc(m, f, s)
-	v, err := implicitCast(loadIfVar(ret, s), f.Sig.RetType, s)
+	l := loadIfVar(ret, s)
+	v, err := implicitCast(l, f.Sig.RetType, s)
 	if err != nil {
 		panic(err)
 	}
@@ -905,12 +902,7 @@ func implicitCast(v value.Value, target types.Type, s *Scope) (value.Value, erro
 	if v.Type().Equal(target) {
 		return v, nil
 	}
-	if t, ok := target.(*interf); ok {
-		if v.Type().Equal(t.IntType) {
-			return v, nil
-		}
-	}
-	switch v.Type().(type) {
+	switch val := v.Type().(type) {
 	case *types.FloatType:
 		tp := v.Type().(*types.FloatType)
 		targetTp := target.(*types.FloatType)
@@ -930,7 +922,9 @@ func implicitCast(v value.Value, target types.Type, s *Scope) (value.Value, erro
 		tp, ok := target.(*interf)
 		src := strings.Trim(v.Type().String(), "%*\"")
 		if ok { // turn to interface
+			st := stackAlloc(s.m, s, tp)
 			for k, v1 := range tp.interfaceFuncs {
+				f := s.block.NewGetElementPtr(tp.Type, st, zero, constant.NewInt(types.I32, int64(v1.i)))
 				fnv, err := s.searchVar(src + "." + k)
 				if err != nil {
 					goto FAIL
@@ -952,13 +946,65 @@ func implicitCast(v value.Value, target types.Type, s *Scope) (value.Value, erro
 				if !fn.Sig.RetType.Equal(rtp) {
 					goto FAIL
 				}
+				in := s.block.NewPtrToInt(fn, lexer.DefaultIntType())
+				store(in, f, s)
+
 			}
 			// cast
 			inst := s.block.NewPtrToInt(v, lexer.DefaultIntType())
-			tp.innerType = v.Type().(*types.PointerType).ElemType
-			return inst, nil
+			ptr := s.block.NewGetElementPtr(tp.Type, st, zero, zero)
+			store(inst, ptr, s)
+			return loadIfVar(st, s), nil
 		}
 	FAIL:
+		return nil, fmt.Errorf("failed to cast %v to interface %v", v, target.Name())
+	case *interf:
+		tp, ok := target.(*interf)
+		if ok {
+			st := stackAlloc(s.m, s, tp)
+			val2 := stackAlloc(s.m, s, val)
+			store(v, val2, s)
+			for k, v1 := range tp.interfaceFuncs {
+				f := s.block.NewGetElementPtr(tp.Type, st, zero, constant.NewInt(types.I32, int64(v1.i)))
+				v2, ok := val.interfaceFuncs[k]
+				if !ok {
+					goto FAIL1
+				}
+				for i, p := range v2.Params.Params {
+					tp1, err := p.TP.calc(s)
+					if err != nil {
+						return nil, err
+					}
+					tp2, err := v1.Params.Params[i].TP.calc(s)
+					if err != nil {
+						return nil, err
+					}
+					if !tp1.Equal(tp2) {
+						goto FAIL1
+					}
+				}
+				rtp1, err := v1.RetType.calc(s)
+				if err != nil {
+					goto FAIL1
+				}
+				rtp2, err := v2.RetType.calc(s)
+				if err != nil {
+					goto FAIL1
+				}
+				if !rtp1.Equal(rtp2) {
+					goto FAIL1
+				}
+				f2 := s.block.NewGetElementPtr(val.Type, val2, zero, constant.NewInt(types.I32, int64(v2.i)))
+				loadf := loadIfVar(f2, s)
+				store(loadf, f, s)
+			}
+			// cast
+			inst := s.block.NewGetElementPtr(val.Type, val2, zero, zero)
+			ptr := s.block.NewGetElementPtr(tp.Type, st, zero, zero)
+			store(loadIfVar(inst, s), ptr, s)
+			return loadIfVar(st, s), nil
+		}
+	FAIL1:
 		return nil, fmt.Errorf("failed to cast %v to interface %v", v, target.Name())
 	default:
 		return nil, fmt.Errorf("failed to cast %v to %v", v, target)

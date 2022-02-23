@@ -24,7 +24,7 @@ calc的协程基于generator
 ## 工作流程举例
 假设我们有以下的异步方法：  
 ```calc
-func async DojobAsync() Task<void> {
+func DojobAsync() Task<void> async {
     i := await RunTask<int>(func () int {
         Sleep(1)
         return 100

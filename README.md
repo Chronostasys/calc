@@ -21,7 +21,7 @@ program: P->PD NL* IS? (FN|NL|T|D|DA)+
 call_func: CF->VC GPC? LP (RP|(E(COMMA AE)* RP)) (DOT CF|VC)*
 generic_params: GP->SM var (COMMA var)* LG
 generic_call_params: GPC->SM TYPE (COMMA TYPE)* LG
-function: FN->FUNC var GP? FPS TYPE SB
+function: FN->FUNC var GP? FPS TYPE ASYNC? SB
 func_params: FPS->LP (RP|(EFP? FP(COMMA FP)* RP))
 ext_func_param: EFP->THIS FP
 func_param: FP->var TYPE
@@ -32,7 +32,7 @@ empty: EM->NL
 yield: YI->YIELD AE? NL
 define: D->VAR var TYPE NL
 
-inline_func: IFUN->FT SB
+inline_func: IFUN->FT ASYNC?  SB
 
 
 all_types: TYPE->MUL*  BTYPE|AT|ST|IT
@@ -44,7 +44,7 @@ struct_type: ST->STRUCT LB ((var TYPE NL)|NL)* RB
 interface_type: IT->INTERFACE LB ((var FPS TYPE NL)|NL)* RB
 asssign: A->MUL* VC ASSIGN AE
 
-all_exp: AE->BE|TPE|IFUNC
+all_exp: AE->BE|TPE|IFUNC|(AWAIT AE) 
 exp: E->AF ((SHL|SHR) AF)*
 bool_exp: BE->BO ((AND|OR) BE)?
 bit_op: BO->C ((BO|ESP|XOR) C)*

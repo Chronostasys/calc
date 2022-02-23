@@ -394,10 +394,18 @@ func (v *StructDefNode) String(*Scope) string {
 }
 
 type interf struct {
-	*types.IntType
+	types.Type
 	interfaceFuncs map[string]*FuncNode
-	innerType      types.Type
 	genericMaps    map[string]types.Type
+	id             string
+}
+
+func (t *interf) Equal(t1 types.Type) bool {
+	if i, ok := t1.(*interf); ok {
+		return i.id == t.id
+	}
+	return false
+
 }
 
 type InterfaceDefNode struct {
@@ -420,8 +428,16 @@ func (v *InterfaceDefNode) SetPtrLevel(i int) {
 }
 func (v *InterfaceDefNode) calc(s *Scope) (types.Type, error) {
 	var tp types.Type
+	tps := []types.Type{lexer.DefaultIntType()}
+	i := 1
+	for _, v := range v.Funcs {
+		tps = append(tps, lexer.DefaultIntType())
+		v.i = i
+		i++
+	}
+	interfaceTp := types.NewStruct(tps...)
 	tp = &interf{
-		IntType:        lexer.DefaultIntType(),
+		Type:           interfaceTp,
 		interfaceFuncs: v.Funcs,
 	}
 
@@ -460,16 +476,23 @@ func (n *typeDefNode) travel(f func(Node)) {
 
 func NewTypeDef(id string, tp TypeNode, generics []string, m *ir.Module, s *Scope) Node {
 	if len(generics) == 0 {
-		t, err := tp.calc(s)
-		if err != nil {
-			panic(err)
-		}
-		var fidx map[string]*field
-		if n, ok := tp.(*StructDefNode); ok {
-			fidx = n.fields
-		}
-		n := &typeDefNode{id: id, tp: t, generics: generics}
+		sout := s
+		n := &typeDefNode{id: id, generics: generics}
+
 		defFunc := func(s *Scope) {
+			t, err := tp.calc(sout)
+			if err != nil {
+				panic(err)
+			}
+			if tt, ok := t.(*interf); ok {
+				tt.id = s.getFullName(n.id)
+			}
+			var fidx map[string]*field
+			if n, ok := tp.(*StructDefNode); ok {
+				fidx = n.fields
+			}
+			n.tp = t
+
 			s.globalScope.addStruct(n.id, &typedef{
 				structType: m.NewTypeDef(s.getFullName(n.id), t),
 				fieldsIdx:  fidx,
@@ -517,6 +540,7 @@ func NewTypeDef(id string, tp TypeNode, generics []string, m *ir.Module, s *Scop
 			for k, v := range genericMap {
 				tt.genericMaps[k] = v
 			}
+			tt.id = s.getFullName(sig)
 		}
 		if err != nil {
 			panic(err)

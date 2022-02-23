@@ -34,7 +34,17 @@ func (c *ctx) setVals(st value.Value, s *Scope) {
 }
 
 func buildCtx(sl *SLNode, s *Scope, tps []types.Type) ([]types.Type, *ctx) {
+	mvart := map[string]map[string]*variable{}
+	for k, v := range ScopeMap {
+		mvart[k] = map[string]*variable{}
+		for k2, v2 := range v.vartable {
+			mvart[k][k2] = v2
+		}
+	}
 	defer func() {
+		for k, v := range ScopeMap {
+			v.vartable = mvart[k]
+		}
 		s.childrenScopes = nil
 	}()
 	c := &ctx{idxmap: []*ctx{}}

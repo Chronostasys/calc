@@ -269,6 +269,11 @@ func (p *Parser) program() *ast.ProgramNode {
 }
 
 func (p *Parser) allexp() ast.ExpNode {
+	_, err := p.lexer.ScanType(lexer.TYPE_RES_AWAIT)
+	if err == nil {
+		return &ast.AwaitNode{Exp: p.allexp()}
+	}
+
 	ast, err := p.runWithCatch2Exp(p.takePtrExp)
 	if err == nil {
 		return ast
@@ -700,7 +705,7 @@ func getModule(dir string) string {
 }
 
 var calcmod, maindir string
-var startMap = map[string]bool{}
+var startMap = map[string]chan struct{}{}
 var mu = &sync.Mutex{}
 
 func ParseDir(dir string) *ir.Module {
@@ -715,12 +720,19 @@ func ParseDir(dir string) *ir.Module {
 }
 func ParseModule(dir, mod string, m *ir.Module, fathers map[string]bool) *ast.ProgramNode {
 	mu.Lock()
-	if startMap[mod] {
+	ch := startMap[mod]
+	if ch != nil {
 		mu.Unlock()
+		<-ch
+
 		return nil
 	}
-	startMap[mod] = true
+	ch = make(chan struct{})
+	startMap[mod] = ch
 	mu.Unlock()
+	defer func() {
+		close(ch)
+	}()
 	tmpm := ir.NewModule()
 	c, err := os.ReadDir(dir)
 	if err != nil {

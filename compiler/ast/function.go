@@ -57,7 +57,9 @@ type FuncNode struct {
 	RetType    TypeNode
 	Statements Node
 	Generics   []string
+	Async      bool
 	generator  bool
+	i          int
 }
 
 func (n *FuncNode) AddtoScope(s *Scope) {
@@ -228,7 +230,7 @@ func buildGenerator(rtp types.Type, ps []*ir.Param,
 		if v.LocalIdent.LocalName == ".closure" { // a closure generator
 			// 转移闭包相关数据
 			generatorScope.closure = childScope.closure
-			generatorScope.trampolineObj = entry.NewBitCast(ptr, childScope.trampolineObj.Type())
+			generatorScope.trampolineObj = entry.NewBitCast(loadIfVar(ptr, generatorScope), childScope.trampolineObj.Type())
 			generatorScope.trampolineVars = childScope.trampolineVars
 		}
 		generatorScope.addVar(v.LocalName, &variable{v: ptr})
@@ -414,7 +416,37 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		name = name + "." + fnNode.Token
 		var err error
 		var fnv value.Value
-		if len(n.Generics) > 0 {
+		i, ok := loadElmType(alloca.Type()).(*interf)
+		ok2 := false
+		if ok && i.interfaceFuncs != nil {
+			_, ok2 = i.interfaceFuncs[fnNode.Token]
+		}
+		if ok2 {
+			id := i.interfaceFuncs[fnNode.Token].i
+			interger := s.block.NewGetElementPtr(i.Type,
+				alloca, zero, constant.NewInt(types.I32, int64(id)))
+
+			v := i.interfaceFuncs[fnNode.Token]
+			ret, err := v.RetType.calc(s)
+			if err != nil {
+				panic(err)
+			}
+			alloca = deReference(alloca, s)
+			in := s.block.NewGetElementPtr(i.Type, alloca, zero, zero)
+			alloca = s.block.NewIntToPtr(loadIfVar(in, s), types.I8Ptr)
+			ps := []types.Type{types.I8Ptr}
+			for _, v := range v.Params.Params {
+				p, err := v.TP.calc(s)
+				if err != nil {
+					panic(err)
+				}
+				ps = append(ps, p)
+			}
+
+			ft := types.NewFunc(ret, ps...)
+			fnv = s.block.NewIntToPtr(loadIfVar(interger, s), types.NewPointer(ft))
+
+		} else if len(n.Generics) > 0 {
 			if gfn := scope.getGenericFunc(name); gfn != nil {
 				fnv = gfn(m, n.Generics...)
 			} else {
@@ -500,6 +532,7 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 type InlineFuncNode struct {
 	Fntype      TypeNode
 	Body        Node
+	Async       bool
 	closureVars map[string]bool
 }
 
