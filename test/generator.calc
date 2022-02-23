@@ -56,9 +56,6 @@ func rungenerator() void {
     for ;gen.StepNext(); {
         printIntln(gen.GetCurrent())
     }
-     
-    sch := coro.NewScheduler()
-    sch.QueueTask(gen)
     return
 }
 

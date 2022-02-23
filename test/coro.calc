@@ -1,0 +1,47 @@
+package main
+
+import (
+    "github.com/Chronostasys/calc/runtime/generator"
+    "github.com/Chronostasys/calc/runtime/coro"
+)
+
+func testCoroutine() void {
+    sch := coro.sch
+    printIntln(8888)
+    coro.QueueTask(testCoroutineAsync())
+    coro.QueueTask(coroutine2())
+    coro.Exec()
+    Sleep(300)
+    return
+}
+
+func testCoroutineAsync() generator.Generator<int> async {
+    s := "async func main queued"
+    s.PrintLn()
+    s = "async func main call async func 1"
+    s.PrintLn()
+    re := await coroutine1()
+    s = "async func 1 return in async func main:"
+    s.PrintLn()
+    printIntln(re)
+
+    return 1
+}
+
+func coroutine1() generator.Generator<int> async {
+    Sleep(100)
+    return 8989
+}
+
+func coroutine2() generator.Generator<int> async {
+    s := "async func 2 queued"
+    s.PrintLn()
+    s = "async func 2 call async func 1"
+    s.PrintLn()
+    re := await coroutine1()
+    s = "async func 1 return in async func 2:"
+    s.PrintLn()
+    printIntln(re)
+    
+    return 2
+}

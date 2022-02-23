@@ -4,6 +4,8 @@ import (
     "github.com/Chronostasys/calc/runtime/linkedlist"
 )
 
+var sch = NewScheduler()
+
 type StateMachine interface {
     StepNext() bool
 }
@@ -15,6 +17,7 @@ type defaultScheduler struct {
 type Scheduler interface {
     QueueTask(s StateMachine) void
     Exec() void
+    Len() int
 }
 
 
@@ -29,6 +32,24 @@ func QueueTask(this s *defaultScheduler, st StateMachine) void {
     return
 }
 
+func QueueTaskIfPossible(st *StateMachine) void {
+    if st == nil {
+        return
+    }
+    sch.QueueTask(*st)
+    return
+}
+
+func QueueTask(st StateMachine) void {
+    sch.QueueTask(st)
+    return
+}
+func Exec() void {
+    sch.Exec()
+    return
+}
+
+
 func Exec(this s *defaultScheduler) void {
     for ;s.tasks.Len()>0; {
         t := s.tasks.Shift()
@@ -38,5 +59,8 @@ func Exec(this s *defaultScheduler) void {
     return
 }
 
+func Len(this s *defaultScheduler) int {
+    return s.tasks.Len()
+}
 
 

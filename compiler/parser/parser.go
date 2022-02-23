@@ -226,11 +226,10 @@ func (p *Parser) program() *ast.ProgramNode {
 		for _, v := range p.imp {
 			if strings.Index(v, calcmod) == 0 {
 				// sub module of mod
-				pa := path.Join(maindir, v[len(calcmod):])
 				if p.fathers[v] {
 					panic(fmt.Sprintf("found loop referencing in %s. refmap: %v", v, p.fathers))
 				}
-				ParseModule(pa, v, p.m, p.fathers)
+				ParseModule("", v, p.m, p.fathers)
 			} else {
 				// TODO external module
 				panic("not impl")
@@ -711,14 +710,16 @@ var mu = &sync.Mutex{}
 func ParseDir(dir string) *ir.Module {
 	calcmod = getModule(dir)
 	m := ir.NewModule()
-	mod := "github.com/Chronostasys/calc/runtime"
-	pa := path.Join(maindir, mod[len(calcmod):])
-	ParseModule(pa, mod, m, map[string]bool{})
+	ParseModule("", "github.com/Chronostasys/calc/runtime", m, map[string]bool{})
+	ParseModule("", "github.com/Chronostasys/calc/runtime/coro", m, map[string]bool{})
 	p1 := ParseModule(dir, "main", m, map[string]bool{})
 	ast.AddSTDFunc(m, p1.GlobalScope)
 	return m
 }
 func ParseModule(dir, mod string, m *ir.Module, fathers map[string]bool) *ast.ProgramNode {
+	if mod != "main" {
+		dir = path.Join(maindir, mod[len(calcmod):])
+	}
 	mu.Lock()
 	ch := startMap[mod]
 	if ch != nil {

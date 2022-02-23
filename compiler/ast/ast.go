@@ -379,6 +379,10 @@ type fakeNode struct {
 	v value.Value
 }
 
+func (n *fakeNode) tp() TypeNode {
+	panic("not impl")
+}
+
 func (n *fakeNode) travel(f func(Node)) {
 	f(n)
 }
@@ -763,7 +767,8 @@ func (n *DefineNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 var mallocTable = map[*ir.InstAlloca]bool{}
 
 type RetNode struct {
-	Exp Node
+	Exp   Node
+	async bool
 }
 
 func (n *RetNode) travel(f func(Node)) {
@@ -776,17 +781,51 @@ func (n *RetNode) travel(f func(Node)) {
 
 func (n *RetNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	if n.Exp == nil {
-		s.block.NewRet(nil)
+		if n.async {
+			nb := f.NewBlock(".exit")
+			store(constant.NewBlockAddress(f, nb), s.yieldBlock, s)
+
+			qt, _ := ScopeMap[CORO_MOD].searchVar("QueueTaskIfPossible")
+
+			fqt := qt.v.(*ir.Func)
+			i := ScopeMap[CORO_MOD].getStruct("StateMachine").structType
+			s.block.NewCall(fqt, s.block.NewIntToPtr(s.continueTask, types.NewPointer(i)))
+
+			s.block.NewRet(constant.False)
+			s.block = nb
+		} else {
+			s.block.NewRet(nil)
+		}
+
 		return zero
 	}
 	ret := n.Exp.calc(m, f, s)
 	l := loadIfVar(ret, s)
-	v, err := implicitCast(l, f.Sig.RetType, s)
+	rtp := f.Sig.RetType
+	if n.async {
+		rtp = getElmType(s.yieldRet.Type())
+	}
+	v, err := implicitCast(l, rtp, s)
 	if err != nil {
 		panic(err)
 	}
 	if s.freeFunc != nil {
 		s.freeFunc(s)
+	}
+	if n.async {
+		nb := f.NewBlock(".exit")
+		store(constant.NewBlockAddress(f, nb), s.yieldBlock, s)
+		store(v, s.yieldRet, s)
+
+		qt, _ := ScopeMap[CORO_MOD].searchVar("QueueTaskIfPossible")
+
+		fqt := qt.v.(*ir.Func)
+		i := ScopeMap[CORO_MOD].getStruct("StateMachine").structType
+		s.block.NewCall(fqt, s.block.NewIntToPtr(s.continueTask, types.NewPointer(i)))
+
+		s.block.NewRet(constant.False)
+		s.block = nb
+		return zero
 	}
 	s.block.NewRet(v)
 	return zero

@@ -64,11 +64,24 @@ type FuncNode struct {
 
 func (n *FuncNode) AddtoScope(s *Scope) {
 	lableid := 0
+	if n.Async {
+		n.generator = true
+	}
 	n.travel(func(no Node) {
-		if node, ok := no.(*YieldNode); ok {
+		switch node := no.(type) {
+		case *YieldNode:
 			n.generator = true
 			lableid++
 			node.label = fmt.Sprintf(".yield%d", lableid)
+		case *AwaitNode:
+			if !n.Async {
+				panic("await only allowed in async func")
+			}
+			node.label = fmt.Sprintf(".yield%d", lableid)
+			n.generator = true
+			lableid++
+		case *RetNode:
+			node.async = n.Async
 		}
 	})
 
@@ -213,6 +226,7 @@ func buildGenerator(rtp types.Type, ps []*ir.Param,
 	snname := s.getFullName(tpname + "." + "StepNext")
 	p := ir.NewParam("ctx1", types.NewPointer(rtp))
 	stepNext := s.m.NewFunc(snname, types.I1, p)
+	s.globalScope.addVar(snname, &variable{v: stepNext})
 	entry := stepNext.NewBlock("")
 	generatorScope := s.addChildScope(entry)
 	ret := entry.NewGetElementPtr(stp, p, zero, constant.NewInt(types.I32, int64(
@@ -221,8 +235,12 @@ func buildGenerator(rtp types.Type, ps []*ir.Param,
 	nextBlock := entry.NewGetElementPtr(stp, p, zero, constant.NewInt(types.I32, int64(
 		blockAddrId,
 	)))
+	sti := entry.NewGetElementPtr(stp, p, zero, zero)
+
+	generatorScope.continueTask = loadIfVar(sti, generatorScope)
 	generatorScope.yieldBlock = nextBlock
 	generatorScope.yieldRet = ret
+
 	for _, v := range ps { // 取出函数的参数
 		ptr := entry.NewGetElementPtr(stp, p, zero, constant.NewInt(types.I32, int64(
 			idxmap[v],
@@ -252,7 +270,6 @@ func buildGenerator(rtp types.Type, ps []*ir.Param,
 
 	entry.NewIndirectBr(&blockAddress{Value: loadIfVar(nextBlock, &Scope{block: entry})},
 		stepNext.Blocks...)
-	s.globalScope.addVar(snname, &variable{v: stepNext})
 
 	// 生成generator的GetCurrent函数
 	gcname := s.getFullName(tpname + "." + "GetCurrent")
@@ -261,13 +278,13 @@ func buildGenerator(rtp types.Type, ps []*ir.Param,
 	s.genericMap = t.genericMaps
 	tt, _ := t.interfaceFuncs["GetCurrent"].RetType.calc(s)
 	getcurrent := s.m.NewFunc(gcname, tt, p)
+	s.globalScope.addVar(gcname, &variable{v: getcurrent})
 	gcentry := getcurrent.NewBlock("")
 	chs := s.addChildScope(gcentry)
 	retptr := gcentry.NewGetElementPtr(stp, p, zero, constant.NewInt(types.I32, int64(
 		blockAddrId+1,
 	)))
 	gcentry.NewRet(loadIfVar(retptr, chs))
-	s.globalScope.addVar(gcname, &variable{v: getcurrent})
 
 	// generator setup方法
 	st := heapAlloc(s.m, childScope, &calcedTypeNode{stp})
@@ -615,11 +632,22 @@ func (n *InlineFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	lableid := 0
 	generator := false
 	n.travel(func(no Node) {
-		if node, ok := no.(*YieldNode); ok {
+		switch node := no.(type) {
+		case *YieldNode:
 			generator = true
 			lableid++
 			node.label = fmt.Sprintf(".yield%d", lableid)
+		case *AwaitNode:
+			if !n.Async {
+				panic("await only allowed in async func")
+			}
+			node.label = fmt.Sprintf(".yield%d", lableid)
+			generator = true
+			lableid++
+		case *RetNode:
+			node.async = n.Async
 		}
+
 	})
 
 	if generator {

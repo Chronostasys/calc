@@ -6,14 +6,19 @@ import (
 
 
 func testLinkedList() void {
+    s := "list test"
+    s.PrintLn()
     list := linkedlist.New<int>()
     list.Push(1)
+    printIntln(list.Len())
     list.Push(2)
     list.Push(3)
     printIntln(list[2])
     printIntln(list.Len())
     printIntln(list.Shift())
-    printIntln(list.Pop())
+    printIntln(list.Shift())
+    printIntln(list.Shift())
     printIntln(list.Len())
+    s.PrintLn()
     return
 }

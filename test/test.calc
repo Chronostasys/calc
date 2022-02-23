@@ -65,6 +65,7 @@ func main() int {
     printIntln(gi.Get())
     testLinkedList()
     rungenerator()
+    testCoroutine()
     return 0
 }
 

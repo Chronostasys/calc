@@ -1,6 +1,7 @@
 package ast
 
 import (
+	"github.com/Chronostasys/calc/compiler/lexer"
 	"github.com/llir/llvm/ir"
 	"github.com/llir/llvm/ir/constant"
 	"github.com/llir/llvm/ir/types"
@@ -102,13 +103,19 @@ func buildCtx(sl *SLNode, s *Scope, tps []types.Type) ([]types.Type, *ctx) {
 			tps = append(tps, getElmType(tp))
 			c.idxmap = append(c.idxmap, &ctx{id: c.i, father: c, node: node})
 			c.i++
+			if an, ok := node.ValNode.(*AwaitNode); ok {
+				tps = append(tps, an.generator)
+				c.idxmap = append(c.idxmap, &ctx{id: c.i, father: c, node: an})
+				c.i++
+
+			}
 		default:
 
 		}
 	}
-	// tps = append(tps, types.NewPointer(types.NewFunc(types.Void)))
-	// c.idxmap = append(c.idxmap, &ctx{id: c.i, father: c})
-	// c.i++
+	tps = append(tps, lexer.DefaultIntType())
+	c.idxmap = append(c.idxmap, &ctx{id: c.i, father: c})
+	c.i++
 	for _, v := range sl.Children {
 		trf(v)
 	}

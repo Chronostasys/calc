@@ -39,6 +39,7 @@ type Scope struct {
 	freeFunc          func(*Scope)
 	yieldRet          value.Value
 	yieldBlock        value.Value
+	continueTask      value.Value
 }
 
 type fieldval struct {
@@ -130,6 +131,9 @@ func (s *Scope) addChildScope(block *ir.Block) *Scope {
 	child.m = s.m
 	child.closure = s.closure
 	child.trampolineVars = s.trampolineVars
+	child.yieldBlock = s.yieldBlock
+	child.yieldRet = s.yieldRet
+	child.continueTask = s.continueTask
 	s.childrenScopes = append(s.childrenScopes, child)
 	return child
 }
