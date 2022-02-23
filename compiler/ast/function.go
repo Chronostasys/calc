@@ -7,6 +7,7 @@ import (
 	"github.com/Chronostasys/calc/compiler/helper"
 	"github.com/llir/llvm/ir"
 	"github.com/llir/llvm/ir/constant"
+	"github.com/llir/llvm/ir/enum"
 	"github.com/llir/llvm/ir/types"
 	"github.com/llir/llvm/ir/value"
 )
@@ -208,7 +209,7 @@ func buildGenerator(rtp types.Type, ps []*ir.Param,
 
 	// 生成generator的StepNext函数
 	snname := s.getFullName(tpname + "." + "StepNext")
-	p := ir.NewParam("ctx", types.NewPointer(rtp))
+	p := ir.NewParam("ctx1", types.NewPointer(rtp))
 	stepNext := s.m.NewFunc(snname, types.I1, p)
 	entry := stepNext.NewBlock("")
 	generatorScope := s.addChildScope(entry)
@@ -221,9 +222,15 @@ func buildGenerator(rtp types.Type, ps []*ir.Param,
 	generatorScope.yieldBlock = nextBlock
 	generatorScope.yieldRet = ret
 	for _, v := range ps { // 取出函数的参数
-		ptr := b.NewGetElementPtr(stp, p, zero, constant.NewInt(types.I32, int64(
+		ptr := entry.NewGetElementPtr(stp, p, zero, constant.NewInt(types.I32, int64(
 			idxmap[v],
 		)))
+		if v.LocalIdent.LocalName == ".closure" { // a closure generator
+			// 转移闭包相关数据
+			generatorScope.closure = childScope.closure
+			generatorScope.trampolineObj = entry.NewBitCast(ptr, childScope.trampolineObj.Type())
+			generatorScope.trampolineVars = childScope.trampolineVars
+		}
 		generatorScope.addVar(v.LocalName, &variable{v: ptr})
 	}
 
@@ -231,11 +238,6 @@ func buildGenerator(rtp types.Type, ps []*ir.Param,
 	realentry := stepNext.NewBlock("entry")
 
 	generatorScope.block = realentry
-
-	// 转移闭包相关数据
-	generatorScope.closure = childScope.closure
-	generatorScope.trampolineObjG = childScope.trampolineObjG
-	generatorScope.trampolineVars = childScope.trampolineVars
 
 	// 生成函数体代码
 	sta.calc(s.m, stepNext, generatorScope)
@@ -252,7 +254,7 @@ func buildGenerator(rtp types.Type, ps []*ir.Param,
 
 	// 生成generator的GetCurrent函数
 	gcname := s.getFullName(tpname + "." + "GetCurrent")
-	p = ir.NewParam("ctx", types.NewPointer(rtp))
+	p = ir.NewParam("ctx2", types.NewPointer(rtp))
 	t := tp.(*interf)
 	s.genericMap = t.genericMaps
 	tt, _ := t.interfaceFuncs["GetCurrent"].RetType.calc(s)
@@ -523,12 +525,14 @@ func (n *InlineFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	}
 	fname := fmt.Sprintf("inline.%d", inlinefuncnum)
 	cname := fmt.Sprintf("closure%d", inlinefuncnum)
-	cvarname := fmt.Sprintf("closurevar%d", inlinefuncnum)
 
 	inlinefuncnum++
 
 	// build closure
 	i := 0
+	closureArg := ir.NewParam(".closure", types.I8Ptr)
+	closureArg.Attrs = append(closureArg.Attrs, enum.ParamAttrNest)
+	ps = append([]*ir.Param{closureArg}, ps...)
 	fn := m.NewFunc(fname, fntp.RetType, ps...)
 	b := fn.NewBlock("")
 	chs := s.addChildScope(b)
@@ -550,18 +554,30 @@ func (n *InlineFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	st = m.NewTypeDef(cname, st)
 
 	// alloc closure captured var
+	trampInit, _ := s.globalScope.searchVar("llvm.init.trampoline")
+	trampAdj, _ := s.globalScope.searchVar("llvm.adjust.trampoline")
+	enableExe, _ := s.globalScope.searchVar("__enable_execute_stack")
+	// 72 bytes and 16 align, see https://stackoverflow.com/questions/15509341/how-much-space-for-a-llvm-trampoline
+	tramp := s.block.NewAlloca(types.NewArray(72, types.I8))
+	tramp.Align = 16
+	tramp1 := s.block.NewGetElementPtr(tramp.ElemType, tramp, zero, zero)
+
 	allo := heapAlloc(m, s, &calcedTypeNode{st})
 	for i, v := range vals {
 		ptr := s.block.NewGetElementPtr(st, allo, zero,
 			constant.NewInt(types.I32, int64(i)))
 		store(v, ptr, s)
 	}
-	g := m.NewGlobalDef(cvarname, constant.NewZeroInitializer(allo.Type()))
-	store(allo, g, s)
-	chs.trampolineObjG = g
-	chs.freeFunc = func(s *Scope) { // make closure var gcable
-		store(constant.NewNull(allo.Type().(*types.PointerType)), g, s)
-	}
+	cloCast := s.block.NewBitCast(allo, types.I8Ptr)
+	fncast := s.block.NewBitCast(fn, types.I8Ptr)
+	s.block.NewCall(trampInit.v, tramp1, fncast, cloCast)
+	fnptr := s.block.NewCall(trampAdj.v, tramp1)
+	s.block.NewCall(enableExe.v, fnptr)
+	fun := s.block.NewBitCast(fnptr, types.NewPointer(fntp))
+	chs.trampolineObj = chs.block.NewBitCast(closureArg, allo.Type())
+	// chs.freeFunc = func(s *Scope) { // make closure var gcable
+	// 	store(constant.NewNull(allo.Type().(*types.PointerType)), g, s)
+	// }
 
 	lableid := 0
 	generator := false
@@ -587,5 +603,5 @@ func (n *InlineFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		n.Body.calc(m, fn, chs)
 	}
 
-	return fn
+	return fun
 }

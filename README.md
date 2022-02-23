@@ -13,7 +13,7 @@
 - 不能多返回值
 
 ## 工具链
-- clang (llvm 12.0)
+- clang (llvm 12.0+) windows要使用[llvm mingw](https://github.com/mstorsjo/llvm-mingw/releases)
 - golang 1.17.1
 ## 语法规则
 ```

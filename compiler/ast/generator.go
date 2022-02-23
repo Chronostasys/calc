@@ -96,9 +96,9 @@ func buildCtx(sl *SLNode, s *Scope, tps []types.Type) ([]types.Type, *ctx) {
 
 		}
 	}
-	tps = append(tps, types.NewPointer(types.NewFunc(types.Void)))
-	c.idxmap = append(c.idxmap, &ctx{id: c.i, father: c})
-	c.i++
+	// tps = append(tps, types.NewPointer(types.NewFunc(types.Void)))
+	// c.idxmap = append(c.idxmap, &ctx{id: c.i, father: c})
+	// c.i++
 	for _, v := range sl.Children {
 		trf(v)
 	}

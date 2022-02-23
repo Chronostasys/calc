@@ -9,7 +9,7 @@ test-asm:
 	cd test && clang -S out.ll -o test.asm
 
 test-exe:
-	cd test && copy ..\compiler\gc.lib  gc.lib && copy ..\compiler\gc.dll gc.dll  && clang out.ll gc.lib -o test.exe
+	cd test && copy ..\compiler\gc.lib  gc.lib && copy ..\compiler\gc.dll gc.dll  && clang out.ll gc.lib -static-libgcc -static-libstdc++ -o test.exe
 compiler:
 	cd compiler && go build -o compiler.exe main.go
 

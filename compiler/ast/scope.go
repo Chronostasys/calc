@@ -30,7 +30,6 @@ type Scope struct {
 	closure           bool
 	trampolineVars    map[string]*fieldval
 	trampolineObj     value.Value
-	trampolineObjG    value.Value
 	m                 *ir.Module
 	generics          []types.Type
 	paramGenerics     [][]types.Type
@@ -217,12 +216,9 @@ func (s *Scope) searchVar(id string) (*variable, error) {
 		if ok {
 			s.generics = make([]types.Type, len(val.generics))
 			copy(s.generics, val.generics)
-			if s.closure && s != scope && s.trampolineObjG != nil &&
+			if s.closure && s != scope && s.trampolineObj != nil &&
 				s.trampolineVars[id] != nil {
 				trampolineObj := s.trampolineObj
-				if trampolineObj == nil {
-					trampolineObj = loadIfVar(s.trampolineObjG, s)
-				}
 				v := s.block.NewGetElementPtr(loadElmType(trampolineObj.Type()),
 					trampolineObj, zero, constant.NewInt(
 						types.I32, int64(s.trampolineVars[id].idx)))
