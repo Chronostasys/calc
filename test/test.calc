@@ -99,7 +99,7 @@ func testAllocWrap() int {
     b := &test1{}
     a.b=b
     a.b.a =1
-    printIntln(a.b.a)
+    printIntln(a.b.getA())
     return 0
 }
 type test struct{
@@ -108,6 +108,10 @@ type test struct{
 }
 type test1 struct{
     a int32
+}
+
+func getA(this t *test1) int32 {
+    return t.a
 }
 func testBasicGeneric() int {
     genericTest<int>(100)

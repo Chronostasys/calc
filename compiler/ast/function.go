@@ -382,9 +382,13 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	fnNode := varNode
 	scope, ok := ScopeMap[varNode.Token]
 	paramGenerics := [][]types.Type{}
+	prev := fnNode.Next
 	if !ok {
 		scope = s
-		prev := fnNode
+		prev = fnNode
+	}
+	fnNode = prev
+	if fnNode.Next != nil {
 		for {
 			if fnNode.Next == nil {
 				s := prev.Next
@@ -397,7 +401,10 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 			prev = fnNode
 			fnNode = fnNode.Next
 		}
+	} else {
+		fnNode = varNode
 	}
+
 	paramGenerics = append(paramGenerics, s.generics)
 	for _, v := range n.Params {
 		v2 := v.calc(m, f, s)
