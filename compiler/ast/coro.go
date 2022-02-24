@@ -53,7 +53,7 @@ func (n *AwaitNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 			zero, zero)
 		sti := loadIfVar(stiptr, s)
 		ptr := s.block.NewIntToPtr(sti, types.NewPointer(lexer.DefaultIntType()))
-		hs := heapAlloc(m, s, &calcedTypeNode{i})
+		hs := gcmalloc(m, s, &calcedTypeNode{i})
 		store(p, hs, s)
 
 		store(s.block.NewPtrToInt(hs, lexer.DefaultIntType()), ptr, s)

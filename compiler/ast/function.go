@@ -151,7 +151,7 @@ func (n *FuncNode) AddtoScope(s *Scope) {
 			childScope := s.addChildScope(b)
 
 			for i, v := range ps {
-				ptr := heapAlloc(m, childScope, &calcedTypeNode{v.Type()}) // TODO: escape analysis; alloc on heap to avoid captured by inner closure.
+				ptr := gcmalloc(m, childScope, &calcedTypeNode{v.Type()}) // TODO: escape analysis; alloc on heap to avoid captured by inner closure.
 				store(v, ptr, childScope)
 				childScope.addVar(psn.Params[i].ID, &variable{v: ptr})
 			}
@@ -294,7 +294,7 @@ func buildGenerator(rtp types.Type, ps []*ir.Param,
 	gcentry.NewRet(loadIfVar(retptr, chs))
 
 	// generator setup方法
-	st := heapAlloc(s.m, childScope, &calcedTypeNode{stp})
+	st := gcmalloc(s.m, childScope, &calcedTypeNode{stp})
 	for _, v := range ps { // 保存函数的参数
 		ptr := b.NewGetElementPtr(stp, st, zero, constant.NewInt(types.I32, int64(
 			idxmap[v],
@@ -345,7 +345,7 @@ func (n *FuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 			blockAddrId, idxmap, context, tp, n.Statements)
 	} else {
 		for i, v := range ps {
-			ptr := heapAlloc(m, childScope, &calcedTypeNode{v.Type()}) // TODO: escape analysis; alloc on heap to avoid captured by inner closure.
+			ptr := gcmalloc(m, childScope, &calcedTypeNode{v.Type()}) // TODO: escape analysis; alloc on heap to avoid captured by inner closure.
 			store(v, ptr, childScope)
 			childScope.addVar(psn.Params[i].ID, &variable{v: ptr})
 		}
@@ -541,11 +541,17 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	var re value.Value = s.block.NewCall(loadIfVar(fn, s), params...)
 	if !re.Type().Equal(types.Void) {
 		// autoAlloc()
-		alloc := s.block.NewAlloca(re.Type())
-		store(re, alloc, s)
-		if fnNode.Token == "heapalloc" {
-			mallocTable[alloc] = true
+		var alloc value.Value
+		if externMap[fnNode.Token] || stackallocfn[fnNode.Token] {
+			alloc = s.block.NewAlloca(re.Type())
+		} else {
+			alloc = gcmalloc(m, s, &calcedTypeNode{re.Type()})
 		}
+		// alloc := s.block.NewAlloca(re.Type())
+		store(re, alloc, s)
+		// if fnNode.Token == "heapalloc" {
+		// 	mallocTable[alloc] = true
+		// }
 		re = alloc
 	}
 	if n.Next != nil {
@@ -562,6 +568,11 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	}
 	s.generics = scope.generics
 	return re
+}
+
+var stackallocfn = map[string]bool{
+	"sizeof":     true,
+	"unsafecast": true,
 }
 
 type InlineFuncNode struct {
@@ -588,8 +599,11 @@ func (n *InlineFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	}
 	fntp := fnt.(*types.PointerType).ElemType.(*types.FuncType)
 	ps := []*ir.Param{}
+	psm := map[string]bool{}
 	for i, v := range fntp.Params {
-		ps = append(ps, ir.NewParam(fmt.Sprintf("%d", i), v))
+		id := n.Fntype.(*FuncTypeNode).Args.Params[i].ID
+		ps = append(ps, ir.NewParam(id, v))
+		psm[id] = true
 	}
 	fname := fmt.Sprintf("inline.%d", inlinefuncnum)
 	cname := fmt.Sprintf("closure%d", inlinefuncnum)
@@ -607,6 +621,22 @@ func (n *InlineFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	chs.closure = true
 	fields := []types.Type{}
 	vals := []value.Value{}
+	for k := range n.closureVars {
+		if psm[k] {
+			// skip params
+			delete(n.closureVars, k)
+		}
+		fullname := s.getFullName(k)
+		if _, ok := s.globalScope.genericFuncs[fullname]; ok {
+			// skip generic func
+			delete(n.closureVars, k)
+		}
+		if _, ok := s.globalScope.vartable[fullname]; ok {
+			// skip global funcs
+			delete(n.closureVars, k)
+		}
+	}
+
 	for k := range n.closureVars {
 		v := &fieldval{}
 		v.idx = i
@@ -627,10 +657,10 @@ func (n *InlineFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	enableExe, _ := s.globalScope.searchVar("__enable_execute_stack")
 	// 72 bytes and 16 align, see https://stackoverflow.com/questions/15509341/how-much-space-for-a-llvm-trampoline
 	tramptp := types.NewArray(72, types.I8)
-	tramp := heapAlloc(m, s, &calcedTypeNode{tramptp}) // alloc on heap to avoid call it in another thread
+	tramp := gcmalloc(m, s, &calcedTypeNode{tramptp}) // alloc on heap to avoid call it in another thread
 	tramp1 := s.block.NewGetElementPtr(tramptp, tramp, zero, zero)
 
-	allo := heapAlloc(m, s, &calcedTypeNode{st})
+	allo := gcmalloc(m, s, &calcedTypeNode{st})
 	for i, v := range vals {
 		ptr := s.block.NewGetElementPtr(st, allo, zero,
 			constant.NewInt(types.I32, int64(i)))
@@ -677,7 +707,7 @@ func (n *InlineFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 			blockAddrId, idxmap, context, fn.Sig.RetType, n.Body)
 	} else {
 		for i, v := range ps {
-			ptr := heapAlloc(m, chs, &calcedTypeNode{v.Type()}) // TODO: escape analysis; alloc on heap to avoid captured by inner closure.
+			ptr := gcmalloc(m, chs, &calcedTypeNode{v.Type()}) // TODO: escape analysis; alloc on heap to avoid captured by inner closure.
 			store(v, ptr, chs)
 			chs.addVar(ps[i].LocalName, &variable{v: ptr})
 		}

@@ -6,12 +6,14 @@ import (
 )
 
 func testCoroutine() void {
-    sch := coro.sch
-    printIntln(8888)
     coro.QueueTask(testCoroutineAsync())
     coro.QueueTask(coroutine2())
     coro.Exec()
-    Sleep(3000)
+    for i :=0; i<5 ; i = i + 1 {
+        coro.QueueTask(testCoroutineAsync())
+        coro.QueueTask(coroutine2())
+    }
+    //Sleep(3000)
     return
 }
 

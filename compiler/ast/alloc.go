@@ -6,10 +6,20 @@ import (
 	"github.com/llir/llvm/ir/value"
 )
 
-func heapAlloc(m *ir.Module, s *Scope, gtp TypeNode) value.Value {
+func gcmalloc(m *ir.Module, s *Scope, gtp TypeNode) value.Value {
 	gfn := s.globalScope.getGenericFunc("heapalloc")
 	if gfn == nil {
 		gfn = ScopeMap["github.com/Chronostasys/calc/runtime"].getGenericFunc("heapalloc")
+	}
+	fnv := gfn(m, gtp)
+	v := s.block.NewCall(fnv)
+	return v
+}
+
+func mallocTramp(m *ir.Module, s *Scope, gtp TypeNode) value.Value {
+	gfn := s.globalScope.getGenericFunc("heapallocTrampoline")
+	if gfn == nil {
+		gfn = ScopeMap["github.com/Chronostasys/calc/runtime"].getGenericFunc("heapallocTrampoline")
 	}
 	fnv := gfn(m, gtp)
 	v := s.block.NewCall(fnv)

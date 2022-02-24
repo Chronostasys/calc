@@ -461,7 +461,7 @@ func (n *SLNode) travel(f func(Node)) {
 func (n *SLNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	var escMap = map[string][]*escNode{} // key：变量名   val：给它赋值过的右值
 	var defMap = map[string]bool{}
-	var escPoint = []string{}
+	var escPoint = map[string]bool{}
 	var heapAllocTable = map[string]bool{}
 	var closuredef = map[string]bool{}
 	var closurevar = map[string]bool{}
@@ -488,6 +488,25 @@ func (n *SLNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 
 		}
 	}
+
+	callfanf := func(node *CallFuncNode) {
+		for _, v := range node.Params {
+			v.travel(func(right Node) {
+				if r, ok := right.(*VarBlockNode); ok {
+					rname := r.Token
+					if !defMap[r.Token] {
+						rname = "extern.." + rname
+					}
+					escPoint[rname] = true
+				} else if r, ok := right.(alloca); ok {
+					r.setAlloc(true)
+				}
+			})
+			node.FnNode.(*VarBlockNode).setAlloc(true)
+			escPoint[node.FnNode.(*VarBlockNode).Token] = true
+		}
+		// println()
+	}
 	if strings.Contains(f.Ident(), "heapalloc") ||
 		strings.Contains(f.Ident(), "heapfree") ||
 		strings.Contains(f.Ident(), "MallocList") {
@@ -506,6 +525,9 @@ func (n *SLNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 				left := getVarNode(node.Left).(*VarBlockNode)
 				right := getVarNode(node.Right)
 				if right == nil {
+					if cn, ok := node.Right.(*CallFuncNode); ok {
+						callfanf(cn)
+					}
 					continue
 				}
 				name := left.Token
@@ -540,6 +562,9 @@ func (n *SLNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 			}
 			right := getVarNode(node.ValNode)
 			if right == nil {
+				if cn, ok := node.ValNode.(*CallFuncNode); ok {
+					callfanf(cn)
+				}
 				continue
 			}
 			if r, ok := right.(*VarBlockNode); ok {
@@ -569,6 +594,9 @@ func (n *SLNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 			}
 			right := getVarNode(node.Exp)
 			if right == nil {
+				if cn, ok := node.Exp.(*CallFuncNode); ok {
+					callfanf(cn)
+				}
 				continue
 			}
 			if r, ok := right.(*VarBlockNode); ok {
@@ -576,15 +604,9 @@ func (n *SLNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 				if !defMap[r.Token] {
 					rname = "extern.." + rname
 				}
-				escPoint = append(escPoint, rname)
+				escPoint[rname] = true
 			} else {
 				right.setAlloc(true)
-				if pt, ok := node.Exp.(*TakePtrNode); ok {
-					st, ok := pt.Node.(*StructInitNode)
-					if ok && st.TP.(*BasicTypeNode).Pkg == "github.com/Chronostasys/calc/runtime/coro/sync" {
-						println()
-					}
-				}
 				node.Exp.travel(func(n Node) {
 					switch n := n.(type) {
 					case *VarBlockNode:
@@ -592,33 +614,18 @@ func (n *SLNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 						if !defMap[n.Token] {
 							rname = "extern.." + rname
 						}
-						escPoint = append(escPoint, rname)
+						escPoint[rname] = true
 					}
 				})
 			}
 		case *CallFuncNode: // 逃逸点2：方法参数
-			for _, v := range node.Params {
-				right := getVarNode(v)
-				if right == nil {
-					continue
-				}
-				// TODO TakeValNode & TakePtrNode? 这不确定有没有问题
-				if r, ok := right.(*VarBlockNode); ok {
-					rname := r.Token
-					if !defMap[r.Token] {
-						rname = "extern.." + rname
-					}
-					escPoint = append(escPoint, rname)
-				} else {
-					right.setAlloc(true)
-				}
-			}
+			callfanf(node)
 		}
 	}
 	for _, v := range f.Params { // 逃逸点3：给入参赋值
-		escPoint = append(escPoint, "extern.."+v.LocalName)
+		escPoint["extern.."+v.LocalName] = true
 	}
-	for _, v := range escPoint {
+	for v := range escPoint {
 		if defMap[v] {
 			heapAllocTable[v] = true
 		}
@@ -793,7 +800,7 @@ func (n *DefineNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		s.addVar(n.ID, &variable{v: n.Val})
 	} else {
 		if s.heapAllocTable[n.ID] {
-			n.Val = heapAlloc(m, s, n.TP)
+			n.Val = gcmalloc(m, s, n.TP)
 			s.addVar(n.ID, &variable{v: n.Val})
 		} else {
 			n.Val = stackAlloc(m, s, tp)
@@ -802,8 +809,6 @@ func (n *DefineNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	}
 	return n.Val
 }
-
-var mallocTable = map[*ir.InstAlloca]bool{}
 
 type RetNode struct {
 	Exp   Node
@@ -906,7 +911,7 @@ func (n *DefAndAssignNode) travel(f func(Node)) {
 
 func autoAlloc(m *ir.Module, id string, gtp TypeNode, tp types.Type, s *Scope) (v value.Value) {
 	if s.heapAllocTable[id] {
-		v = heapAlloc(m, s, gtp)
+		v = gcmalloc(m, s, gtp)
 	} else {
 		v = stackAlloc(m, s, tp)
 	}

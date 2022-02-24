@@ -45,6 +45,10 @@ func AddSTDFunc(m *ir.Module, s *Scope) {
 	s.globalScope.addVar(f.Name(), &variable{v: f})
 
 	p = ir.NewParam("i", lexer.DefaultIntType())
+	f = m.NewFunc("malloc", types.I8Ptr, p)
+	s.globalScope.addVar(f.Name(), &variable{v: f})
+
+	p = ir.NewParam("i", lexer.DefaultIntType())
 	f = m.NewFunc("Sleep", lexer.DefaultIntType(), p)
 	s.globalScope.addVar(f.Name(), &variable{v: f})
 
@@ -78,7 +82,7 @@ func AddSTDFunc(m *ir.Module, s *Scope) {
 	s.globalScope.addGeneric("unsafecast", func(m *ir.Module, s *Scope, gens ...TypeNode) value.Value {
 		tpin, _ := gens[0].calc(s)
 		tpout, _ := gens[1].calc(s)
-		fnname := fmt.Sprintf("unsafecast<%s,%s>", tpin.String(), tpout.String())
+		fnname := s.getFullName(fmt.Sprintf("unsafecast<%s,%s>", tpin.String(), tpout.String()))
 		fn, err := s.globalScope.searchVar(fnname)
 		if err != nil {
 			p = ir.NewParam("i", tpin)
@@ -96,7 +100,7 @@ func AddSTDFunc(m *ir.Module, s *Scope) {
 	// sizeof see https://stackoverflow.com/questions/14608250/how-can-i-find-the-size-of-a-type
 	s.globalScope.addGeneric("sizeof", func(m *ir.Module, s *Scope, gens ...TypeNode) value.Value {
 		tp, _ := gens[0].calc(s)
-		fnname := fmt.Sprintf("sizeof<%s>", tp.String())
+		fnname := s.getFullName(fmt.Sprintf("sizeof<%s>", tp.String()))
 		fn, err := s.globalScope.searchVar(fnname)
 		if err != nil {
 			f = m.NewFunc(fnname, lexer.DefaultIntType())
@@ -113,7 +117,7 @@ func AddSTDFunc(m *ir.Module, s *Scope) {
 
 	s.globalScope.addGeneric("ptrtoint", func(m *ir.Module, s *Scope, gens ...TypeNode) value.Value {
 		tp, _ := gens[0].calc(s)
-		fnname := fmt.Sprintf("ptrtoint<%s>", tp.String())
+		fnname := s.getFullName(fmt.Sprintf("ptrtoint<%s>", tp.String()))
 		fn, err := s.globalScope.searchVar(fnname)
 		if err != nil {
 			p := ir.NewParam("ptr", tp)
@@ -130,7 +134,7 @@ func AddSTDFunc(m *ir.Module, s *Scope) {
 
 	s.globalScope.addGeneric("inttoptr", func(m *ir.Module, s *Scope, gens ...TypeNode) value.Value {
 		tp, _ := gens[0].calc(s)
-		fnname := fmt.Sprintf("inttoptr<%s>", tp.String())
+		fnname := s.getFullName(fmt.Sprintf("inttoptr<%s>", tp.String()))
 		fn, err := s.globalScope.searchVar(fnname)
 		if err != nil {
 			p := ir.NewParam("int", lexer.DefaultIntType())

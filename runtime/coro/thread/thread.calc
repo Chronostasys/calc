@@ -11,5 +11,5 @@ type pthread_attr struct {
     param sched_param
 }
 
-func pthread_create(thread *int, attr *pthread_attr, job func (arg *byte) *byte, arg *byte) int32
+func GC_pthread_create(thread *int, attr *pthread_attr, job func (arg *byte) *byte, arg *byte) int32
 

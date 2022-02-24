@@ -59,22 +59,30 @@ func Exec() void {
 
 func Exec(this ds *defaultScheduler) void {
     job := func (arg *byte) *byte {
+        id := unsafecast<*byte,*int>(arg)
         s := "thread start"
         s.PrintLn()
+        printIntln(*id)
         for  {
+            ds.mu.Lock()
             if ds.tasks.Len()==0 {
-
-                break
+                ds.mu.UnLock()
+                Sleep(100)
+                continue
             }
             t := ds.tasks.Shift()
-
+            ds.mu.UnLock()
             for ;t.StepNext(); {
             }
         }
         return nil
     }
-    t := 0
-    th := thread.pthread_create(&t,nil,job,nil)
+    for i := 0;i<8;i=i+1 {
+        t := 0
+        thid := i
+        th := thread.GC_pthread_create(&t,nil,job,unsafecast<*int,*byte>(&thid))
+    }
+    Sleep(3000)
     return
 }
 

@@ -34,6 +34,7 @@ type TakeValNode struct {
 
 func (n *TakeValNode) travel(f func(Node)) {
 	f(n)
+	n.Node.travel(f)
 }
 func (n *TakeValNode) tp() TypeNode {
 	tp := n.Node.tp().Clone()

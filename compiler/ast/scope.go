@@ -55,6 +55,8 @@ var externMap = map[string]bool{
 	"Sleep":                  true,
 	"llvm.init.trampoline":   true,
 	"llvm.adjust.trampoline": true,
+	"malloc":                 true,
+	"heapallocTrampoline":    true,
 }
 
 func MergeGlobalScopes(ss ...*Scope) *Scope {

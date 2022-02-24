@@ -18,17 +18,31 @@ func NewMutex() Locker {
     mu := &mutex{
         mu: &i,
     }
-    pthread_mutex_init(mu.mu, nil)
+    re := pthread_mutex_init(mu.mu, nil)
+    if re !=0 {
+        s := "mutex init failed"
+        s.PrintLn()
+    }
     return mu
 }
 
 func Lock(this m *mutex) void {
-    pthread_mutex_lock(m.mu)
+    re := pthread_mutex_lock(m.mu)
+    if re !=0 {
+        s := "mutex unlock failed"
+        s.PrintLn()
+        printIntln(re)
+    }
     return
 }
 
 func UnLock(this m *mutex) void {
-    pthread_mutex_unlock(m.mu)
+    re :=  pthread_mutex_unlock(m.mu)
+    if re !=0 {
+        s := "mutex unlock failed"
+        s.PrintLn()
+        printIntln(re)
+    }
     return
 }
 

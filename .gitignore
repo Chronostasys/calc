@@ -4,3 +4,6 @@
 *.lib
 *.dll
 *.log
+*.a
+*.lai
+*.la

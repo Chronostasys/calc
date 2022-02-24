@@ -272,7 +272,7 @@ func (n *ArrayInitNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	}
 	var alloca value.Value
 	if n.allocOnHeap {
-		alloca = heapAlloc(m, s, n.Type)
+		alloca = gcmalloc(m, s, n.Type)
 	} else {
 		alloca = stackAlloc(m, s, atype)
 	}
@@ -319,7 +319,7 @@ func (n *StructInitNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	}
 	var alloca value.Value
 	if n.allocOnHeap {
-		alloca = heapAlloc(m, s, n.TP)
+		alloca = gcmalloc(m, s, n.TP)
 	} else {
 		alloca = stackAlloc(m, s, tp.structType)
 	}
