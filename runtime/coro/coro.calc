@@ -2,6 +2,8 @@ package coro
 
 import (
     "github.com/Chronostasys/calc/runtime/linkedlist"
+    "github.com/Chronostasys/calc/runtime/coro/sync"
+    "github.com/Chronostasys/calc/runtime/coro/thread"
 )
 
 var sch = NewScheduler()
@@ -12,6 +14,7 @@ type StateMachine interface {
 
 type defaultScheduler struct {
     tasks *linkedlist.List<StateMachine>
+    mu  sync.Locker
 }
 
 type Scheduler interface {
@@ -22,13 +25,17 @@ type Scheduler interface {
 
 
 func NewScheduler() Scheduler {
+    mu := sync.NewMutex()
     return &defaultScheduler{
         tasks: linkedlist.New<StateMachine>(),
+        mu: mu,
     }
 }
 
 func QueueTask(this s *defaultScheduler, st StateMachine) void {
+    s.mu.Lock()
     s.tasks.Push(st)
+    s.mu.UnLock()
     return
 }
 
@@ -50,17 +57,30 @@ func Exec() void {
 }
 
 
-func Exec(this s *defaultScheduler) void {
-    for ;s.tasks.Len()>0; {
-        t := s.tasks.Shift()
-        for ;t.StepNext(); {
+func Exec(this ds *defaultScheduler) void {
+    job := func (arg *byte) *byte {
+        s := "thread start"
+        s.PrintLn()
+        for  {
+            if ds.tasks.Len()==0 {
+
+                break
+            }
+            t := ds.tasks.Shift()
+
+            for ;t.StepNext(); {
+            }
         }
+        return nil
     }
+    t := 0
+    th := thread.pthread_create(&t,nil,job,nil)
     return
 }
 
 func Len(this s *defaultScheduler) int {
-    return s.tasks.Len()
+    l := s.tasks.Len()
+    return l
 }
 
 

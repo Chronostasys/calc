@@ -462,6 +462,11 @@ func (b *StructInitNode) tp() TypeNode {
 
 func (n *StructInitNode) travel(f func(Node)) {
 	f(n)
+	if n.Fields != nil {
+		for _, v := range n.Fields {
+			v.travel(f)
+		}
+	}
 }
 
 type typeDefNode struct {

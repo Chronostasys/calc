@@ -131,6 +131,7 @@ func (s *Scope) addChildScope(block *ir.Block) *Scope {
 	child.m = s.m
 	child.closure = s.closure
 	child.trampolineVars = s.trampolineVars
+	child.trampolineObj = s.trampolineObj
 	child.yieldBlock = s.yieldBlock
 	child.yieldRet = s.yieldRet
 	child.continueTask = s.continueTask

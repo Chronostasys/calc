@@ -17,6 +17,7 @@ func (n *TakePtrNode) tp() TypeNode {
 
 func (n *TakePtrNode) travel(f func(Node)) {
 	f(n)
+	n.Node.travel(f)
 }
 
 func (n *TakePtrNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {

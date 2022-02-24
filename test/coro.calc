@@ -11,7 +11,7 @@ func testCoroutine() void {
     coro.QueueTask(testCoroutineAsync())
     coro.QueueTask(coroutine2())
     coro.Exec()
-    Sleep(300)
+    Sleep(3000)
     return
 }
 

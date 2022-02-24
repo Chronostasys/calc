@@ -139,6 +139,7 @@ func (n *FuncNode) AddtoScope(s *Scope) {
 			if err != nil {
 				panic(err)
 			}
+
 			fun := m.NewFunc(s.getFullName(sig), tp, ps...)
 			gs := s.generics
 			defer func() {
@@ -150,7 +151,7 @@ func (n *FuncNode) AddtoScope(s *Scope) {
 			childScope := s.addChildScope(b)
 
 			for i, v := range ps {
-				ptr := b.NewAlloca(v.Type())
+				ptr := heapAlloc(m, childScope, &calcedTypeNode{v.Type()}) // TODO: escape analysis; alloc on heap to avoid captured by inner closure.
 				store(v, ptr, childScope)
 				childScope.addVar(psn.Params[i].ID, &variable{v: ptr})
 			}
@@ -175,7 +176,11 @@ func (n *FuncNode) AddtoScope(s *Scope) {
 			if err != nil {
 				panic(err)
 			}
-			s.globalScope.addVar(n.ID, &variable{v: ir.NewFunc(s.getFullName(n.ID), tp, ps...)})
+			fullname := n.ID
+			if n.Statements != nil {
+				fullname = s.getFullName(n.ID)
+			}
+			s.globalScope.addVar(n.ID, &variable{v: ir.NewFunc(fullname, tp, ps...)})
 		})
 	}
 }
@@ -183,7 +188,9 @@ func (n *FuncNode) AddtoScope(s *Scope) {
 func (n *FuncNode) travel(f func(Node)) {
 	f(n)
 	n.Params.travel(f)
-	n.Statements.travel(f)
+	if n.Statements != nil {
+		n.Statements.travel(f)
+	}
 }
 
 var gencount = 0
@@ -314,7 +321,6 @@ func (n *FuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	}
 	psn := n.Params
 	ps := []*ir.Param{}
-	childScope := s.addChildScope(nil)
 	for _, v := range psn.Params {
 		param := v.calc(m, f, s).(*ir.Param)
 		ps = append(ps, param)
@@ -323,10 +329,14 @@ func (n *FuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	if err != nil {
 		panic(err)
 	}
-	fn := m.NewFunc(s.getFullName(n.ID), tp, ps...)
+	// only declaration
+	if n.Statements == nil {
 
+		return m.NewFunc(n.ID, tp, ps...)
+	}
+	fn := m.NewFunc(s.getFullName(n.ID), tp, ps...)
 	b := fn.NewBlock("")
-	childScope.block = b
+	childScope := s.addChildScope(b)
 
 	if n.generator {
 		tpname, rtp, idxmap, blockAddrId, context := buildGenaratorCtx(
@@ -335,7 +345,7 @@ func (n *FuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 			blockAddrId, idxmap, context, tp, n.Statements)
 	} else {
 		for i, v := range ps {
-			ptr := b.NewAlloca(v.Type())
+			ptr := heapAlloc(m, childScope, &calcedTypeNode{v.Type()}) // TODO: escape analysis; alloc on heap to avoid captured by inner closure.
 			store(v, ptr, childScope)
 			childScope.addVar(psn.Params[i].ID, &variable{v: ptr})
 		}
@@ -369,6 +379,7 @@ func (n *CallFuncNode) travel(f func(Node)) {
 	if n.Next != nil {
 		n.Next.travel(f)
 	}
+	n.FnNode.travel(f)
 }
 
 func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
@@ -615,9 +626,9 @@ func (n *InlineFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	trampAdj, _ := s.globalScope.searchVar("llvm.adjust.trampoline")
 	enableExe, _ := s.globalScope.searchVar("__enable_execute_stack")
 	// 72 bytes and 16 align, see https://stackoverflow.com/questions/15509341/how-much-space-for-a-llvm-trampoline
-	tramp := s.block.NewAlloca(types.NewArray(72, types.I8))
-	tramp.Align = 16
-	tramp1 := s.block.NewGetElementPtr(tramp.ElemType, tramp, zero, zero)
+	tramptp := types.NewArray(72, types.I8)
+	tramp := heapAlloc(m, s, &calcedTypeNode{tramptp}) // alloc on heap to avoid call it in another thread
+	tramp1 := s.block.NewGetElementPtr(tramptp, tramp, zero, zero)
 
 	allo := heapAlloc(m, s, &calcedTypeNode{st})
 	for i, v := range vals {
@@ -653,6 +664,8 @@ func (n *InlineFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 			lableid++
 		case *RetNode:
 			node.async = n.Async
+		case defNode:
+			node.setVal(nil)
 		}
 
 	})
@@ -664,7 +677,7 @@ func (n *InlineFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 			blockAddrId, idxmap, context, fn.Sig.RetType, n.Body)
 	} else {
 		for i, v := range ps {
-			ptr := b.NewAlloca(v.Type())
+			ptr := heapAlloc(m, chs, &calcedTypeNode{v.Type()}) // TODO: escape analysis; alloc on heap to avoid captured by inner closure.
 			store(v, ptr, chs)
 			chs.addVar(ps[i].LocalName, &variable{v: ptr})
 		}

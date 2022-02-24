@@ -1,0 +1,15 @@
+package thread
+
+type sched_param struct {
+    priority int32
+}
+
+type pthread_attr struct {
+    b int32
+    stack_addr *byte
+    a int64
+    param sched_param
+}
+
+func pthread_create(thread *int, attr *pthread_attr, job func (arg *byte) *byte, arg *byte) int32
+

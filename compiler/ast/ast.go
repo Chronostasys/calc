@@ -60,7 +60,9 @@ func (b *BinNode) tp() TypeNode {
 }
 
 func loadIfVar(l value.Value, s *Scope) value.Value {
-
+	if l == nilval {
+		return l
+	}
 	if t, ok := l.Type().(*types.PointerType); ok {
 		if _, ok := t.ElemType.(*types.FuncType); ok {
 			return l
@@ -457,7 +459,7 @@ func (n *SLNode) travel(f func(Node)) {
 }
 
 func (n *SLNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
-	var escMap = map[string][]*escNode{}
+	var escMap = map[string][]*escNode{} // key：变量名   val：给它赋值过的右值
 	var defMap = map[string]bool{}
 	var escPoint = []string{}
 	var heapAllocTable = map[string]bool{}
@@ -491,6 +493,7 @@ func (n *SLNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		strings.Contains(f.Ident(), "MallocList") {
 		goto LOOP
 	}
+
 	// stackescape analysis 逃逸分析
 	for _, v := range n.Children {
 		switch node := v.(type) {
@@ -517,6 +520,16 @@ func (n *SLNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 					escMap[name] = append(escMap[name], &escNode{token: rname})
 				} else {
 					escMap[name] = append(escMap[name], &escNode{initNode: right})
+					node.Right.travel(func(n Node) {
+						switch n := n.(type) {
+						case *VarBlockNode:
+							rname := n.Token
+							if !defMap[n.Token] {
+								rname = "extern.." + rname
+							}
+							escMap[name] = append(escMap[name], &escNode{token: rname})
+						}
+					})
 				}
 			}
 		case *DefAndAssignNode:
@@ -537,6 +550,16 @@ func (n *SLNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 				escMap[name] = append(escMap[name], &escNode{token: rname})
 			} else {
 				escMap[name] = append(escMap[name], &escNode{initNode: right})
+				node.ValNode.travel(func(n Node) {
+					switch n := n.(type) {
+					case *VarBlockNode:
+						rname := n.Token
+						if !defMap[n.Token] {
+							rname = "extern.." + rname
+						}
+						escMap[name] = append(escMap[name], &escNode{token: rname})
+					}
+				})
 			}
 		case *DefineNode:
 			defMap[node.ID] = true
@@ -556,6 +579,22 @@ func (n *SLNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 				escPoint = append(escPoint, rname)
 			} else {
 				right.setAlloc(true)
+				if pt, ok := node.Exp.(*TakePtrNode); ok {
+					st, ok := pt.Node.(*StructInitNode)
+					if ok && st.TP.(*BasicTypeNode).Pkg == "github.com/Chronostasys/calc/runtime/coro/sync" {
+						println()
+					}
+				}
+				node.Exp.travel(func(n Node) {
+					switch n := n.(type) {
+					case *VarBlockNode:
+						rname := n.Token
+						if !defMap[n.Token] {
+							rname = "extern.." + rname
+						}
+						escPoint = append(escPoint, rname)
+					}
+				})
 			}
 		case *CallFuncNode: // 逃逸点2：方法参数
 			for _, v := range node.Params {
@@ -839,7 +878,7 @@ func (n *NilNode) tp() TypeNode {
 }
 
 func (n *NilNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
-	return zero
+	return nilval
 }
 
 func (n *NilNode) travel(f func(Node)) {
@@ -937,7 +976,12 @@ func (n *DefAndAssignNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value 
 	return v
 }
 
+var nilval = constant.NewNull(types.I8Ptr)
+
 func implicitCast(v value.Value, target types.Type, s *Scope) (value.Value, error) {
+	if v == nilval {
+		return constant.NewNull(target.(*types.PointerType)), nil
+	}
 	if v.Type().Equal(target) {
 		return v, nil
 	}

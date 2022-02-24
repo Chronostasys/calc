@@ -91,10 +91,8 @@ func (p *Parser) function() ast.Node {
 	fn.RetType = tp
 	_, err = p.lexer.ScanType(lexer.TYPE_RES_ASYNC)
 	fn.Async = err == nil
-	fn.Statements, err = p.statementBlock()
-	if err != nil {
-		panic(err)
-	}
+	fn.Statements, _ = p.statementBlock()
+
 	fn.AddtoScope(p.scope)
 	return fn
 }

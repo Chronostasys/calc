@@ -1,0 +1,34 @@
+package sync
+
+func pthread_mutex_lock(l *int) int32
+func pthread_mutex_unlock(l *int) int32
+func pthread_mutex_init(l *int, attr *int32) int32
+
+type mutex struct {
+    mu *int
+}
+
+type Locker interface {
+    Lock() void
+    UnLock() void
+}
+
+func NewMutex() Locker {
+    i := 0
+    mu := &mutex{
+        mu: &i,
+    }
+    pthread_mutex_init(mu.mu, nil)
+    return mu
+}
+
+func Lock(this m *mutex) void {
+    pthread_mutex_lock(m.mu)
+    return
+}
+
+func UnLock(this m *mutex) void {
+    pthread_mutex_unlock(m.mu)
+    return
+}
+
