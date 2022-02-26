@@ -1007,6 +1007,12 @@ func implicitCast(v value.Value, target types.Type, s *Scope) (value.Value, erro
 		return s.block.NewZExt(v, targetTp), nil
 	case *types.PointerType:
 		v = deReference(v, s)
+		if tp, ok := target.(*types.PointerType); ok { // handle function type cast
+			if val.ElemType.Equal(tp.ElemType) {
+				return v, nil
+			}
+			return nil, fmt.Errorf("failed to cast %v to interface %v", v, target.Name())
+		}
 		tp, ok := target.(*interf)
 		src := strings.Trim(v.Type().String(), "%*\"")
 		if ok { // turn to interface
