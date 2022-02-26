@@ -14,7 +14,8 @@ type StateMachine interface {
 
 type defaultScheduler struct {
     tasks *linkedlist.List<StateMachine>
-    mu  sync.Locker
+    mu  *sync.Mutex
+    cond *sync.Cond
 }
 
 type Scheduler interface {
@@ -26,15 +27,18 @@ type Scheduler interface {
 
 func NewScheduler() Scheduler {
     mu := sync.NewMutex()
+    cond := sync.NewCond()
     return &defaultScheduler{
         tasks: linkedlist.New<StateMachine>(),
         mu: mu,
+        cond: cond,
     }
 }
 
 func QueueTask(this s *defaultScheduler, st StateMachine) void {
     s.mu.Lock()
     s.tasks.Push(st)
+    s.cond.Signal()
     s.mu.UnLock()
     return
 }
@@ -58,17 +62,14 @@ func Exec() void {
 
 
 func Exec(this ds *defaultScheduler) void {
-    job := func (arg *byte) *byte {
-        id := unsafecast<*byte,*int>(arg)
+    job := func (id *int) *byte {
         s := "thread start"
         s.PrintLn()
         printIntln(*id)
         for  {
             ds.mu.Lock()
-            if ds.tasks.Len()==0 {
-                ds.mu.UnLock()
-                Sleep(100)
-                continue
+            for ;ds.tasks.Len()==0; {
+                ds.cond.Wait(ds.mu)
             }
             t := ds.tasks.Shift()
             ds.mu.UnLock()
@@ -80,9 +81,8 @@ func Exec(this ds *defaultScheduler) void {
     for i := 0;i<8;i=i+1 {
         t := 0
         thid := i
-        th := thread.GC_pthread_create(&t,nil,job,unsafecast<*int,*byte>(&thid))
+        th := thread.New<*int,*byte>(job,&thid)
     }
-    Sleep(3000)
     return
 }
 

@@ -1,0 +1,29 @@
+package sync
+
+func pthread_cond_wait(cond *int, mutex *int) int32
+
+func pthread_cond_signal(cond *int) int32
+
+type Cond struct {
+    con *int
+}
+
+func NewCond() *Cond {
+    con := 0
+    return &Cond{
+        con: &con,
+    }
+}
+
+// A Cond will release the mutex before it sleep, 
+// then aquire it just after it is awaked
+func Wait(this cond *Cond, mu *Mutex) void {
+    pthread_cond_wait(cond.con,mu.mu)
+    return
+}
+
+func Signal(this cond *Cond) void {
+    pthread_cond_signal(cond.con)
+    return
+}
+

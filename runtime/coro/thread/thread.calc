@@ -13,3 +13,16 @@ type pthread_attr struct {
 
 func GC_pthread_create(thread *int, attr *pthread_attr, job func (arg *byte) *byte, arg *byte) int32
 
+// type WorkerFunc<T1,T2> func (arg T1) T2
+
+func New<T1, T2>(f func (arg T1) T2, arg T1) int {
+    t := 0
+    jobf := func(argb *byte) *byte {
+        a := unsafecast<*byte, T1>(argb)
+        re := f(a)
+        return unsafecast<T2,*byte>(re)
+    }
+    re := GC_pthread_create(&t,nil,jobf,unsafecast<T1, *byte>(arg))
+    return re
+}
+

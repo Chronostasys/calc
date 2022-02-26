@@ -198,6 +198,9 @@ func (l *Lexer) SetCheckpoint() Checkpoint {
 func (l *Lexer) GobackTo(c Checkpoint) {
 	l.pos = c.pos
 }
+func (l *Lexer) GetPos() int {
+	return l.pos
+}
 
 func (l *Lexer) ScanType(code int) (token string, err error) {
 	if code == TYPE_LG {

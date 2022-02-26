@@ -74,6 +74,7 @@ func (p *Parser) function() ast.Node {
 		panic(err)
 	}
 	fn := &ast.FuncNode{ID: id}
+	p.lexer.SetCheckpoint()
 	fn.Generics, _ = p.genericParams()
 	fn.Params = p.funcParams()
 	if fn.Params.Ext { // 扩展方法的第一个参数
@@ -181,6 +182,10 @@ func (p *Parser) genericParams() (n []string, err error) {
 		_, err = p.lexer.ScanType(lexer.TYPE_LG)
 		if err == nil {
 			return n, nil
+		}
+		_, err := p.lexer.ScanType(lexer.TYPE_COMMA)
+		if err != nil {
+			return nil, err
 		}
 		t, err := p.lexer.ScanType(lexer.TYPE_VAR)
 		if err != nil {
