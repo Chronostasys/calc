@@ -1,0 +1,14 @@
+package libuv
+
+type AsyncGen struct {
+    nextTask int
+    f func() void
+}
+
+func StepNext(this ag *AsyncGen) bool {
+    ag.f()
+    return false
+}
+func GetCurrent(this ag *AsyncGen) bool {
+    return false
+}

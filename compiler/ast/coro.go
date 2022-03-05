@@ -40,7 +40,7 @@ func (n *AwaitNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	} else {
 		stateMachine = n.Exp.calc(m, f, s)
 	}
-	i := ScopeMap[CORO_MOD].getStruct("StateMachine").structType
+	i := ScopeMap[CORO_SM_MOD].getStruct("StateMachine").structType
 	smtp := loadElmType(stateMachine.Type()).(*interf)
 	n.generator = smtp
 	var p value.Value

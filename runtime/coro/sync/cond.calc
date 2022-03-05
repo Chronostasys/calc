@@ -4,12 +4,15 @@ func pthread_cond_wait(cond *int, mutex *int) int32
 
 func pthread_cond_signal(cond *int) int32
 
+func pthread_cond_init(cond *int, attr *byte) int32
+
 type Cond struct {
     con *int
 }
 
 func NewCond() *Cond {
     con := 0
+    pthread_cond_init(&con,nil)
     return &Cond{
         con: &con,
     }
@@ -18,12 +21,22 @@ func NewCond() *Cond {
 // A Cond will release the mutex before it sleep, 
 // then aquire it just after it is awaked
 func Wait(this cond *Cond, mu *Mutex) void {
-    pthread_cond_wait(cond.con,mu.mu)
+    re := pthread_cond_wait(cond.con,mu.mu)
+    if re !=0 {
+        s := "cond wait failed"
+        s.PrintLn()
+        printIntln(re)
+    }
     return
 }
 
 func Signal(this cond *Cond) void {
-    pthread_cond_signal(cond.con)
+    re := pthread_cond_signal(cond.con)
+    if re !=0 {
+        s := "cond sig failed"
+        s.PrintLn()
+        printIntln(re)
+    }
     return
 }
 

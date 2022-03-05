@@ -1,0 +1,66 @@
+package libuv
+
+import (
+    "github.com/Chronostasys/calc/runtime/generator"
+    "github.com/Chronostasys/calc/runtime/coro/sm"
+    "github.com/Chronostasys/calc/runtime/coro"
+)
+
+type Timer *byte
+
+func new_timer() Timer
+
+func uv_timer_init(loop UVLoop, handle Timer) int
+
+func uv_timer_start(handle Timer, cb func(t Timer) void, timeout int64, repeat int64) int
+
+func uv_timer_stop(handle Timer) int
+
+
+func NewTimer() Timer {
+    t := new_timer()
+    re := uv_timer_init(uv_default_loop(), t)
+    if re !=0 {
+        s := "timer init failed"
+        s.PrintLn()
+        printIntln(re)
+    }
+    return t
+}
+
+func Delay(this t Timer, timeout int64) generator.Generator<bool> {
+    ag := &AsyncGen{}
+    f := func () void {
+        cb := func () void {
+            state := inttoptr<*sm.StateMachine>(ag.nextTask)
+            coro.QueueTaskIfPossible(state)
+            return
+        }
+        t.StartTimer(timeout,cb)
+        return
+    }
+    ag.f = f
+    return ag
+}
+
+func StartTimer(this t Timer, timeout int64, callback func () void) void {
+    ff := func () void {
+        cb := func (t Timer) void {
+            callback()
+            uv_timer_stop(t)
+            return
+        }
+        re := uv_timer_start(t,cb,timeout,0)
+        if re !=0 {
+            s := "timer start failed"
+            s.PrintLn()
+            printIntln(re)
+        }
+        return
+    }
+    evmu.Lock()
+    evlist.Push(ff)
+    evmu.UnLock()
+    return
+}
+

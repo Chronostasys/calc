@@ -7,3 +7,8 @@
 *.a
 *.lai
 *.la
+*.pdb
+*.exp
+*.o
+
+!bin/**/*

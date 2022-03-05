@@ -469,6 +469,7 @@ func (n *SLNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	travel := func(fn *InlineFuncNode) {
 		fn.Body.travel(trf)
 		fn.closureVars = closurevar
+		closurevar = map[string]bool{}
 
 	}
 	trf = func(n Node) { // // 逃逸点4：闭包
@@ -832,7 +833,7 @@ func (n *RetNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 			qt, _ := ScopeMap[CORO_MOD].searchVar("QueueTaskIfPossible")
 
 			fqt := qt.v.(*ir.Func)
-			i := ScopeMap[CORO_MOD].getStruct("StateMachine").structType
+			i := ScopeMap[CORO_SM_MOD].getStruct("StateMachine").structType
 			s.block.NewCall(fqt, s.block.NewIntToPtr(s.continueTask, types.NewPointer(i)))
 
 			s.block.NewRet(constant.False)
@@ -864,7 +865,7 @@ func (n *RetNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		qt, _ := ScopeMap[CORO_MOD].searchVar("QueueTaskIfPossible")
 
 		fqt := qt.v.(*ir.Func)
-		i := ScopeMap[CORO_MOD].getStruct("StateMachine").structType
+		i := ScopeMap[CORO_SM_MOD].getStruct("StateMachine").structType
 		s.block.NewCall(fqt, s.block.NewIntToPtr(s.continueTask, types.NewPointer(i)))
 
 		s.block.NewRet(constant.False)

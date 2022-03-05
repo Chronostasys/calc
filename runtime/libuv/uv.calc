@@ -1,0 +1,47 @@
+package libuv
+
+import (
+    "github.com/Chronostasys/calc/runtime/coro/thread"
+)
+
+type UVLoop *byte
+
+func uv_default_loop() UVLoop
+
+
+func uv_run(loop UVLoop, mode int) int
+
+func uv_close(handle *byte, cb func(t *byte) void) void
+
+func StartUVLoop() void {
+    evloop := func(arg *byte) *byte {
+        loop := uv_default_loop()
+        t := NewTimer()
+        cb := func (tt Timer) void {
+            evmu.Lock()
+            for ;evlist.Len()>0; {
+                f := evlist.Shift()
+                f()
+            }
+            evmu.UnLock()
+            return
+        }
+        re := uv_timer_start(t,cb,0,15)
+        if re != 0 {
+            s := "main timer start failed"
+            s.PrintLn()
+            printIntln(re)
+        }
+        re = uv_run(loop, 0)
+        if re != 0 {
+            s := "main loop start failed"
+            s.PrintLn()
+            printIntln(re)
+        }
+        return nil
+    }
+    thread.New<*byte,*byte>(evloop,nil)
+    s := "evloop start"
+    s.PrintLn()
+    return
+}

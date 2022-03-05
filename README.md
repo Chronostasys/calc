@@ -15,6 +15,8 @@
 ## 工具链
 - clang (llvm 12.0+) windows要使用[llvm mingw](https://github.com/mstorsjo/llvm-mingw/releases)
 - golang 1.17.1
+- libuv
+- bdwgc
 ## 语法规则
 ```
 program: P->PD NL* IS? (FN|NL|T|D|DA)+

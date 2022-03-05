@@ -9,7 +9,7 @@ test-asm:
 	cd test && clang -S out.ll -o test.asm
 
 test-exe:
-	cd test && copy ..\bdwgc\.libs\*.* *.* && clang out.ll libgc.dll.a -static-libgcc -static-libstdc++ -lpthread  -o test.exe
+	cd test && copy ..\bin\win\bdwgc\*.* *.* && copy ..\bin\win\libuv\*.* *.* && clang out.ll libgc.dll.a uv.lib uvutil.a -static-libgcc -static-libstdc++ -lpthread  -o test.exe
 compiler:
 	cd compiler && go build -o compiler.exe main.go
 

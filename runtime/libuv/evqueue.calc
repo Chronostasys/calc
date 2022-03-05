@@ -1,0 +1,11 @@
+package libuv
+
+import (
+    "github.com/Chronostasys/calc/runtime/linkedlist"
+    "github.com/Chronostasys/calc/runtime/coro/sync"
+)
+
+var evlist = linkedlist.New<func () void>()
+var evmu = sync.NewMutex()
+
+

@@ -491,7 +491,18 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 			var va *variable
 			va, err = scope.searchVar(name)
 			if va == nil {
-				panic(fmt.Sprintf("var %s not found", name))
+				ss := strings.Split(name, ".")
+				ssf := strings.Join(ss[:len(ss)-1], ".")
+				sse := ss[len(ss)-1]
+				st := scope.getStruct(ssf)
+				if st == nil {
+					panic(fmt.Sprintf("var %s not found", name))
+				}
+				idx := st.fieldsIdx[sse]
+				va = &variable{}
+				err = nil
+				va.v = s.block.NewGetElementPtr(st.structType, alloca, zero, constant.NewInt(types.I32, int64(idx.idx)))
+
 			}
 			fnv = va.v
 			if err != nil {
@@ -500,13 +511,15 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		}
 		fn = fnv
 		fntp = loadElmType(fn.Type()).(*types.FuncType)
-		if _, ok := fntp.Params[0].(*types.PointerType); ok {
-			alloca = deReference(alloca, s)
-		} else {
-			alloca = loadIfVar(alloca, s)
+		if len(fntp.Params) != 0 {
+			if _, ok := fntp.Params[0].(*types.PointerType); ok {
+				alloca = deReference(alloca, s)
+			} else {
+				alloca = loadIfVar(alloca, s)
+			}
+			params = append(params, alloca)
+			poff = 1
 		}
-		params = append(params, alloca)
-		poff = 1
 	} else {
 		if len(n.Generics) > 0 {
 			token := fnNode.Token
@@ -633,6 +646,10 @@ func (n *InlineFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		}
 		if _, ok := s.globalScope.vartable[fullname]; ok {
 			// skip global funcs
+			delete(n.closureVars, k)
+		}
+		if _, ok := ScopeMap[k]; ok {
+			// skip module
 			delete(n.closureVars, k)
 		}
 	}

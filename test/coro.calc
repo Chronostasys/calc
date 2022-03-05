@@ -3,13 +3,15 @@ package main
 import (
     "github.com/Chronostasys/calc/runtime/generator"
     "github.com/Chronostasys/calc/runtime/coro"
+    "github.com/Chronostasys/calc/runtime/libuv"
 )
 
 func testCoroutine() void {
+    libuv.StartUVLoop()
     coro.QueueTask(testCoroutineAsync())
     coro.QueueTask(coroutine2())
     coro.Exec()
-    for i :=0; i<5 ; i = i + 1 {
+    for i :=0; i<50 ; i = i + 1 {
         coro.QueueTask(testCoroutineAsync())
         coro.QueueTask(coroutine2())
     }
@@ -31,7 +33,8 @@ func testCoroutineAsync() generator.Generator<int> async {
 }
 
 func coroutine1() generator.Generator<int> async {
-    Sleep(100)
+    t := libuv.NewTimer()
+    re := await t.Delay(1000)
     return 8989
 }
 
