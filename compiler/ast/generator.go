@@ -103,12 +103,17 @@ func buildCtx(sl *SLNode, s *Scope, tps []types.Type) ([]types.Type, *ctx) {
 			tps = append(tps, getElmType(tp))
 			c.idxmap = append(c.idxmap, &ctx{id: c.i, father: c, node: node})
 			c.i++
-			if an, ok := node.ValNode.(*AwaitNode); ok {
+			if an, ok := node.ValNode.(*AwaitNode); ok { // async statemachine
 				tps = append(tps, an.generator)
 				c.idxmap = append(c.idxmap, &ctx{id: c.i, father: c, node: an})
 				c.i++
 
 			}
+		case *AwaitNode: // async statemachine
+			node.calc(tpm, tpf, tpsc)
+			tps = append(tps, node.generator)
+			c.idxmap = append(c.idxmap, &ctx{id: c.i, father: c, node: node})
+			c.i++
 		default:
 
 		}

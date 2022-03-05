@@ -16,16 +16,6 @@ func gcmalloc(m *ir.Module, s *Scope, gtp TypeNode) value.Value {
 	return v
 }
 
-func mallocTramp(m *ir.Module, s *Scope, gtp TypeNode) value.Value {
-	gfn := s.globalScope.getGenericFunc("heapallocTrampoline")
-	if gfn == nil {
-		gfn = ScopeMap["github.com/Chronostasys/calc/runtime"].getGenericFunc("heapallocTrampoline")
-	}
-	fnv := gfn(m, gtp)
-	v := s.block.NewCall(fnv)
-	return v
-}
-
 func stackAlloc(m *ir.Module, s *Scope, gtp types.Type) value.Value {
 	v := s.block.NewAlloca(gtp)
 	return v

@@ -74,7 +74,7 @@ func (n *AwaitNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 
 	fn := nb.NewGetElementPtr(smtp.Type, stateMachine, zero, constant.NewInt(types.I32, int64(fni)))
 	s.block = nb
-	tp, _ := f1.RetType.calc(s)
+	tp := smtp.genericMaps["T"]
 
 	stiptr := s.block.NewGetElementPtr(smtp.Type, stateMachine,
 		zero, zero)

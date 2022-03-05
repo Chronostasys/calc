@@ -34,7 +34,7 @@ func testCoroutineAsync() generator.Generator<int> async {
 
 func coroutine1() generator.Generator<int> async {
     t := libuv.NewTimer()
-    re := await t.Delay(1000)
+    await t.Delay(1000)
     return 8989
 }
 

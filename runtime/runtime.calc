@@ -10,15 +10,6 @@ func heapalloc<T>() *T {
 func GC_remove_roots(start *byte, end *byte) void
 func GC_add_roots(start *byte, end *byte) void
 
-func heapallocTrampoline<T>() *T {
-    size := sizeof<T>()
-    bs := malloc(size)
-    seted := memset(bs,0,size)
-    end := ptrtoint<*byte>(bs) + size
-    endptr := inttoptr<*byte>(end)
-    GC_add_roots(bs,endptr)
-    return unsafecast<*byte,*T>(seted)
-}
 
 
 

@@ -134,6 +134,10 @@ func (p *Parser) define() (n ast.Node, err error) {
 }
 
 func (p *Parser) statement() ast.Node {
+	_, err := p.lexer.ScanType(lexer.TYPE_RES_AWAIT)
+	if err == nil {
+		return &ast.AwaitNode{Exp: p.allexp()}
+	}
 	ast, err := p.runWithCatch2(p.continueST)
 	if err == nil {
 		return ast
