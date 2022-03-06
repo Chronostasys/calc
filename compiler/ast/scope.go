@@ -137,6 +137,7 @@ func (s *Scope) addChildScope(block *ir.Block) *Scope {
 	child.yieldBlock = s.yieldBlock
 	child.yieldRet = s.yieldRet
 	child.continueTask = s.continueTask
+	child.freeFunc = s.freeFunc
 	s.childrenScopes = append(s.childrenScopes, child)
 	return child
 }

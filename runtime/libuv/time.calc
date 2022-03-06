@@ -40,6 +40,7 @@ func Delay(this t Timer, timeout int64) generator.Generator<bool> {
         return
     }
     ag.f = f
+    coro.QueueTask(ag)
     return ag
 }
 

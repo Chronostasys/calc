@@ -146,16 +146,25 @@ func (n *FuncNode) AddtoScope(s *Scope) {
 				s.generics = gs
 			}()
 
+			asyncFunc[s.getFullName(sig)] = n.Async
 			s.globalScope.addVar(sig, &variable{v: fun, generics: s.generics})
 			b := fun.NewBlock("")
 			childScope := s.addChildScope(b)
+			childScope.freeFunc = nil
 
-			for i, v := range ps {
-				ptr := gcmalloc(m, childScope, &calcedTypeNode{v.Type()}) // TODO: escape analysis; alloc on heap to avoid captured by inner closure.
-				store(v, ptr, childScope)
-				childScope.addVar(psn.Params[i].ID, &variable{v: ptr})
+			if n.generator {
+				tpname, rtp, idxmap, blockAddrId, context := buildGenaratorCtx(
+					n.Statements, n.RetType, s, ps)
+				buildGenerator(rtp, ps, s, childScope, tpname,
+					blockAddrId, idxmap, context, tp, n.Statements)
+			} else {
+				for i, v := range ps {
+					ptr := gcmalloc(m, childScope, &calcedTypeNode{v.Type()}) // TODO: escape analysis; alloc on heap to avoid captured by inner closure.
+					store(v, ptr, childScope)
+					childScope.addVar(psn.Params[i].ID, &variable{v: ptr})
+				}
+				n.Statements.calc(m, fun, childScope)
 			}
-			n.Statements.calc(m, fun, childScope)
 			return fun
 		})
 		return
@@ -180,6 +189,7 @@ func (n *FuncNode) AddtoScope(s *Scope) {
 			if n.Statements != nil {
 				fullname = s.getFullName(n.ID)
 			}
+			asyncFunc[s.getFullName(n.ID)] = n.Async
 			s.globalScope.addVar(n.ID, &variable{v: ir.NewFunc(fullname, tp, ps...)})
 		})
 	}
@@ -311,6 +321,16 @@ func buildGenerator(rtp types.Type, ps []*ir.Param,
 	if err != nil {
 		panic(err)
 	}
+	// if childScope.async {
+	// 	// statemachie入队列
+	// 	vst := loadIfVar(r, childScope)
+	// 	i := ScopeMap[CORO_SM_MOD].getStruct("StateMachine").structType
+	// 	qt, _ := ScopeMap[CORO_MOD].searchVar("QueueTask")
+	// 	fqt := qt.v.(*ir.Func)
+	// 	c, _ := implicitCast(vst, i, childScope)
+	// 	childScope.block.NewCall(fqt, c)
+	// }
+
 	childScope.block.NewRet(r) // 返回context（即generator）
 }
 
@@ -337,6 +357,7 @@ func (n *FuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	fn := m.NewFunc(s.getFullName(n.ID), tp, ps...)
 	b := fn.NewBlock("")
 	childScope := s.addChildScope(b)
+	childScope.freeFunc = nil
 
 	if n.generator {
 		tpname, rtp, idxmap, blockAddrId, context := buildGenaratorCtx(
@@ -365,6 +386,11 @@ type CallFuncNode struct {
 	parent   value.Value
 	Next     Node
 	Generics []TypeNode
+	val      func(s *Scope) value.Value
+}
+
+func (n *CallFuncNode) setVal(f func(s *Scope) value.Value) {
+	n.val = f
 }
 
 func (n *CallFuncNode) tp() TypeNode {
@@ -556,7 +582,7 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		// autoAlloc()
 		var alloc value.Value
 		if externMap[fnNode.Token] || stackallocfn[fnNode.Token] {
-			alloc = s.block.NewAlloca(re.Type())
+			alloc = stackAlloc(s.m, s, re.Type())
 		} else {
 			alloc = gcmalloc(m, s, &calcedTypeNode{re.Type()})
 		}
@@ -579,9 +605,27 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		}
 		re = n.Next.calc(m, f, s)
 	}
+	name := strings.Trim(fn.Ident(), "\"@")
+	if n.val != nil {
+		newre := n.val(s)
+		store(loadIfVar(re, s), newre, s)
+		re = newre
+	}
+	if asyncFunc[name] {
+		i := ScopeMap[CORO_SM_MOD].getStruct("StateMachine").structType
+
+		// statemachie入队列
+		vst := loadIfVar(re, s)
+		qt, _ := ScopeMap[CORO_MOD].searchVar("QueueTask")
+		fqt := qt.v.(*ir.Func)
+		c, _ := implicitCast(vst, i, s)
+		s.block.NewCall(fqt, c)
+	}
 	s.generics = scope.generics
 	return re
 }
+
+var asyncFunc = map[string]bool{}
 
 var stackallocfn = map[string]bool{
 	"sizeof":     true,
@@ -631,6 +675,7 @@ func (n *InlineFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	fn := m.NewFunc(fname, fntp.RetType, ps...)
 	b := fn.NewBlock("")
 	chs := s.addChildScope(b)
+	chs.freeFunc = nil
 	chs.closure = true
 	fields := []types.Type{}
 	vals := []value.Value{}
@@ -650,6 +695,10 @@ func (n *InlineFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		}
 		if _, ok := ScopeMap[k]; ok {
 			// skip module
+			delete(n.closureVars, k)
+		}
+		if _, ok := externMap[k]; ok {
+			// skip extern func
 			delete(n.closureVars, k)
 		}
 	}

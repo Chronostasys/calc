@@ -1,6 +1,7 @@
 package coro
 
 import (
+    "github.com/Chronostasys/calc/runtime/generator"
     "github.com/Chronostasys/calc/runtime/linkedlist"
     "github.com/Chronostasys/calc/runtime/coro/sync"
     "github.com/Chronostasys/calc/runtime/coro/thread"
@@ -9,6 +10,18 @@ import (
 
 var sch = NewScheduler()
 
+type AsyncGen struct {
+    nextTask int
+    f func() void
+}
+
+func StepNext(this ag *AsyncGen) bool {
+    ag.f()
+    return false
+}
+func GetCurrent(this ag *AsyncGen) void {
+    return
+}
 
 type defaultScheduler struct {
     tasks *linkedlist.List<sm.StateMachine>
@@ -20,6 +33,17 @@ type Scheduler interface {
     QueueTask(s sm.StateMachine) void
     Exec() void
     Len() int
+}
+
+func Run(job func () void) generator.Generator<void> {
+    ag := &AsyncGen{}
+    ag.f = func () void {
+        job()
+        state := inttoptr<*sm.StateMachine>(ag.nextTask)
+        QueueTaskIfPossible(state)
+        return
+    }
+    return ag
 }
 
 

@@ -58,12 +58,12 @@ func (n *AwaitNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 
 		store(s.block.NewPtrToInt(hs, lexer.DefaultIntType()), ptr, s)
 	}
-	// statemachie入队列
-	vst := loadIfVar(stateMachine, s)
-	qt, _ := ScopeMap[CORO_MOD].searchVar("QueueTask")
-	fqt := qt.v.(*ir.Func)
-	c, _ := implicitCast(vst, i, s)
-	s.block.NewCall(fqt, c)
+	// // statemachie入队列
+	// vst := loadIfVar(stateMachine, s)
+	// qt, _ := ScopeMap[CORO_MOD].searchVar("QueueTask")
+	// fqt := qt.v.(*ir.Func)
+	// c, _ := implicitCast(vst, i, s)
+	// s.block.NewCall(fqt, c)
 	nb := f.NewBlock(n.label)
 	if s.yieldBlock != nil {
 		store(constant.NewBlockAddress(f, nb), s.yieldBlock, s)

@@ -8,13 +8,13 @@ import (
 
 func testCoroutine() void {
     libuv.StartUVLoop()
-    coro.QueueTask(testCoroutineAsync())
-    coro.QueueTask(coroutine2())
+    testCoroutineAsync()
+    coroutine2()
     coro.Exec()
-    for i :=0; i<50 ; i = i + 1 {
-        coro.QueueTask(testCoroutineAsync())
-        coro.QueueTask(coroutine2())
-    }
+    //for i :=0; i<50 ; i = i + 1 {
+    //    coro.QueueTask(testCoroutineAsync())
+    //    coro.QueueTask(coroutine2())
+    //}
     Sleep(3000)
     return
 }
