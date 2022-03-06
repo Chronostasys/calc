@@ -29,7 +29,7 @@ func NewMutex() *Mutex {
 func Lock(this m *Mutex) void {
     re := pthread_mutex_lock(m.mu)
     if re !=0 {
-        s := "mutex unlock failed"
+        s := "mutex lock failed"
         s.PrintLn()
         printIntln(re)
     }

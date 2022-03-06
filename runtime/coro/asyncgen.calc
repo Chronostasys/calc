@@ -1,9 +1,8 @@
-package libuv
+package coro
 
 import (
     "github.com/Chronostasys/calc/runtime/generator"
     "github.com/Chronostasys/calc/runtime/coro/sm"
-    "github.com/Chronostasys/calc/runtime/coro"
     "github.com/Chronostasys/calc/runtime/coro/sync"
 )
 

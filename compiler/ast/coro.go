@@ -47,16 +47,37 @@ func (n *AwaitNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	if len(f.Params) != 0 {
 		p, _ = implicitCast(f.Params[0], i, s)
 	}
+	lock, _ := ScopeMap[CORO_MOD].searchVar("LockST")
+	st, _ := implicitCast(loadIfVar(stateMachine, s), i, s)
+	s.block.NewCall(lock.v, st)
+	isdone, _ := ScopeMap[CORO_MOD].searchVar("IsDone")
+	b := loadIfVar(s.block.NewCall(isdone.v, st), s)
 	if p != nil {
-		// 给statemachine的nexttask赋值
-		stiptr := s.block.NewGetElementPtr(smtp.Type, stateMachine,
-			zero, zero)
-		sti := loadIfVar(stiptr, s)
-		ptr := s.block.NewIntToPtr(sti, types.NewPointer(lexer.DefaultIntType()))
-		hs := gcmalloc(m, s, &calcedTypeNode{i})
-		store(p, hs, s)
+		// 如果已经完成，则直接进行movenext；反之设置continuousTask，自己退出，在
+		// await的任务完成后重新入执行队列
+		ifel := &IfElseNode{
+			BoolExp: &fakeNode{v: b},
+		}
+		tr := &fakeNode{}
+		tr.f = func(m *ir.Module, f *ir.Func, s *Scope) value.Value {
+			return zero
+		}
+		el := &fakeNode{}
+		el.f = func(m *ir.Module, f *ir.Func, s *Scope) value.Value {
+			// 给statemachine的nexttask赋值
+			stiptr := s.block.NewGetElementPtr(smtp.Type, stateMachine,
+				zero, zero)
+			sti := loadIfVar(stiptr, s)
+			ptr := s.block.NewIntToPtr(sti, types.NewPointer(lexer.DefaultIntType()))
+			hs := gcmalloc(m, s, &calcedTypeNode{i})
+			store(p, hs, s)
 
-		store(s.block.NewPtrToInt(hs, lexer.DefaultIntType()), ptr, s)
+			store(s.block.NewPtrToInt(hs, lexer.DefaultIntType()), ptr, s)
+			return zero
+		}
+		ifel.Statements = tr
+		ifel.ElSt = el
+		ifel.calc(m, f, s)
 	}
 	// // statemachie入队列
 	// vst := loadIfVar(stateMachine, s)
@@ -64,12 +85,16 @@ func (n *AwaitNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	// fqt := qt.v.(*ir.Func)
 	// c, _ := implicitCast(vst, i, s)
 	// s.block.NewCall(fqt, c)
+	unlock, _ := ScopeMap[CORO_MOD].searchVar("UnLockST")
+	s.block.NewCall(unlock.v, st)
 	nb := f.NewBlock(n.label)
 	if s.yieldBlock != nil {
 		store(constant.NewBlockAddress(f, nb), s.yieldBlock, s)
 	}
-	s.block.NewRet(constant.False) // 自身出队列
-	f1 := smtp.interfaceFuncs["GetCurrent"]
+	s.block.NewRet(b) // 自身出队列
+
+	// 获取返回值
+	f1 := smtp.interfaceFuncs["GetResult"]
 	fni := f1.i
 
 	fn := nb.NewGetElementPtr(smtp.Type, stateMachine, zero, constant.NewInt(types.I32, int64(fni)))

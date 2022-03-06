@@ -1,0 +1,16 @@
+package coro
+
+import (
+    "github.com/Chronostasys/calc/runtime/coro/sm"
+    "github.com/Chronostasys/calc/runtime/coro/sync"
+)
+
+type Task<T> interface {
+    StepNext() bool
+    GetMutex() *sync.Mutex
+    GetResult() T
+    GetContinuous() *sm.StateMachine
+    IsDone() bool
+    SetDone() void
+}
+

@@ -4,6 +4,7 @@ import (
     "github.com/Chronostasys/calc/runtime/generator"
     "github.com/Chronostasys/calc/runtime/coro/sm"
     "github.com/Chronostasys/calc/runtime/coro"
+    "github.com/Chronostasys/calc/runtime/coro/sync"
 )
 
 type Timer *byte
@@ -28,16 +29,19 @@ func NewTimer() Timer {
     return t
 }
 
-func Delay(this t Timer, timeout int64) generator.Generator<bool> {
-    ag := &AsyncGen{}
+func Delay(this t Timer, timeout int64) coro.Task<void> {
+    ag := &AsyncGen{lock:sync.NewMutex()}
+    cb := func () void {
+        coro.TryQueueContinuous(ag)
+        return
+    }
     f := func () void {
-        cb := func () void {
-            state := inttoptr<*sm.StateMachine>(ag.nextTask)
-            coro.QueueTaskIfPossible(state)
-            return
-        }
         t.StartTimer(timeout,cb)
         return
+    }
+    if ag.lock==nil {
+        s := "ag lock nil"
+        s.PrintLn()
     }
     ag.f = f
     coro.QueueTask(ag)

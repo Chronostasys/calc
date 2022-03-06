@@ -121,6 +121,12 @@ func buildCtx(sl *SLNode, s *Scope, tps []types.Type) ([]types.Type, *ctx) {
 	tps = append(tps, lexer.DefaultIntType())
 	c.idxmap = append(c.idxmap, &ctx{id: c.i, father: c})
 	c.i++
+	tps = append(tps, types.NewPointer(ScopeMap[CORO_SYNC_MOD].getStruct("Mutex").structType))
+	c.idxmap = append(c.idxmap, &ctx{id: c.i, father: c})
+	c.i++
+	tps = append(tps, types.I1)
+	c.idxmap = append(c.idxmap, &ctx{id: c.i, father: c})
+	c.i++
 	for _, v := range sl.Children {
 		trf(v)
 	}

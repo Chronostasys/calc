@@ -156,7 +156,7 @@ func (n *FuncNode) AddtoScope(s *Scope) {
 				tpname, rtp, idxmap, blockAddrId, context := buildGenaratorCtx(
 					n.Statements, n.RetType, s, ps)
 				buildGenerator(rtp, ps, s, childScope, tpname,
-					blockAddrId, idxmap, context, tp, n.Statements)
+					blockAddrId, idxmap, context, tp, n.Statements, n.Async)
 			} else {
 				for i, v := range ps {
 					ptr := gcmalloc(m, childScope, &calcedTypeNode{v.Type()}) // TODO: escape analysis; alloc on heap to avoid captured by inner closure.
@@ -232,12 +232,84 @@ func buildGenaratorCtx(st Node, ret TypeNode, s *Scope, ps []*ir.Param) (
 func buildGenerator(rtp types.Type, ps []*ir.Param,
 	s, childScope *Scope, tpname string, blockAddrId int,
 	idxmap map[*ir.Param]int, context *ctx, tp types.Type,
-	sta Node) {
+	sta Node, async bool) {
 
 	// 原理见https://mapping-high-level-constructs-to-llvm-ir.readthedocs.io/en/latest/advanced-constructs/generators.html
 	stp := rtp
 	gencount++
 	b := childScope.block
+	t := tp.(*interf)
+	if t.interfaceFuncs["GetCurrent"] == nil {
+		async = true
+	}
+	if async { // GetMutex方法
+		fname := "GetMutex"
+
+		gcname := s.getFullName(tpname + "." + fname)
+		p := ir.NewParam("ctx4", types.NewPointer(rtp))
+
+		s.genericMap = t.genericMaps
+		tt, _ := t.interfaceFuncs[fname].RetType.calc(s)
+		getcurrent := s.m.NewFunc(gcname, tt, p)
+		s.globalScope.addVar(gcname, &variable{v: getcurrent})
+		gcentry := getcurrent.NewBlock("")
+		chs := s.addChildScope(gcentry)
+		retptr := gcentry.NewGetElementPtr(stp, p, zero, constant.NewInt(types.I32, int64(
+			1,
+		)))
+		gcentry.NewRet(loadIfVar(retptr, chs))
+
+		fname = "GetContinuous"
+
+		gcname = s.getFullName(tpname + "." + fname)
+		p = ir.NewParam("ctx5", types.NewPointer(rtp))
+
+		s.genericMap = t.genericMaps
+		tt, _ = t.interfaceFuncs[fname].RetType.calc(s)
+		getcurrent = s.m.NewFunc(gcname, tt, p)
+		s.globalScope.addVar(gcname, &variable{v: getcurrent})
+		gcentry = getcurrent.NewBlock("")
+		chs = s.addChildScope(gcentry)
+		retptr = gcentry.NewGetElementPtr(stp, p, zero, constant.NewInt(types.I32, int64(
+			0,
+		)))
+		i := ScopeMap[CORO_SM_MOD].getStruct("StateMachine").structType
+		gcentry.NewRet(gcentry.NewIntToPtr(loadIfVar(retptr, chs), types.NewPointer(i)))
+
+		fname = "IsDone"
+
+		gcname = s.getFullName(tpname + "." + fname)
+		p = ir.NewParam("ctx6", types.NewPointer(rtp))
+
+		s.genericMap = t.genericMaps
+		tt, _ = t.interfaceFuncs[fname].RetType.calc(s)
+		getcurrent = s.m.NewFunc(gcname, tt, p)
+		s.globalScope.addVar(gcname, &variable{v: getcurrent})
+		gcentry = getcurrent.NewBlock("")
+		chs = s.addChildScope(gcentry)
+		retptr = gcentry.NewGetElementPtr(stp, p, zero, constant.NewInt(types.I32, int64(
+			2,
+		)))
+
+		gcentry.NewRet(loadIfVar(retptr, chs))
+
+		fname = "SetDone"
+
+		gcname = s.getFullName(tpname + "." + fname)
+		p = ir.NewParam("ctx7", types.NewPointer(rtp))
+
+		s.genericMap = t.genericMaps
+		tt, _ = t.interfaceFuncs[fname].RetType.calc(s)
+		getcurrent = s.m.NewFunc(gcname, tt, p)
+		s.globalScope.addVar(gcname, &variable{v: getcurrent})
+		gcentry = getcurrent.NewBlock("")
+		chs = s.addChildScope(gcentry)
+		retptr = gcentry.NewGetElementPtr(stp, p, zero, constant.NewInt(types.I32, int64(
+			2,
+		)))
+		store(constant.True, retptr, chs)
+		gcentry.NewRet(nil)
+	}
 
 	// 生成generator的StepNext函数
 	snname := s.getFullName(tpname + "." + "StepNext")
@@ -288,12 +360,16 @@ func buildGenerator(rtp types.Type, ps []*ir.Param,
 	entry.NewIndirectBr(&blockAddress{Value: loadIfVar(nextBlock, &Scope{block: entry})},
 		stepNext.Blocks...)
 
-	// 生成generator的GetCurrent函数
-	gcname := s.getFullName(tpname + "." + "GetCurrent")
+	// 生成generator的GetCurrent/getresult函数
+	fname := "GetCurrent"
+	if t.interfaceFuncs[fname] == nil {
+		fname = "GetResult"
+	}
+	gcname := s.getFullName(tpname + "." + fname)
 	p = ir.NewParam("ctx2", types.NewPointer(rtp))
-	t := tp.(*interf)
+
 	s.genericMap = t.genericMaps
-	tt, _ := t.interfaceFuncs["GetCurrent"].RetType.calc(s)
+	tt, _ := t.interfaceFuncs[fname].RetType.calc(s)
 	getcurrent := s.m.NewFunc(gcname, tt, p)
 	s.globalScope.addVar(gcname, &variable{v: getcurrent})
 	gcentry := getcurrent.NewBlock("")
@@ -317,21 +393,21 @@ func buildGenerator(rtp types.Type, ps []*ir.Param,
 		blockAddrId,
 	)))
 	store(constant.NewBlockAddress(stepNext, realentry), ptr, childScope)
+	if async { // 初始化mutex
+		newmu, _ := ScopeMap[CORO_SYNC_MOD].searchVar("NewMutex")
+		mu := childScope.block.NewCall(newmu.v)
+		retptr := childScope.block.NewGetElementPtr(stp, st, zero, constant.NewInt(types.I32, int64(
+			1,
+		)))
+		store(mu, retptr, childScope)
+	}
+
 	r, err := implicitCast(st, tp, childScope)
 	if err != nil {
 		panic(err)
 	}
-	// if childScope.async {
-	// 	// statemachie入队列
-	// 	vst := loadIfVar(r, childScope)
-	// 	i := ScopeMap[CORO_SM_MOD].getStruct("StateMachine").structType
-	// 	qt, _ := ScopeMap[CORO_MOD].searchVar("QueueTask")
-	// 	fqt := qt.v.(*ir.Func)
-	// 	c, _ := implicitCast(vst, i, childScope)
-	// 	childScope.block.NewCall(fqt, c)
-	// }
-
 	childScope.block.NewRet(r) // 返回context（即generator）
+
 }
 
 func (n *FuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
@@ -363,7 +439,7 @@ func (n *FuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		tpname, rtp, idxmap, blockAddrId, context := buildGenaratorCtx(
 			n.Statements, n.RetType, s, ps)
 		buildGenerator(rtp, ps, s, childScope, tpname,
-			blockAddrId, idxmap, context, tp, n.Statements)
+			blockAddrId, idxmap, context, tp, n.Statements, n.Async)
 	} else {
 		for i, v := range ps {
 			ptr := gcmalloc(m, childScope, &calcedTypeNode{v.Type()}) // TODO: escape analysis; alloc on heap to avoid captured by inner closure.
@@ -386,11 +462,6 @@ type CallFuncNode struct {
 	parent   value.Value
 	Next     Node
 	Generics []TypeNode
-	val      func(s *Scope) value.Value
-}
-
-func (n *CallFuncNode) setVal(f func(s *Scope) value.Value) {
-	n.val = f
 }
 
 func (n *CallFuncNode) tp() TypeNode {
@@ -482,6 +553,7 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		if ok && i.interfaceFuncs != nil {
 			_, ok2 = i.interfaceFuncs[fnNode.Token]
 		}
+		member := false
 		if ok2 {
 			id := i.interfaceFuncs[fnNode.Token].i
 			interger := s.block.NewGetElementPtr(i.Type,
@@ -528,7 +600,7 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 				va = &variable{}
 				err = nil
 				va.v = s.block.NewGetElementPtr(st.structType, alloca, zero, constant.NewInt(types.I32, int64(idx.idx)))
-
+				member = true
 			}
 			fnv = va.v
 			if err != nil {
@@ -537,7 +609,7 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		}
 		fn = fnv
 		fntp = loadElmType(fn.Type()).(*types.FuncType)
-		if len(fntp.Params) != 0 {
+		if len(fntp.Params) != 0 && !member {
 			if _, ok := fntp.Params[0].(*types.PointerType); ok {
 				alloca = deReference(alloca, s)
 			} else {
@@ -606,11 +678,7 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		re = n.Next.calc(m, f, s)
 	}
 	name := strings.Trim(fn.Ident(), "\"@")
-	if n.val != nil {
-		newre := n.val(s)
-		store(loadIfVar(re, s), newre, s)
-		re = newre
-	}
+
 	if asyncFunc[name] {
 		i := ScopeMap[CORO_SM_MOD].getStruct("StateMachine").structType
 
@@ -618,7 +686,10 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		vst := loadIfVar(re, s)
 		qt, _ := ScopeMap[CORO_MOD].searchVar("QueueTask")
 		fqt := qt.v.(*ir.Func)
-		c, _ := implicitCast(vst, i, s)
+		c, err := implicitCast(vst, i, s)
+		if err != nil {
+			panic(err)
+		}
 		s.block.NewCall(fqt, c)
 	}
 	s.generics = scope.generics
@@ -770,7 +841,7 @@ func (n *InlineFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		tpname, rtp, idxmap, blockAddrId, context := buildGenaratorCtx(
 			n.Body, n.Fntype.(*FuncTypeNode).Ret, s, ps)
 		buildGenerator(rtp, ps, s, chs, tpname,
-			blockAddrId, idxmap, context, fn.Sig.RetType, n.Body)
+			blockAddrId, idxmap, context, fn.Sig.RetType, n.Body, n.Async)
 	} else {
 		for i, v := range ps {
 			ptr := gcmalloc(m, chs, &calcedTypeNode{v.Type()}) // TODO: escape analysis; alloc on heap to avoid captured by inner closure.

@@ -1,5 +1,11 @@
 package sm
 
+import "github.com/Chronostasys/calc/runtime/coro/sync"
+
 type StateMachine interface {
     StepNext() bool
+    GetMutex() *sync.Mutex
+    GetContinuous() *StateMachine
+    IsDone() bool
+    SetDone() void
 }

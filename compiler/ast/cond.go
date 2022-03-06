@@ -112,7 +112,7 @@ func (n *IfNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	n.Statements.calc(m, f, s.addChildScope(tt))
 	blockID++
 	end := f.NewBlock(strconv.Itoa(blockID))
-	s.block.NewCondBr(n.BoolExp.calc(m, f, s), tt, end)
+	s.block.NewCondBr(loadIfVar(n.BoolExp.calc(m, f, s), s), tt, end)
 	s.block = end
 	if tt.Term == nil {
 		tt.NewBr(end)
@@ -144,7 +144,7 @@ func (n *IfElseNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	tf := f.NewBlock(strconv.Itoa(blockID))
 	blockID++
 	end := f.NewBlock(strconv.Itoa(blockID))
-	s.block.NewCondBr(n.BoolExp.calc(m, f, s), tt, tf)
+	s.block.NewCondBr(loadIfVar(n.BoolExp.calc(m, f, s), s), tt, tf)
 	s.block = end
 	n.Statements.calc(m, f, s.addChildScope(tt))
 	n.ElSt.calc(m, f, s.addChildScope(tf))

@@ -9,17 +9,22 @@ import (
 func testCoroutine() void {
     libuv.StartUVLoop()
     testCoroutineAsync()
-    coroutine2()
     coro.Exec()
-    //for i :=0; i<50 ; i = i + 1 {
-    //    coro.QueueTask(testCoroutineAsync())
-    //    coro.QueueTask(coroutine2())
-    //}
+    coro.Run(func () void {
+        Sleep(2000)
+        s := "run task awake after 2s"
+        s.PrintLn()
+        return
+    })
+    for i :=0; i<50 ; i = i + 1 {
+        testCoroutineAsync()
+    }
+    coroutine2()
     Sleep(3000)
     return
 }
 
-func testCoroutineAsync() generator.Generator<int> async {
+func testCoroutineAsync() coro.Task<int> async {
     s := "async func main queued"
     s.PrintLn()
     s = "async func main call async func 1"
@@ -32,18 +37,21 @@ func testCoroutineAsync() generator.Generator<int> async {
     return 1
 }
 
-func coroutine1() generator.Generator<int> async {
+func coroutine1() coro.Task<int> async {
     t := libuv.NewTimer()
     await t.Delay(1000)
     return 8989
 }
 
-func coroutine2() generator.Generator<int> async {
+func coroutine2() coro.Task<int> async {
     s := "async func 2 queued"
     s.PrintLn()
     s = "async func 2 call async func 1"
     s.PrintLn()
-    re := await coroutine1()
+    c1 :=  coroutine1()
+    // block current thread 1.5s, ensure the task is complete when await
+    Sleep(1500)
+    re := await c1
     s = "async func 1 return in async func 2:"
     s.PrintLn()
     printIntln(re)

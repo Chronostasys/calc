@@ -342,13 +342,19 @@ func (n *StructInitNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 
 type StructDefNode struct {
 	ptrlevel int
-	Fields   map[string]TypeNode
-	fields   map[string]*field
+
+	fields        map[string]*field
+	Orderedfields []*Field
+}
+
+type Field struct {
+	Name string
+	TP   TypeNode
 }
 
 func (n *StructDefNode) Clone() TypeNode {
 	return &StructDefNode{
-		n.ptrlevel, n.Fields, n.fields,
+		n.ptrlevel, n.fields, n.Orderedfields,
 	}
 }
 
@@ -362,8 +368,8 @@ func (v *StructDefNode) SetPtrLevel(i int) {
 func (v *StructDefNode) calc(s *Scope) (types.Type, error) {
 	fields := []types.Type{}
 	fieldsIdx := map[string]*field{}
-	i := 0
-	for k, v := range v.Fields {
+	for i := range v.Orderedfields {
+		k, v := v.Orderedfields[i].Name, v.Orderedfields[i].TP
 		tp, err := v.calc(s)
 		if err != nil {
 			return nil, err
@@ -373,7 +379,6 @@ func (v *StructDefNode) calc(s *Scope) (types.Type, error) {
 			idx:   i,
 			ftype: fields[i],
 		}
-		i++
 	}
 	var tp types.Type
 	tp = types.NewStruct(fields...)
@@ -409,13 +414,14 @@ func (t *interf) Equal(t1 types.Type) bool {
 }
 
 type InterfaceDefNode struct {
-	ptrlevel int
-	Funcs    map[string]*FuncNode
+	ptrlevel   int
+	Funcs      map[string]*FuncNode
+	OrderedIDS []string
 }
 
 func (n *InterfaceDefNode) Clone() TypeNode {
 	return &InterfaceDefNode{
-		n.ptrlevel, n.Funcs,
+		n.ptrlevel, n.Funcs, n.OrderedIDS,
 	}
 }
 
@@ -430,9 +436,9 @@ func (v *InterfaceDefNode) calc(s *Scope) (types.Type, error) {
 	var tp types.Type
 	tps := []types.Type{lexer.DefaultIntType()}
 	i := 1
-	for _, v := range v.Funcs {
+	for _, k := range v.OrderedIDS {
 		tps = append(tps, lexer.DefaultIntType())
-		v.i = i
+		v.Funcs[k].i = i
 		i++
 	}
 	interfaceTp := types.NewStruct(tps...)

@@ -24,7 +24,6 @@ func (p *Parser) typeDef() (n ast.Node, err error) {
 }
 
 func (p *Parser) structType() (n ast.TypeNode, err error) {
-	fields := make(map[string]ast.TypeNode)
 	_, err = p.lexer.ScanType(lexer.TYPE_RES_STRUCT)
 	if err != nil {
 		return nil, err
@@ -33,6 +32,7 @@ func (p *Parser) structType() (n ast.TypeNode, err error) {
 	if err != nil {
 		return nil, err
 	}
+	ofs := []*ast.Field{}
 	for {
 		_, err = p.lexer.ScanType(lexer.TYPE_RB)
 		if err == nil {
@@ -43,12 +43,13 @@ func (p *Parser) structType() (n ast.TypeNode, err error) {
 			p.empty()
 			continue
 		}
-		fields[t], err = p.allTypes()
+		f, err := p.allTypes()
 		if err != nil {
 			panic(err)
 		}
+		ofs = append(ofs, &ast.Field{Name: t, TP: f})
 	}
-	return &ast.StructDefNode{Fields: fields}, nil
+	return &ast.StructDefNode{Orderedfields: ofs}, nil
 }
 
 func (p *Parser) interfaceType() (n ast.TypeNode, err error) {
@@ -62,6 +63,7 @@ func (p *Parser) interfaceType() (n ast.TypeNode, err error) {
 	if err != nil {
 		return nil, err
 	}
+	names := []string{}
 	for {
 		_, err = p.lexer.ScanType(lexer.TYPE_RB)
 		if err == nil {
@@ -79,7 +81,8 @@ func (p *Parser) interfaceType() (n ast.TypeNode, err error) {
 		if err != nil {
 			panic(err)
 		}
+		names = append(names, t)
 		p.empty()
 	}
-	return &ast.InterfaceDefNode{Funcs: fields}, nil
+	return &ast.InterfaceDefNode{Funcs: fields, OrderedIDS: names}, nil
 }

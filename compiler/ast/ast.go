@@ -379,6 +379,7 @@ func (n *VarBlockNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 
 type fakeNode struct {
 	v value.Value
+	f func(m *ir.Module, f *ir.Func, s *Scope) value.Value
 }
 
 func (n *fakeNode) tp() TypeNode {
@@ -390,6 +391,9 @@ func (n *fakeNode) travel(f func(Node)) {
 }
 
 func (n *fakeNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
+	if n.f != nil {
+		return n.f(m, f, s)
+	}
 	return n.v
 }
 
@@ -401,7 +405,7 @@ func (n *VarBlockNode) getReloadIdx(val value.Value, idxs []Node, m *ir.Module, 
 			ps := []Node{v}
 			if len(idxs)-1 == iter {
 				i = INDEX_SET_RELOAD
-				ps = append(ps, &fakeNode{s.rightValue})
+				ps = append(ps, &fakeNode{v: s.rightValue})
 			}
 			b := &VarBlockNode{Token: i}
 			cf := &CallFuncNode{
@@ -830,11 +834,19 @@ func (n *RetNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 			nb := f.NewBlock(".exit")
 			store(constant.NewBlockAddress(f, nb), s.yieldBlock, s)
 
-			qt, _ := ScopeMap[CORO_MOD].searchVar("QueueTaskIfPossible")
+			i := ScopeMap[CORO_SM_MOD].getStruct("StateMachine").structType
+			sm, _ := implicitCast(f.Params[0], i, s)
+			// idx := i.(*interf).interfaceFuncs["GetMutex"].i
+			// mu := s.block.NewGetElementPtr(i, sm, zero, constant.NewInt(types.I32, int64(idx)))
+
+			qt, err := ScopeMap[CORO_MOD].searchVar("TryQueueContinuous")
+
+			if err != nil {
+				panic(err)
+			}
 
 			fqt := qt.v.(*ir.Func)
-			i := ScopeMap[CORO_SM_MOD].getStruct("StateMachine").structType
-			s.block.NewCall(fqt, s.block.NewIntToPtr(s.continueTask, types.NewPointer(i)))
+			s.block.NewCall(fqt, sm)
 
 			s.block.NewRet(constant.False)
 			s.block = nb
@@ -862,11 +874,15 @@ func (n *RetNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		store(constant.NewBlockAddress(f, nb), s.yieldBlock, s)
 		store(v, s.yieldRet, s)
 
-		qt, _ := ScopeMap[CORO_MOD].searchVar("QueueTaskIfPossible")
+		qt, _ := ScopeMap[CORO_MOD].searchVar("TryQueueContinuous")
 
 		fqt := qt.v.(*ir.Func)
 		i := ScopeMap[CORO_SM_MOD].getStruct("StateMachine").structType
-		s.block.NewCall(fqt, s.block.NewIntToPtr(s.continueTask, types.NewPointer(i)))
+		sm, err := implicitCast(f.Params[0], i, s)
+		if err != nil {
+			panic(err)
+		}
+		s.block.NewCall(fqt, sm)
 
 		s.block.NewRet(constant.False)
 		s.block = nb
