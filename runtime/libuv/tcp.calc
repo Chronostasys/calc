@@ -60,8 +60,6 @@ func TCPListen(ip string, port int32, cb ConnCB) void {
             s := "listen failed"
             s.PrintLn()
         }
-        s := "server started"
-        s.PrintLn()
         return
     }
     evmu.Lock()
@@ -128,10 +126,10 @@ func ReadBufAsync(this server UVTcp,len int) coro.Task<*UVBuf> {
             }
             set_tcp_data(server,&Buffer{task:ag,explen:len})
             uv_read_start(server,tcpAllocCB,func (client UVStream, nread int, buf *UVBuf) void{
-                if nread<0 {
-                    printIntln(nread)
-                    uv_close(client,nil)
-                }
+                //if nread<0 {
+                //    printIntln(nread)
+                //    uv_close(client,nil)
+                //}
                 //uv_close(server,nil)
                 data := get_tcp_data(client)
                 

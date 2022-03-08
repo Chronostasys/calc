@@ -1,0 +1,39 @@
+package main
+
+import (
+    "github.com/Chronostasys/calc/runtime/generator"
+    "github.com/Chronostasys/calc/runtime/coro"
+    "github.com/Chronostasys/calc/runtime/libuv"
+    "github.com/Chronostasys/calc/runtime"
+)
+
+func getchar() byte
+
+func main() void {
+    libuv.TCPListen("0.0.0.0",8888,func (server libuv.UVTcp, status int32) void {
+        s := "new tcp conn"
+        s.PrintLn()
+        jeff := func () coro.Task<int> async {
+            for {
+                buf := await server.ReadBufAsync(1)
+                ss := runtime.newstr(buf.Data,buf.Len)
+                ss.Print()
+                re := await server.WriteBufAsync(ss)
+                if re !=0 {
+                    sss := "write failed"
+                    sss.PrintLn()
+                    printIntln(re)
+                }
+            }
+            return 0
+        }
+        jeff()
+        return
+    })
+    s1 := "tcp echo server started at 0.0.0.0:8888"
+    s1.PrintLn()
+    for {
+        getchar()
+    }
+    return
+}

@@ -96,9 +96,6 @@ func Exec() void {
 
 func Exec(this ds *defaultScheduler) void {
     job := func (id *int) *byte {
-        s := "thread start"
-        s.PrintLn()
-        printIntln(*id)
         for  {
             ds.mu.Lock()
             for ;ds.tasks.Len()==0; {

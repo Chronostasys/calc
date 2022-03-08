@@ -458,10 +458,13 @@ func (n *FuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	s.addVar(n.ID, &variable{v: fn})
 
 	if n.ID == "main" {
-		s.globalScope.vartable["main"].v = fn
+		s.globalScope.vartable[s.getFullName(n.ID)].v = fn
+		asyncMain = n.Async
 	}
 	return fn
 }
+
+var asyncMain = false
 
 type CallFuncNode struct {
 	Params   []Node

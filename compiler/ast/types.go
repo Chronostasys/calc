@@ -515,8 +515,17 @@ func NewTypeDef(id string, tp TypeNode, generics []string, m *ir.Module, s *Scop
 				fieldsIdx:  fidx,
 			}
 			s.globalScope.addStruct(n.id, td)
-
-			t, err := tp.calc(s)
+			var t types.Type
+			var err error
+			func() {
+				defer func() {
+					e := recover()
+					if e != nil {
+						err = fmt.Errorf("%v", e)
+					}
+				}()
+				t, err = tp.calc(s)
+			}()
 			if err != nil {
 				delete(s.globalScope.types, s.getFullName(n.id))
 				return err

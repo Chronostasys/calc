@@ -155,9 +155,9 @@ func (s *Scope) addVar(id string, val *variable) error {
 	return nil
 }
 func (s *Scope) getFullName(id string) string {
-	if id == "main" {
-		return id
-	}
+	// if id == "main" {
+	// 	return id
+	// }
 	if id[0] == '{' { // anonymous struct
 		return id
 	}

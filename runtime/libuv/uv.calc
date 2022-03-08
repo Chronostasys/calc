@@ -52,7 +52,5 @@ func StartUVLoop() void {
         return nil
     }
     thread.New<*byte,*byte>(evloop,nil)
-    s := "evloop start"
-    s.PrintLn()
     return
 }

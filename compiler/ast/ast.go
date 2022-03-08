@@ -765,9 +765,29 @@ func (n *ProgramNode) Emit(m *ir.Module) {
 	main := mi.v.(*ir.Func)
 	initb.NewRet(nil)
 	m.Funcs = append(m.Funcs, initf)
-	main.Blocks[0].Insts = append([]ir.Instruction{
-		ir.NewCall(initf), // add global init
-	}, main.Blocks[0].Insts...)
+	realmain := m.NewFunc("main", types.Void)
+	entry := realmain.NewBlock("")
+	// add global init
+	entry.NewCall(initf)
+	if ScopeMap[CORO_MOD] != nil {
+		fe, _ := ScopeMap[CORO_MOD].searchVar("Exec")
+		entry.NewCall(fe.v) // start system threads
+	}
+	if ScopeMap[LIBUV] != nil {
+		fe, _ := ScopeMap[LIBUV].searchVar("StartUVLoop")
+		entry.NewCall(fe.v) // start event loop
+	}
+	ret := entry.NewCall(main)
+	if asyncMain {
+		fe, _ := ScopeMap[CORO_MOD].searchVar("Exec")
+		i := ScopeMap[CORO_SM_MOD].getStruct("StateMachine").structType
+		in, err := implicitCast(ret, i, &Scope{block: entry})
+		if err != nil {
+			panic(err)
+		}
+		entry.NewCall(fe.v, in) // queue main func
+	}
+	entry.NewRet(nil)
 
 }
 
