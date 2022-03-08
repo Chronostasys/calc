@@ -27,6 +27,16 @@ func get_tcp_data(t UVTcp) *Buffer
 
 func set_tcp_data(t UVTcp, buf *Buffer) void
 
+type WriteCB func (server UVWrite, status int32) void
+
+func uv_write(req UVWrite, handle UVStream, bufs *UVBuf, nbufs int, cb WriteCB) int32
+
+func new_write() UVWrite
+
+func uv_buf_init(buf *byte, len int) UVBuf
+
+type UVWrite *byte
+
 func TCPListen(ip string, port int32, cb ConnCB) void {
     ff := func () void {
         tcp := new_tcp()
@@ -67,6 +77,32 @@ func tcpAllocCB(handle UVHandle, suggested_size int, buf *UVBuf) void {
     return
 }
 
+
+func WriteBufAsync(this server UVTcp, str string) coro.Task<int> {
+    ag := coro.NewAsyncGen<int>()
+    ag.SetJob<int>(func () int {
+        ff := func () void {
+            wt := new_write()
+            buf := &UVBuf{
+                Data: str.Byte(),
+                Len: str.Len(),
+            }
+            uv_write(wt,server,buf,1,func (server UVWrite, status int32) void{
+                ag.SetResult(status)
+                coro.TryQueueContinuous(ag)
+                return
+            })
+            return
+        }
+        evmu.Lock()
+        evlist.Push(ff)
+        evmu.UnLock()
+        return 0
+    })
+    coro.QueueTask(ag)
+    return ag
+
+}
 
 func ReadBufAsync(this server UVTcp,len int) coro.Task<*UVBuf> {
     ag := coro.NewAsyncGen<*UVBuf>()

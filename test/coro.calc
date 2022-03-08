@@ -18,9 +18,15 @@ func testCoroutine() void {
         s.PrintLn()
         jeff := func () coro.Task<int> async {
             for {
-                buf := await server.ReadBufAsync(1)
+                buf := await server.ReadBufAsync(10)
                 ss := runtime.newstr(buf.Data,buf.Len)
                 ss.Print()
+                re := await server.WriteBufAsync("got it!\n")
+                if re !=0 {
+                    sss := "write failed"
+                    sss.PrintLn()
+                    printIntln(re)
+                }
             }
             return 0
         }

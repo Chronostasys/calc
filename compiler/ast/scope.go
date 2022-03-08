@@ -11,35 +11,35 @@ import (
 )
 
 type Scope struct {
-	Pkgname           string
-	globalScope       *Scope
-	parent            *Scope
-	vartable          map[string]*variable
-	childrenScopes    []*Scope
-	block             *ir.Block
-	continueBlock     *ir.Block
-	breakBlock        *ir.Block
-	types             map[string]*typedef
-	defFuncs          []func(m *ir.Module, s *Scope) error
-	interfaceDefFuncs []func(s *Scope)
-	funcDefFuncs      []func(s *Scope)
-	genericFuncs      map[string]func(m *ir.Module, s *Scope, gens ...TypeNode) value.Value
-	genericStructs    map[string]func(m *ir.Module, s *Scope, gens ...TypeNode) *typedef
-	genericMap        map[string]types.Type
-	heapAllocTable    map[string]bool
-	closure           bool
-	trampolineVars    map[string]*fieldval
-	trampolineObj     value.Value
-	m                 *ir.Module
-	generics          []types.Type
-	paramGenerics     [][]types.Type
-	currParam         int
-	rightValue        value.Value
-	assigned          bool
-	freeFunc          func(*Scope)
-	yieldRet          value.Value
-	yieldBlock        value.Value
-	continueTask      value.Value
+	Pkgname        string
+	globalScope    *Scope
+	parent         *Scope
+	vartable       map[string]*variable
+	childrenScopes []*Scope
+	block          *ir.Block
+	continueBlock  *ir.Block
+	breakBlock     *ir.Block
+	types          map[string]*typedef
+	defFuncs       []func(m *ir.Module, s *Scope) error
+	funcDefFuncs   []func(s *Scope)
+	genericFuncs   map[string]func(m *ir.Module, s *Scope, gens ...TypeNode) value.Value
+	genericStructs map[string]func(m *ir.Module, s *Scope, gens ...TypeNode) *typedef
+	genericMap     map[string]types.Type
+	heapAllocTable map[string]bool
+	closure        bool
+	trampolineVars map[string]*fieldval
+	trampolineObj  value.Value
+	m              *ir.Module
+	generics       []types.Type
+	paramGenerics  [][]types.Type
+	currParam      int
+	rightValue     value.Value
+	assigned       bool
+	freeFunc       func(*Scope)
+	yieldRet       value.Value
+	yieldBlock     value.Value
+	continueTask   value.Value
+	strict         bool
 }
 
 type fieldval struct {
@@ -65,9 +65,9 @@ func MergeGlobalScopes(ss ...*Scope) *Scope {
 		for id, v := range v.vartable {
 			s.addVar(id, v)
 		}
-		for k, v := range v.types {
-			s.addStruct(k, v)
-		}
+		// for k, v1 := range v.types {
+		// 	s.addStruct(k, v1)
+		// }
 		for k, v := range v.genericFuncs {
 			s.addGeneric(k, v)
 		}
@@ -76,7 +76,6 @@ func MergeGlobalScopes(ss ...*Scope) *Scope {
 		}
 
 		s.defFuncs = append(s.defFuncs, v.defFuncs...)
-		s.interfaceDefFuncs = append(s.interfaceDefFuncs, v.interfaceDefFuncs...)
 		s.funcDefFuncs = append(s.funcDefFuncs, v.funcDefFuncs...)
 		s.childrenScopes = append(s.childrenScopes, v.childrenScopes...)
 		for _, v := range v.childrenScopes {

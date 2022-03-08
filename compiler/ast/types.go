@@ -1,6 +1,7 @@
 package ast
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/Chronostasys/calc/compiler/helper"
@@ -181,7 +182,7 @@ func (v *BasicTypeNode) calc(sc *Scope) (types.Type, error) {
 		s = typedic[v.ResType]
 	} else {
 		tpname := v.CustomTp[0]
-		getTp := func() {
+		getTp := func() error {
 			if len(v.Generics) > 0 {
 				gfn := sc.getGenericStruct(tpname)
 				if oris.paramGenerics != nil {
@@ -208,7 +209,7 @@ func (v *BasicTypeNode) calc(sc *Scope) (types.Type, error) {
 				// for k, v := range sc.genericMap {
 				// 	oris.genericMap[k] = v
 				// }
-				return
+				return nil
 			}
 			st := types.NewStruct()
 			def := sc.getStruct(tpname)
@@ -220,8 +221,12 @@ func (v *BasicTypeNode) calc(sc *Scope) (types.Type, error) {
 				s = sc.getGenericType(tpname)
 			} else {
 				st.TypeName = v.Pkg + "." + tpname
+				if st.TypeName != "github.com/Chronostasys/calc/runtime._str" && sc.strict {
+					return fmt.Errorf("type %s not found", v.Pkg+"."+tpname)
+				}
 				s = st
 			}
+			return nil
 		}
 		if len(v.CustomTp) == 1 {
 			if sc.Pkgname != v.Pkg {
@@ -230,11 +235,17 @@ func (v *BasicTypeNode) calc(sc *Scope) (types.Type, error) {
 			for k, v := range oris.genericMap {
 				sc.genericMap[k] = v
 			}
-			getTp()
+			err := getTp()
+			if err != nil {
+				return nil, err
+			}
 		} else {
 			sc = ScopeMap[v.CustomTp[0]]
 			tpname = v.CustomTp[1]
-			getTp()
+			err := getTp()
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 	if s == nil {
@@ -487,29 +498,51 @@ func (n *typeDefNode) travel(f func(Node) bool) {
 
 func NewTypeDef(id string, tp TypeNode, generics []string, m *ir.Module, s *Scope) Node {
 	if len(generics) == 0 {
-		sout := s
+		// sout := s
 		n := &typeDefNode{id: id, generics: generics}
 
-		defFunc := func(s *Scope) {
-			t, err := tp.calc(sout)
+		defFunc := func(m *ir.Module, s *Scope) error {
+			s.strict = true
+			defer func() {
+				s.strict = false
+			}()
+			// 提前定义好类型占位符，这样才能允许自引用
+			tmpss := types.NewStruct()
+			tmpss.SetName(s.getFullName(n.id))
+			var fidx = map[string]*field{}
+			td := &typedef{
+				structType: tmpss,
+				fieldsIdx:  fidx,
+			}
+			s.globalScope.addStruct(n.id, td)
+
+			t, err := tp.calc(s)
 			if err != nil {
-				panic(err)
+				delete(s.globalScope.types, s.getFullName(n.id))
+				return err
 			}
 			if tt, ok := t.(*interf); ok {
 				tt.id = s.getFullName(n.id)
 			}
-			var fidx map[string]*field
 			if n, ok := tp.(*StructDefNode); ok {
-				fidx = n.fields
+				for k, v := range n.fields {
+					fidx[k] = v
+				}
 			}
 			n.tp = t
 
-			s.globalScope.addStruct(n.id, &typedef{
-				structType: m.NewTypeDef(s.getFullName(n.id), t),
-				fieldsIdx:  fidx,
-			})
+			if tt, ok := t.(*types.StructType); ok {
+				tmpss.Fields = tt.Fields
+			}
+			td.structType = m.NewTypeDef(s.getFullName(n.id), t)
+
+			// s.globalScope.addStruct(n.id, &typedef{
+			// 	structType: m.NewTypeDef(s.getFullName(n.id), t),
+			// 	fieldsIdx:  fidx,
+			// })
+			return nil
 		}
-		s.globalScope.interfaceDefFuncs = append(s.globalScope.interfaceDefFuncs, defFunc)
+		s.globalScope.defFuncs = append(s.globalScope.defFuncs, defFunc)
 		return n
 	}
 	deffunc := func(m *ir.Module, s *Scope, gens ...TypeNode) *typedef {
@@ -562,12 +595,6 @@ func NewTypeDef(id string, tp TypeNode, generics []string, m *ir.Module, s *Scop
 		}
 		td.structType = m.NewTypeDef(s.getFullName(sig), t)
 		td.fieldsIdx = fidx
-		// td := &typedef{
-		// 	structType: m.NewTypeDef(s.getFullName(sig), t),
-		// 	fieldsIdx:  fidx,
-		// 	generics:   generictypes,
-		// }
-		// s.globalScope.addStruct(sig, td)
 		return td
 	}
 	s.addGenericStruct(id, deffunc)

@@ -719,13 +719,9 @@ func (n *ProgramNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 func (n *ProgramNode) CalcGlobals(m *ir.Module) {
 
 	globalScope := n.GlobalScope
-	// define all interfaces
-	for _, v := range globalScope.interfaceDefFuncs {
-		v(n.GlobalScope)
-	}
-	globalScope.interfaceDefFuncs = globalScope.interfaceDefFuncs[:0]
 
-	// define all structs
+	globalScope.types = map[string]*typedef{}
+	// define all structs & interfaces
 	for {
 		failed := []func(m *ir.Module, s *Scope) error{}
 		for _, v := range globalScope.defFuncs {

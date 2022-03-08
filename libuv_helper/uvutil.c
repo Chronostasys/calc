@@ -21,6 +21,11 @@ uv_idle_t* new_idle(){
     return GC_MALLOC(sizeof t);
 }
 
+uv_write_t* new_write(){
+    uv_write_t t;
+    return GC_MALLOC(sizeof t);
+}
+
 void* get_tcp_data(uv_tcp_t* t) {
     return t->data;
 }
