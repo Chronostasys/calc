@@ -6,39 +6,48 @@ import (
     "github.com/Chronostasys/calc/runtime/coro/sync"
 )
 
-type AsyncGen struct {
+type AsyncGen<T> struct {
     nextTask int
     lock *sync.Mutex
     done bool
-    f func() void
+    f func() T
+    re T
 }
 
-func NewAsyncGen(f func() void) *AsyncGen {
-    return &AsyncGen{
+func SetJob<T>(this ag *AsyncGen<T>,f func() T) void {
+    ag.f = f
+    return 
+}
+
+func NewAsyncGen<T>() *AsyncGen<T> {
+    return &AsyncGen<T>{
         lock: sync.NewMutex(),
-        f: f,
     }
 }
 
-func StepNext(this ag *AsyncGen) bool {
-    ag.f()
+func StepNext<T>(this ag *AsyncGen<T>) bool {
+    ag.re = ag.f()
     return false
 }
-func GetResult(this ag *AsyncGen) void {
-    return
+func GetResult<T>(this ag *AsyncGen<T>) T {
+    return ag.re
 }
-func GetMutex(this ag *AsyncGen) *sync.Mutex {
+func GetMutex<T>(this ag *AsyncGen<T>) *sync.Mutex {
     return ag.lock
 }
+func SetResult<T>(this ag *AsyncGen<T>, t T) void {
+    ag.re = t
+    return
+}
 
-func GetContinuous(this ag *AsyncGen) *sm.StateMachine {
+func GetContinuous<T>(this ag *AsyncGen<T>) *sm.StateMachine {
     return inttoptr<*sm.StateMachine>(ag.nextTask)
 }
 
-func IsDone(this ag *AsyncGen) bool {
+func IsDone<T>(this ag *AsyncGen<T>) bool {
     return ag.done
 }
-func SetDone(this ag *AsyncGen) void {
+func SetDone<T>(this ag *AsyncGen<T>) void {
     ag.done = true
     return
 }

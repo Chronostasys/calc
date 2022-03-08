@@ -9,9 +9,8 @@ import (
 
 type Timer *byte
 
-func new_timer() Timer
+func new_timer2() Timer
 
-func uv_timer_init(loop UVLoop, handle Timer) int
 
 func uv_timer_start(handle Timer, cb func(t Timer) void, timeout int64, repeat int64) int
 
@@ -19,7 +18,7 @@ func uv_timer_stop(handle Timer) int
 
 
 func NewTimer() Timer {
-    t := new_timer()
+    t := new_timer2()
     re := uv_timer_init(uv_default_loop(), t)
     if re !=0 {
         s := "timer init failed"
@@ -29,7 +28,7 @@ func NewTimer() Timer {
     return t
 }
 
-func Delay(this t Timer, timeout int64) coro.Task<void> {
+func Delay(this t Timer, timeout int64) coro.Task<int> {
     ag := &AsyncGen{lock:sync.NewMutex()}
     cb := func () void {
         coro.TryQueueContinuous(ag)

@@ -107,5 +107,7 @@ func (n *AwaitNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	ret := nb.NewCall(nb.NewIntToPtr(loadIfVar(fn, s),
 		types.NewPointer(types.NewFunc(tp, types.I8Ptr))),
 		nb.NewIntToPtr(sti, types.I8Ptr))
-	return ret
+	r := gcmalloc(m, s, &calcedTypeNode{ret.Type()})
+	store(ret, r, s)
+	return r
 }

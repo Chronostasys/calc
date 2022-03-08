@@ -471,9 +471,14 @@ func (n *SLNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	var closurevar = map[string]bool{}
 	var trf func(n Node)
 	travel := func(fn *InlineFuncNode) {
+		old := closurevar
+		closurevar = map[string]bool{}
 		fn.Body.travel(trf)
 		fn.closureVars = closurevar
-		closurevar = map[string]bool{}
+		for k, v := range closurevar {
+			old[k] = v
+		}
+		closurevar = old
 
 	}
 	trf = func(n Node) { // // 逃逸点4：闭包
@@ -496,6 +501,10 @@ func (n *SLNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 
 	callfanf := func(node *CallFuncNode) {
 		for _, v := range node.Params {
+			if in, ok := v.(*InlineFuncNode); ok {
+				closurevar = map[string]bool{}
+				travel(in)
+			}
 			v.travel(func(right Node) {
 				if r, ok := right.(*VarBlockNode); ok {
 					rname := r.Token
@@ -1032,11 +1041,57 @@ func implicitCast(v value.Value, target types.Type, s *Scope) (value.Value, erro
 		}
 		tp, ok := target.(*interf)
 		src := strings.Trim(v.Type().String(), "%*\"")
+		idx := strings.Index(src, "<")
+		if idx > -1 {
+			s.generics = nil
+			ss := strings.ReplaceAll(src[idx+1:len(src)-1], "\\22", "")
+			src = src[:idx]
+			lev := 0
+			start := 0
+			end := 0
+			for i, v := range ss {
+				if v == '<' {
+					lev++
+				}
+				if v == '>' {
+					lev--
+				}
+				if v == ',' && lev == 0 {
+					end = i
+					t := types.NewStruct()
+					idx = strings.Index(ss[start:end], "*")
+					t.TypeName = strings.Trim(ss[start:end], "*%")
+					var tp types.Type = t
+					if idx > -1 {
+						for i := 0; i < end-start-idx; i++ {
+							tp = types.NewPointer(tp)
+						}
+					}
+					s.generics = append(s.generics, tp)
+					start = end
+				}
+
+			}
+		}
 		if ok { // turn to interface
 			st := stackAlloc(s.m, s, tp)
 			for k, v1 := range tp.interfaceFuncs {
 				f := s.block.NewGetElementPtr(tp.Type, st, zero, constant.NewInt(types.I32, int64(v1.i)))
-				fnv, err := s.searchVar(src + "." + k)
+				// old := s.genericMap
+				// s.genericMap = tp.genericMaps
+				st := strings.Split(src, ".")[0]
+				la := strings.LastIndex(src, "/")
+				if la > -1 {
+					i := strings.Index(src[la:], ".")
+					st = src[:la] + src[la:la+i]
+				}
+				scope, ok := ScopeMap[st]
+				if !ok || scope.Pkgname == s.Pkgname {
+					scope = s
+				}
+				scope.generics = s.generics
+				fnv, err := scope.searchVar(src + "." + k)
+				// s.genericMap = old
 				if err != nil {
 					goto FAIL
 				}

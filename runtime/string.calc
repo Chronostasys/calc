@@ -3,8 +3,18 @@ package runtime
 
 
 func PrintLn(this s string) void {
-    a := s.Append("\n\0")
-    printf(a.bs)
+    s.Print()
+    putchar(10)
+    return
+}
+
+func Print(this s string) void {
+    for i :=0;i<s.len;i=i+1 {
+        p := ptrtoint<*byte>(s.bs)
+        p = p + i
+        ch := inttoptr<*byte>(p)
+        putchar(*ch)
+    }
     return
 }
 
@@ -21,9 +31,15 @@ func newstr(bs *byte,len int) _str {
     }
 }
 
+func putchar(ch byte) byte
+
 
 func Len(this s _str) int {
     return s.len
+}
+
+func Byte(this s _str) *byte {
+    return s.bs
 }
 
 func Append(this s _str, newstr _str) _str {

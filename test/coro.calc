@@ -4,23 +4,38 @@ import (
     "github.com/Chronostasys/calc/runtime/generator"
     "github.com/Chronostasys/calc/runtime/coro"
     "github.com/Chronostasys/calc/runtime/libuv"
+    "github.com/Chronostasys/calc/runtime"
 )
+
+func han(server libuv.UVTcp) coro.Task<int> async {
+    buf := await server.ReadBufAsync()
+    ss := runtime.newstr(buf.Data,buf.Len)
+    ss.Print()
+    return 0
+}
 
 func testCoroutine() void {
     libuv.StartUVLoop()
     testCoroutineAsync()
     coro.Exec()
-    coro.Run(func () void {
+
+    libuv.TCPListen("0.0.0.0",8888,func (server libuv.UVTcp, status int32) void {
+        s := "new tcp conn"
+        s.PrintLn()
+        han(server)
+        return
+    })
+    coro.Run<int>(func () int {
         Sleep(2000)
         s := "run task awake after 2s"
         s.PrintLn()
-        return
+        return 0
     })
     for i :=0; i<50 ; i = i + 1 {
         testCoroutineAsync()
     }
     coroutine2()
-    Sleep(3000)
+    Sleep(3000000)
     return
 }
 

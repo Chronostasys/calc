@@ -6,12 +6,15 @@ import (
 
 type UVLoop *byte
 
+func uv_timer_init(loop UVLoop, handle Timer) int
+
+func uv_tcp_init(loop UVLoop, handle UVTcp) int32
+
 func uv_default_loop() UVLoop
 
 
 func uv_run(loop UVLoop, mode int) int
 
-func uv_close(handle *byte, cb func(t *byte) void) void
 
 func StartUVLoop() void {
     evloop := func(arg *byte) *byte {

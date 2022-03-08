@@ -1,0 +1,81 @@
+package libuv
+
+import (
+    "github.com/Chronostasys/calc/runtime/generator"
+    "github.com/Chronostasys/calc/runtime/coro/sm"
+    "github.com/Chronostasys/calc/runtime/coro"
+    "github.com/Chronostasys/calc/runtime"
+    "github.com/Chronostasys/calc/runtime/coro/sync"
+)
+
+type UVTcp *byte
+
+
+func new_tcp() UVTcp
+
+type Addr *byte
+
+func new_addr() Addr
+
+func uv_ip4_addr(ip *byte, port int32, addr Addr) int32
+
+type ConnCB func (server UVTcp, status int32) void
+
+func uv_tcp_bind(handle UVTcp, addr Addr, flags int32) int32
+
+
+func TCPListen(ip string, port int32, cb ConnCB) void {
+    ff := func () void {
+        tcp := new_tcp()
+        uv_tcp_init(uv_default_loop(), tcp)
+        addr := new_addr()
+        re := uv_ip4_addr(ip.Byte(),port,addr)
+        if re != 0 {
+            s := "addr failed"
+            s.PrintLn()
+        }
+        uv_tcp_bind(tcp,addr,0)
+        re := uv_listen(tcp,128,cb)
+        if re != 0 {
+            s := "listen failed"
+            s.PrintLn()
+        }
+        s := "server started"
+        s.PrintLn()
+        return
+    }
+    evmu.Lock()
+    evlist.Push(ff)
+    evmu.UnLock()
+    return
+}
+
+
+func ReadBufAsync(this server UVTcp) coro.Task<*UVBuf> {
+    ag := coro.NewAsyncGen<*UVBuf>()
+    ag.SetJob<*UVBuf>(func () *UVBuf {
+        ff := func () void {
+            client := new_tcp()
+            uv_tcp_init(uv_default_loop(),client)
+            uv_accept(server, client)
+            uv_read_start(client,DefaultAllocCB,func (client UVStream, nread int, buf *UVBuf) void{
+                uv_close(client,nil)
+                newbuf := &UVBuf{
+                    Data:buf.Data,
+                    Len:nread,
+                }
+                ag.SetResult(newbuf)
+                coro.TryQueueContinuous(ag)
+                return
+            })
+            return
+        }
+        evmu.Lock()
+        evlist.Push(ff)
+        evmu.UnLock()
+        return nil
+    })
+    coro.QueueTask(ag)
+    return ag
+}
+

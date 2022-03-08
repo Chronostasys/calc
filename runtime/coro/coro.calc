@@ -22,8 +22,9 @@ type Scheduler interface {
     Len() int
 }
 
-func Run(job func () void) Task<void> {
-    ag := NewAsyncGen(job)
+func Run<T>(job func () T) Task<T> {
+    ag := NewAsyncGen<T>()
+    ag.SetJob<T>(job)
     QueueTask(ag)
     return ag
 }

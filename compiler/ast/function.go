@@ -122,10 +122,11 @@ func (n *FuncNode) AddtoScope(s *Scope) {
 					tp, _ = gens[i].calc(s)
 				}
 				s.genericMap[v] = tp
-				if i != 0 {
-					sig += ","
-				}
-				sig += tp.String()
+				sig += tp.String() + ","
+			}
+			gen1 := make(map[string]types.Type)
+			for k, v := range s.genericMap {
+				gen1[k] = v
 			}
 			sig += ">"
 			if len(gens) != 0 {
@@ -151,10 +152,11 @@ func (n *FuncNode) AddtoScope(s *Scope) {
 			b := fun.NewBlock("")
 			childScope := s.addChildScope(b)
 			childScope.freeFunc = nil
-
+			childScope.genericMap = gen1
+			childScope.generics = s.generics
 			if n.generator {
 				tpname, rtp, idxmap, blockAddrId, context := buildGenaratorCtx(
-					n.Statements, n.RetType, s, ps)
+					n.Statements, n.RetType, s, ps, childScope)
 				buildGenerator(rtp, ps, s, childScope, tpname,
 					blockAddrId, idxmap, context, tp, n.Statements, n.Async)
 			} else {
@@ -205,13 +207,13 @@ func (n *FuncNode) travel(f func(Node)) {
 
 var gencount = 0
 
-func buildGenaratorCtx(st Node, ret TypeNode, s *Scope, ps []*ir.Param) (
+func buildGenaratorCtx(st Node, ret TypeNode, s *Scope, ps []*ir.Param, chs *Scope) (
 	tpname string,
 	rtp types.Type,
 	idxmap map[*ir.Param]int, blockAddrId int, context *ctx) {
 
 	idxmap = map[*ir.Param]int{}
-	tps, c := buildCtx(st.(*SLNode), s, []types.Type{})
+	tps, c := buildCtx(st.(*SLNode), chs, []types.Type{}, ps)
 	context = c
 	for _, v := range ps {
 		tps = append(tps, v.Type())
@@ -437,7 +439,7 @@ func (n *FuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 
 	if n.generator {
 		tpname, rtp, idxmap, blockAddrId, context := buildGenaratorCtx(
-			n.Statements, n.RetType, s, ps)
+			n.Statements, n.RetType, s, ps, childScope)
 		buildGenerator(rtp, ps, s, childScope, tpname,
 			blockAddrId, idxmap, context, tp, n.Statements, n.Async)
 	} else {
@@ -532,10 +534,12 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 			alloca = n.parent
 		}
 		name := strings.Trim(alloca.Type().String(), "%*\"")
+		oris := name
 		idx := strings.Index(name, "<")
 		if idx > -1 {
 			name = name[:idx]
 		}
+		oldname := name
 		ss := helper.SplitLast(name, ".")
 		if len(ss) > 1 && !strings.Contains(ss[1], "/") { // method is in another module
 			mod := ss[0]
@@ -581,7 +585,12 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 
 		} else if len(n.Generics) > 0 {
 			if gfn := scope.getGenericFunc(name); gfn != nil {
-				fnv = gfn(m, n.Generics...)
+				gs := []TypeNode{}
+				for _, v := range n.Generics {
+					t, _ := v.calc(s)
+					gs = append(gs, &calcedTypeNode{t})
+				}
+				fnv = gfn(m, gs...)
 			} else {
 				panic(fmt.Errorf("cannot find generic method %s", name))
 			}
@@ -589,6 +598,7 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 			var va *variable
 			va, err = scope.searchVar(name)
 			if va == nil {
+				name = strings.Replace(name, oldname, oris, 1)
 				ss := strings.Split(name, ".")
 				ssf := strings.Join(ss[:len(ss)-1], ".")
 				sse := ss[len(ss)-1]
@@ -628,7 +638,12 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 			}
 			scope.paramGenerics = paramGenerics
 			if gfn := scope.getGenericFunc(token); gfn != nil {
-				fn = gfn(m, n.Generics...)
+				gs := []TypeNode{}
+				for _, v := range n.Generics {
+					t, _ := v.calc(s)
+					gs = append(gs, &calcedTypeNode{t})
+				}
+				fn = gfn(m, gs...)
 				fntp = loadElmType(fn.Type()).(*types.FuncType)
 			} else {
 				panic(fmt.Errorf("cannot find generic method %s", fnNode.Token))
@@ -773,6 +788,17 @@ func (n *InlineFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 			delete(n.closureVars, k)
 		}
 	}
+	// HACK: 内部匿名函数的入参可能在外边找不到
+	dels := []string{}
+	for k := range n.closureVars {
+		va, _ := s.searchVar(k)
+		if va == nil {
+			dels = append(dels, k)
+		}
+	}
+	for _, v := range dels {
+		delete(n.closureVars, v)
+	}
 
 	for k := range n.closureVars {
 		v := &fieldval{}
@@ -839,7 +865,7 @@ func (n *InlineFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 
 	if generator {
 		tpname, rtp, idxmap, blockAddrId, context := buildGenaratorCtx(
-			n.Body, n.Fntype.(*FuncTypeNode).Ret, s, ps)
+			n.Body, n.Fntype.(*FuncTypeNode).Ret, s, ps, chs)
 		buildGenerator(rtp, ps, s, chs, tpname,
 			blockAddrId, idxmap, context, fn.Sig.RetType, n.Body, n.Async)
 	} else {

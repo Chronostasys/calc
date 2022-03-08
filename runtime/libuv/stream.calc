@@ -1,0 +1,28 @@
+package libuv
+
+type UVStream *byte
+
+func uv_accept(server UVStream, client UVStream) int32
+
+type UVBuf struct {
+    Len int
+    Data *byte
+}
+
+type UVHandle *byte
+
+type AllocCB func (handle UVHandle, suggested_size int, buf *UVBuf) void
+type ReadCB func (client UVStream, nread int, buf *UVBuf) void 
+
+func uv_read_start(stream UVStream,alloc_cb AllocCB,uv_read_cb ReadCB) int32
+
+
+func uv_listen(stream UVStream, backlog int32, cb ConnCB) int32
+
+func uv_close(handle UVHandle , cb func(t UVHandle) void) void
+
+func DefaultAllocCB(handle UVHandle, suggested_size int, buf *UVBuf) void {
+    buf.Len = suggested_size
+    buf.Data = GC_malloc(suggested_size)
+    return
+}

@@ -28,7 +28,7 @@ func Test_buildCtx(t *testing.T) {
 			},
 		},
 	}
-	tps, c := buildCtx(arg.sl, arg.s, arg.tps)
+	tps, c := buildCtx(arg.sl, arg.s, arg.tps, nil)
 	if len(tps) != 2 {
 		t.Error("expect 2 fields, got", len(tps))
 	}

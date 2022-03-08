@@ -34,7 +34,7 @@ func (c *ctx) setVals(st value.Value, s *Scope) {
 	}
 }
 
-func buildCtx(sl *SLNode, s *Scope, tps []types.Type) ([]types.Type, *ctx) {
+func buildCtx(sl *SLNode, s *Scope, tps []types.Type, ps []*ir.Param) ([]types.Type, *ctx) {
 	mvart := map[string]map[string]*variable{}
 	for k, v := range ScopeMap {
 		mvart[k] = map[string]*variable{}
@@ -53,17 +53,20 @@ func buildCtx(sl *SLNode, s *Scope, tps []types.Type) ([]types.Type, *ctx) {
 	tpm := ir.NewModule()
 	tpf := tpm.NewFunc("xxxx", types.Void)
 	tpsc := newScope(tpf.NewBlock(""))
+	tpsc.Pkgname = s.Pkgname
+	for _, v := range ps {
+		tpsc.addVar(v.LocalName, &variable{v: v})
+	}
 	tpsc.globalScope = tpsc
 	tpsc.m = tpm
 
 	for k, v := range s.globalScope.vartable {
 		tpsc.vartable[k] = v
 	}
-	tpsc.Pkgname = s.Pkgname
 	trf = func(n Node) {
 		switch node := n.(type) {
 		case *IfElseNode:
-			ntps, ct := buildCtx(node.Statements.(*SLNode), s.addChildScope(tpf.NewBlock("")), []types.Type{})
+			ntps, ct := buildCtx(node.Statements.(*SLNode), s.addChildScope(tpf.NewBlock("")), []types.Type{}, ps)
 			tps = append(tps, types.NewStruct(ntps...))
 			ct.father = c
 			ct.id = c.i
@@ -71,21 +74,21 @@ func buildCtx(sl *SLNode, s *Scope, tps []types.Type) ([]types.Type, *ctx) {
 
 			c.i++
 		case *IfNode:
-			ntps, ct := buildCtx(node.Statements.(*SLNode), s.addChildScope(tpf.NewBlock("")), []types.Type{})
+			ntps, ct := buildCtx(node.Statements.(*SLNode), s.addChildScope(tpf.NewBlock("")), []types.Type{}, ps)
 			tps = append(tps, types.NewStruct(ntps...))
 			ct.father = c
 			ct.id = c.i
 			c.idxmap = append(c.idxmap, ct)
 			c.i++
 		case *ForNode:
-			ntps, ct := buildCtx(node.Statements.(*SLNode), s.addChildScope(tpf.NewBlock("")), []types.Type{})
+			ntps, ct := buildCtx(node.Statements.(*SLNode), s.addChildScope(tpf.NewBlock("")), []types.Type{}, ps)
 			tps = append(tps, types.NewStruct(ntps...))
 			ct.father = c
 			ct.id = c.i
 			c.idxmap = append(c.idxmap, ct)
 			c.i++
 		case *InlineFuncNode:
-			ntps, ct := buildCtx(node.Body.(*SLNode), s, []types.Type{})
+			ntps, ct := buildCtx(node.Body.(*SLNode), s, []types.Type{}, ps)
 			tps = append(tps, types.NewStruct(ntps...))
 			ct.father = c
 			ct.i = c.i
@@ -93,6 +96,7 @@ func buildCtx(sl *SLNode, s *Scope, tps []types.Type) ([]types.Type, *ctx) {
 			c.i++
 		case *DefineNode:
 			tp, _ := node.TP.calc(s)
+			tpsc.addVar(node.ID, &variable{v: stackAlloc(tpm, tpsc, tp)})
 			tps = append(tps, tp)
 			c.idxmap = append(c.idxmap, &ctx{id: c.i, father: c, node: node})
 
@@ -100,6 +104,7 @@ func buildCtx(sl *SLNode, s *Scope, tps []types.Type) ([]types.Type, *ctx) {
 		case *DefAndAssignNode:
 			var tp types.Type
 			tp = node.calc(tpm, tpf, tpsc).Type()
+			tpsc.addVar(node.ID, &variable{v: stackAlloc(tpm, tpsc, tp)})
 			tps = append(tps, getElmType(tp))
 			c.idxmap = append(c.idxmap, &ctx{id: c.i, father: c, node: node})
 			c.i++
