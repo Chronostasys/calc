@@ -13,7 +13,7 @@ func (n *PackageNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	return zero
 }
 
-func (n *PackageNode) travel(f func(Node)) {
+func (n *PackageNode) travel(f func(Node) bool) {
 	f(n)
 }
 
@@ -21,7 +21,7 @@ type ImportNode struct {
 	Imports map[string]string
 }
 
-func (n *ImportNode) travel(f func(Node)) {
+func (n *ImportNode) travel(f func(Node) bool) {
 	f(n)
 }
 

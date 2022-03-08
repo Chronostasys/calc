@@ -15,7 +15,7 @@ func (n *TakePtrNode) tp() TypeNode {
 	return tp
 }
 
-func (n *TakePtrNode) travel(f func(Node)) {
+func (n *TakePtrNode) travel(f func(Node) bool) {
 	f(n)
 	n.Node.travel(f)
 }
@@ -32,7 +32,7 @@ type TakeValNode struct {
 	Node  ExpNode
 }
 
-func (n *TakeValNode) travel(f func(Node)) {
+func (n *TakeValNode) travel(f func(Node) bool) {
 	f(n)
 	n.Node.travel(f)
 }

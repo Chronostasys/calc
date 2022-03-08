@@ -18,7 +18,7 @@ type BoolConstNode struct {
 func (n *BoolConstNode) tp() TypeNode {
 	return &calcedTypeNode{types.I1}
 }
-func (n *BoolConstNode) travel(f func(Node)) {
+func (n *BoolConstNode) travel(f func(Node) bool) {
 	f(n)
 }
 
@@ -39,7 +39,7 @@ func (b *CompareNode) tp() TypeNode {
 	return b.Left.tp()
 }
 
-func (n *CompareNode) travel(f func(Node)) {
+func (n *CompareNode) travel(f func(Node) bool) {
 	f(n)
 	n.Left.travel(f)
 	n.Right.travel(f)
@@ -100,7 +100,7 @@ type IfNode struct {
 	Statements Node
 }
 
-func (n *IfNode) travel(f func(Node)) {
+func (n *IfNode) travel(f func(Node) bool) {
 	f(n)
 	n.BoolExp.travel(f)
 	n.Statements.travel(f)
@@ -130,7 +130,7 @@ type IfElseNode struct {
 	ElSt       Node
 }
 
-func (n *IfElseNode) travel(f func(Node)) {
+func (n *IfElseNode) travel(f func(Node) bool) {
 	f(n)
 	n.BoolExp.travel(f)
 	n.Statements.travel(f)
@@ -172,7 +172,7 @@ func (b *BoolExpNode) tp() TypeNode {
 	}
 	return b.Left.tp()
 }
-func (n *BoolExpNode) travel(f func(Node)) {
+func (n *BoolExpNode) travel(f func(Node) bool) {
 	f(n)
 	n.Left.travel(f)
 	n.Right.travel(f)
@@ -195,7 +195,7 @@ func (n *NotNode) tp() TypeNode {
 	return n.Bool.tp()
 }
 
-func (n *NotNode) travel(f func(Node)) {
+func (n *NotNode) travel(f func(Node) bool) {
 	f(n)
 	n.Bool.travel(f)
 }

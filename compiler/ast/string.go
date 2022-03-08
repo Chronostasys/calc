@@ -20,7 +20,7 @@ func (b *StringNode) tp() TypeNode {
 func (n *StringNode) setAlloc(onheap bool) {
 	n.onheap = onheap
 }
-func (n *StringNode) travel(f func(Node)) {
+func (n *StringNode) travel(f func(Node) bool) {
 	f(n)
 }
 

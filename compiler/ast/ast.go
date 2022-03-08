@@ -38,7 +38,7 @@ func getstrtp() types.Type {
 
 type Node interface {
 	calc(*ir.Module, *ir.Func, *Scope) value.Value
-	travel(func(Node))
+	travel(func(Node) bool)
 }
 
 type ExpNode interface {
@@ -128,7 +128,7 @@ func hasFloatType(b *ir.Block, ts ...value.Value) (bool, []value.Value) {
 	return hasfloat, re
 }
 
-func (n *BinNode) travel(f func(Node)) {
+func (n *BinNode) travel(f func(Node) bool) {
 	f(n)
 	n.Left.travel(f)
 	n.Right.travel(f)
@@ -224,6 +224,11 @@ func store(r, lptr value.Value, s *Scope) value.Value {
 		s.block.NewStore(r, lptr)
 		return lptr
 	}
+	lt := loadElmType(lptr.Type())
+	rt := loadElmType(r.Type())
+	if lt.Equal(rt) {
+
+	}
 	if _, ok := lptr.Type().(*types.PointerType).ElemType.(*interf); ok {
 		store := &ir.InstStore{Src: r, Dst: lptr}
 		s.block.Insts = append(s.block.Insts, store)
@@ -240,7 +245,7 @@ type NumNode struct {
 func (n *NumNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	return n.Val
 }
-func (n *NumNode) travel(f func(Node)) {
+func (n *NumNode) travel(f func(Node) bool) {
 	f(n)
 }
 func (n *NumNode) tp() TypeNode {
@@ -255,7 +260,7 @@ type UnaryNode struct {
 func (n *UnaryNode) tp() TypeNode {
 	return n.Child.tp()
 }
-func (n *UnaryNode) travel(f func(Node)) {
+func (n *UnaryNode) travel(f func(Node) bool) {
 	f(n)
 	n.Child.travel(f)
 }
@@ -304,7 +309,7 @@ func (b *VarBlockNode) tp() TypeNode {
 	return &calcedTypeNode{b.calc(tpm, tpf, tps).Type()}
 }
 
-func (n *VarBlockNode) travel(f func(Node)) {
+func (n *VarBlockNode) travel(f func(Node) bool) {
 	f(n)
 }
 
@@ -386,7 +391,7 @@ func (n *fakeNode) tp() TypeNode {
 	panic("not impl")
 }
 
-func (n *fakeNode) travel(f func(Node)) {
+func (n *fakeNode) travel(f func(Node) bool) {
 	f(n)
 }
 
@@ -455,7 +460,7 @@ type escNode struct {
 	initNode alloca
 }
 
-func (n *SLNode) travel(f func(Node)) {
+func (n *SLNode) travel(f func(Node) bool) {
 	f(n)
 	for _, v := range n.Children {
 		v.travel(f)
@@ -469,7 +474,7 @@ func (n *SLNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	var heapAllocTable = map[string]bool{}
 	var closuredef = map[string]bool{}
 	var closurevar = map[string]bool{}
-	var trf func(n Node)
+	var trf func(n Node) bool
 	travel := func(fn *InlineFuncNode) {
 		old := closurevar
 		closurevar = map[string]bool{}
@@ -481,7 +486,7 @@ func (n *SLNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		closurevar = old
 
 	}
-	trf = func(n Node) { // // 逃逸点4：闭包
+	trf = func(n Node) bool { // // 逃逸点4：闭包
 		// 在一个闭包中的逃逸点是闭包引用的外界变量
 		switch node := n.(type) {
 		case *DefineNode:
@@ -497,6 +502,7 @@ func (n *SLNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 			travel(node)
 
 		}
+		return true
 	}
 
 	callfanf := func(node *CallFuncNode) {
@@ -505,7 +511,7 @@ func (n *SLNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 				closurevar = map[string]bool{}
 				travel(in)
 			}
-			v.travel(func(right Node) {
+			v.travel(func(right Node) bool {
 				if r, ok := right.(*VarBlockNode); ok {
 					rname := r.Token
 					if !defMap[r.Token] {
@@ -515,6 +521,7 @@ func (n *SLNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 				} else if r, ok := right.(alloca); ok {
 					r.setAlloc(true)
 				}
+				return true
 			})
 			node.FnNode.(*VarBlockNode).setAlloc(true)
 			escPoint[node.FnNode.(*VarBlockNode).Token] = true
@@ -556,7 +563,7 @@ func (n *SLNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 					escMap[name] = append(escMap[name], &escNode{token: rname})
 				} else {
 					escMap[name] = append(escMap[name], &escNode{initNode: right})
-					node.Right.travel(func(n Node) {
+					node.Right.travel(func(n Node) bool {
 						switch n := n.(type) {
 						case *VarBlockNode:
 							rname := n.Token
@@ -565,6 +572,7 @@ func (n *SLNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 							}
 							escMap[name] = append(escMap[name], &escNode{token: rname})
 						}
+						return true
 					})
 				}
 			}
@@ -589,7 +597,7 @@ func (n *SLNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 				escMap[name] = append(escMap[name], &escNode{token: rname})
 			} else {
 				escMap[name] = append(escMap[name], &escNode{initNode: right})
-				node.ValNode.travel(func(n Node) {
+				node.ValNode.travel(func(n Node) bool {
 					switch n := n.(type) {
 					case *VarBlockNode:
 						rname := n.Token
@@ -598,6 +606,7 @@ func (n *SLNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 						}
 						escMap[name] = append(escMap[name], &escNode{token: rname})
 					}
+					return true
 				})
 			}
 		case *DefineNode:
@@ -621,7 +630,7 @@ func (n *SLNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 				escPoint[rname] = true
 			} else {
 				right.setAlloc(true)
-				node.Exp.travel(func(n Node) {
+				node.Exp.travel(func(n Node) bool {
 					switch n := n.(type) {
 					case *VarBlockNode:
 						rname := n.Token
@@ -630,6 +639,7 @@ func (n *SLNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 						}
 						escPoint[rname] = true
 					}
+					return true
 				})
 			}
 		case *CallFuncNode: // 逃逸点2：方法参数
@@ -678,7 +688,7 @@ type ProgramNode struct {
 	GlobalScope *Scope
 }
 
-func (n *ProgramNode) travel(f func(Node)) {
+func (n *ProgramNode) travel(f func(Node) bool) {
 	f(n)
 	for _, v := range n.Children {
 		v.travel(f)
@@ -771,7 +781,7 @@ type EmptyNode struct {
 func (n *EmptyNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	return zero
 }
-func (n *EmptyNode) travel(f func(Node)) {
+func (n *EmptyNode) travel(f func(Node) bool) {
 	f(n)
 }
 
@@ -792,7 +802,7 @@ func (n *DefineNode) setVal(f func(s *Scope) value.Value) {
 	n.vf = f
 }
 
-func (n *DefineNode) travel(f func(Node)) {
+func (n *DefineNode) travel(f func(Node) bool) {
 	f(n)
 }
 func (n *DefineNode) getID() string {
@@ -829,7 +839,7 @@ type RetNode struct {
 	async bool
 }
 
-func (n *RetNode) travel(f func(Node)) {
+func (n *RetNode) travel(f func(Node) bool) {
 	f(n)
 	if n.Exp == nil {
 		return
@@ -912,7 +922,7 @@ func (n *NilNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	return nilval
 }
 
-func (n *NilNode) travel(f func(Node)) {
+func (n *NilNode) travel(f func(Node) bool) {
 	f(n)
 }
 
@@ -930,7 +940,7 @@ func (n *DefAndAssignNode) setVal(v func(s *Scope) value.Value) {
 	n.Val = v
 }
 
-func (n *DefAndAssignNode) travel(f func(Node)) {
+func (n *DefAndAssignNode) travel(f func(Node) bool) {
 	f(n)
 	n.ValNode.travel(f)
 }
@@ -997,12 +1007,12 @@ func (n *DefAndAssignNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value 
 		v = m.NewGlobalDef(s.getFullName(n.ID), constant.NewZeroInitializer(tp))
 	}
 
-	val, err := implicitCast(val, tp, s)
+	val1, err := implicitCast(val, tp, s)
 	if err != nil {
 		panic(err)
 	}
 	va := &variable{v: v}
-	store(val, v, s)
+	store(val1, v, s)
 	s.addVar(n.ID, va)
 	return v
 }

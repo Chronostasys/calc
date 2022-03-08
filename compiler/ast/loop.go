@@ -14,7 +14,7 @@ type ForNode struct {
 	Statements   Node
 }
 
-func (n *ForNode) travel(f func(Node)) {
+func (n *ForNode) travel(f func(Node) bool) {
 	f(n)
 	if n.Bool != nil {
 		n.Bool.travel(f)
@@ -77,7 +77,7 @@ func (n *ForNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 type BreakNode struct {
 }
 
-func (n *BreakNode) travel(f func(Node)) {
+func (n *BreakNode) travel(f func(Node) bool) {
 	f(n)
 }
 
@@ -100,6 +100,6 @@ func (n *ContinueNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	return zero
 }
 
-func (n *ContinueNode) travel(f func(Node)) {
+func (n *ContinueNode) travel(f func(Node) bool) {
 	f(n)
 }

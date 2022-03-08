@@ -260,7 +260,7 @@ func (n *ArrayInitNode) setAlloc(onheap bool) {
 	n.allocOnHeap = onheap
 }
 
-func (n *ArrayInitNode) travel(f func(Node)) {
+func (n *ArrayInitNode) travel(f func(Node) bool) {
 	f(n)
 }
 
@@ -466,7 +466,7 @@ func (b *StructInitNode) tp() TypeNode {
 	return b.TP
 }
 
-func (n *StructInitNode) travel(f func(Node)) {
+func (n *StructInitNode) travel(f func(Node) bool) {
 	f(n)
 	if n.Fields != nil {
 		for _, v := range n.Fields {
@@ -481,7 +481,7 @@ type typeDefNode struct {
 	generics []string
 }
 
-func (n *typeDefNode) travel(f func(Node)) {
+func (n *typeDefNode) travel(f func(Node) bool) {
 	f(n)
 }
 

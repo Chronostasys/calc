@@ -143,7 +143,7 @@ type YieldNode struct {
 	label string
 }
 
-func (n *YieldNode) travel(f func(Node)) {
+func (n *YieldNode) travel(f func(Node) bool) {
 	f(n)
 	if n.Exp != nil {
 		n.Exp.travel(f)

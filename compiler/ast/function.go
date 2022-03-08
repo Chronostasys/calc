@@ -18,7 +18,7 @@ type ParamNode struct {
 	Val value.Value
 }
 
-func (n *ParamNode) travel(f func(Node)) {
+func (n *ParamNode) travel(f func(Node) bool) {
 	f(n)
 }
 
@@ -39,7 +39,7 @@ type ParamsNode struct {
 	Ext    bool
 }
 
-func (n *ParamsNode) travel(f func(Node)) {
+func (n *ParamsNode) travel(f func(Node) bool) {
 	f(n)
 	for _, v := range n.Params {
 		v.travel(f)
@@ -67,23 +67,28 @@ func (n *FuncNode) AddtoScope(s *Scope) {
 	if n.Async {
 		n.generator = true
 	}
-	n.travel(func(no Node) {
-		switch node := no.(type) {
-		case *YieldNode:
-			n.generator = true
-			lableid++
-			node.label = fmt.Sprintf(".yield%d", lableid)
-		case *AwaitNode:
-			if !n.Async {
-				panic("await only allowed in async func")
+	if n.Statements != nil {
+		n.Statements.travel(func(no Node) bool {
+			switch node := no.(type) {
+			case *YieldNode:
+				n.generator = true
+				lableid++
+				node.label = fmt.Sprintf(".yield%d", lableid)
+			case *AwaitNode:
+				if !n.Async {
+					panic("await only allowed in async func")
+				}
+				node.label = fmt.Sprintf(".yield%d", lableid)
+				n.generator = true
+				lableid++
+			case *RetNode:
+				node.async = n.Async
+			case *InlineFuncNode:
+				return false
 			}
-			node.label = fmt.Sprintf(".yield%d", lableid)
-			n.generator = true
-			lableid++
-		case *RetNode:
-			node.async = n.Async
-		}
-	})
+			return true
+		})
+	}
 
 	if len(n.Generics) > 0 {
 		s.globalScope.addGeneric(n.ID, func(m *ir.Module, s *Scope, gens ...TypeNode) value.Value {
@@ -197,7 +202,7 @@ func (n *FuncNode) AddtoScope(s *Scope) {
 	}
 }
 
-func (n *FuncNode) travel(f func(Node)) {
+func (n *FuncNode) travel(f func(Node) bool) {
 	f(n)
 	n.Params.travel(f)
 	if n.Statements != nil {
@@ -470,7 +475,7 @@ func (n *CallFuncNode) tp() TypeNode {
 	panic("not impl")
 }
 
-func (n *CallFuncNode) travel(f func(Node)) {
+func (n *CallFuncNode) travel(f func(Node) bool) {
 	f(n)
 	for _, v := range n.Params {
 		v.travel(f)
@@ -693,8 +698,8 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		re = n.Next.calc(m, f, s)
 	}
 	name := strings.Trim(fn.Ident(), "\"@")
-
-	if asyncFunc[name] {
+	// tpname := strings.Trim(fn.Type().String(), "%*")
+	if asyncFunc[name] || asyncInlineFunc[fn.Type()] {
 		i := ScopeMap[CORO_SM_MOD].getStruct("StateMachine").structType
 
 		// statemachie入队列
@@ -712,6 +717,7 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 }
 
 var asyncFunc = map[string]bool{}
+var asyncInlineFunc = map[types.Type]bool{}
 
 var stackallocfn = map[string]bool{
 	"sizeof":     true,
@@ -725,8 +731,11 @@ type InlineFuncNode struct {
 	closureVars map[string]bool
 }
 
-func (n *InlineFuncNode) travel(f func(Node)) {
-	f(n)
+func (n *InlineFuncNode) travel(f func(Node) bool) {
+	b := f(n)
+	if !b {
+		return
+	}
 	n.Body.travel(f)
 }
 func (n *InlineFuncNode) tp() TypeNode {
@@ -834,7 +843,11 @@ func (n *InlineFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	s.block.NewCall(trampInit.v, tramp1, fncast, cloCast)
 	fnptr := s.block.NewCall(trampAdj.v, tramp1)
 	s.block.NewCall(enableExe.v, fnptr)
-	fun := s.block.NewBitCast(fnptr, types.NewPointer(fntp))
+	var tp types.Type = types.NewPointer(fntp)
+	if n.Async { // 记录async方法
+		asyncInlineFunc[tp] = n.Async
+	}
+	fun := s.block.NewBitCast(fnptr, tp)
 	chs.trampolineObj = chs.block.NewBitCast(closureArg, allo.Type())
 	// chs.freeFunc = func(s *Scope) { // make closure var gcable
 	// 	store(constant.NewNull(allo.Type().(*types.PointerType)), g, s)
@@ -842,7 +855,7 @@ func (n *InlineFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 
 	lableid := 0
 	generator := false
-	n.travel(func(no Node) {
+	n.Body.travel(func(no Node) bool {
 		switch node := no.(type) {
 		case *YieldNode:
 			generator = true
@@ -859,7 +872,10 @@ func (n *InlineFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 			node.async = n.Async
 		case defNode:
 			node.setVal(nil)
+		case *InlineFuncNode:
+			return false
 		}
+		return true
 
 	})
 

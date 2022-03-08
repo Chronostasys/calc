@@ -19,7 +19,7 @@ func (n *AwaitNode) tp() TypeNode {
 	panic("not impl")
 }
 
-func (n *AwaitNode) travel(f func(Node)) {
+func (n *AwaitNode) travel(f func(Node) bool) {
 	f(n)
 	n.Exp.travel(f)
 }
