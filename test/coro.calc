@@ -16,13 +16,15 @@ func testCoroutine() void {
     libuv.TCPListen("0.0.0.0",8888,func (server libuv.UVTcp, status int32) void {
         s := "new tcp conn"
         s.PrintLn()
-        jeff := func (server libuv.UVTcp) coro.Task<int> async {
-            buf := await server.ReadBufAsync()
-            ss := runtime.newstr(buf.Data,buf.Len)
-            ss.Print()
+        jeff := func () coro.Task<int> async {
+            for {
+                buf := await server.ReadBufAsync(1)
+                ss := runtime.newstr(buf.Data,buf.Len)
+                ss.Print()
+            }
             return 0
         }
-        jeff(server)
+        jeff()
         return
     })
     coro.Run<int>(func () int {

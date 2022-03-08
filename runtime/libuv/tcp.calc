@@ -23,6 +23,9 @@ type ConnCB func (server UVTcp, status int32) void
 
 func uv_tcp_bind(handle UVTcp, addr Addr, flags int32) int32
 
+func get_tcp_data(t UVTcp) *Buffer
+
+func set_tcp_data(t UVTcp, buf *Buffer) void
 
 func TCPListen(ip string, port int32, cb ConnCB) void {
     ff := func () void {
@@ -35,7 +38,14 @@ func TCPListen(ip string, port int32, cb ConnCB) void {
             s.PrintLn()
         }
         uv_tcp_bind(tcp,addr,0)
-        re := uv_listen(tcp,128,cb)
+        realcb := func (server UVTcp, status int32) void {
+            client := new_tcp()
+            uv_tcp_init(uv_default_loop(),client)
+            uv_accept(server, client)
+            cb(client,status)
+            return
+        }
+        re := uv_listen(tcp,128,realcb)
         if re != 0 {
             s := "listen failed"
             s.PrintLn()
@@ -50,22 +60,59 @@ func TCPListen(ip string, port int32, cb ConnCB) void {
     return
 }
 
+func tcpAllocCB(handle UVHandle, suggested_size int, buf *UVBuf) void {
+    buf.Len = suggested_size
+    data := get_tcp_data(handle)
+    buf.Data = data.PreWrite(suggested_size)
+    return
+}
 
-func ReadBufAsync(this server UVTcp) coro.Task<*UVBuf> {
+
+func ReadBufAsync(this server UVTcp,len int) coro.Task<*UVBuf> {
     ag := coro.NewAsyncGen<*UVBuf>()
     ag.SetJob<*UVBuf>(func () *UVBuf {
         ff := func () void {
-            client := new_tcp()
-            uv_tcp_init(uv_default_loop(),client)
-            uv_accept(server, client)
-            uv_read_start(client,DefaultAllocCB,func (client UVStream, nread int, buf *UVBuf) void{
-                uv_close(client,nil)
-                newbuf := &UVBuf{
-                    Data:buf.Data,
-                    Len:nread,
+            data := get_tcp_data(server)
+            if data!=nil{
+                if data.len>=len {
+                    data.len = data.len-len
+                    data.max = data.max-len
+                    newbuf := &UVBuf{
+                        Data:data.buf,
+                        Len:len,
+                    }
+                    data.buf = inttoptr<*byte>(ptrtoint<*byte>(data.buf)+len)
+                    ag.SetResult(newbuf)
+                    coro.TryQueueContinuous(ag)
+                    return
                 }
-                ag.SetResult(newbuf)
-                coro.TryQueueContinuous(ag)
+                data.task = ag
+                data.explen = len
+                return
+            }
+            set_tcp_data(server,&Buffer{task:ag,explen:len})
+            uv_read_start(server,tcpAllocCB,func (client UVStream, nread int, buf *UVBuf) void{
+                if nread<0 {
+                    printIntln(nread)
+                    uv_close(client,nil)
+                }
+                //uv_close(server,nil)
+                data := get_tcp_data(client)
+                
+                data.len = data.len+nread
+                ag1 := data.task
+                if ag1!=nil&&data.len>=data.explen {
+                    newbuf := &UVBuf{
+                        Data:data.buf,
+                        Len:data.explen,
+                    }
+                    ag1.SetResult(newbuf)
+                    coro.TryQueueContinuous(ag1)
+                    data.buf = inttoptr<*byte>(ptrtoint<*byte>(data.buf)+data.explen)
+                    data.len = data.len-data.explen
+                    data.max = data.max-data.explen
+                    data.task = nil
+                }
                 return
             })
             return

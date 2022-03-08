@@ -16,6 +16,19 @@ struct sockaddr_in* new_addr(){
     return GC_MALLOC(sizeof server);
 }
 
+uv_idle_t* new_idle(){
+    uv_idle_t t;
+    return GC_MALLOC(sizeof t);
+}
+
+void* get_tcp_data(uv_tcp_t* t) {
+    return t->data;
+}
+void set_tcp_data(uv_tcp_t* t, void* data) {
+    t->data = data;
+    return;
+}
+
 // #include <stdio.h>
 // #include <stdlib.h>
 // #include <string.h>

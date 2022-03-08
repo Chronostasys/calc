@@ -57,8 +57,11 @@ func buildCtx(sl *SLNode, s *Scope, tps []types.Type, ps []*ir.Param) ([]types.T
 	for _, v := range ps {
 		tpsc.addVar(v.LocalName, &variable{v: v})
 	}
-	tpsc.globalScope = tpsc
+	tpsc.globalScope = s.globalScope
+	tpsc.parent = s.parent
 	tpsc.m = tpm
+	tpsc.trampolineObj = s.trampolineObj
+	tpsc.trampolineVars = s.trampolineVars
 
 	for k, v := range s.globalScope.vartable {
 		tpsc.vartable[k] = v

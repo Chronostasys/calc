@@ -6,14 +6,22 @@ import (
 
 type UVLoop *byte
 
+type UVIdle *byte
+
 func uv_timer_init(loop UVLoop, handle Timer) int
 
 func uv_tcp_init(loop UVLoop, handle UVTcp) int32
+
+func uv_idle_init(loop UVLoop, handle UVIdle) int32
+
+func uv_idle_start(handle UVIdle, cb func (handle UVIdle) void) int32
 
 func uv_default_loop() UVLoop
 
 
 func uv_run(loop UVLoop, mode int) int
+
+func new_idle() UVIdle
 
 
 func StartUVLoop() void {
@@ -29,7 +37,7 @@ func StartUVLoop() void {
             evmu.UnLock()
             return
         }
-        re := uv_timer_start(t,cb,0,15)
+        re := uv_timer_start(t,cb,0,1)
         if re != 0 {
             s := "main timer start failed"
             s.PrintLn()
