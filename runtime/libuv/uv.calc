@@ -2,6 +2,7 @@ package libuv
 
 import (
     "github.com/Chronostasys/calc/runtime/coro/thread"
+    "github.com/Chronostasys/calc/runtime/coro/sync"
 )
 
 type UVLoop *byte
@@ -17,6 +18,8 @@ func uv_tcp_init(loop UVLoop, handle UVTcp) int32
 func uv_idle_init(loop UVLoop, handle UVIdle) int32
 
 func uv_idle_start(handle UVIdle, cb func (handle UVIdle) void) int32
+
+func uv_idle_stop(handle UVIdle) int32
 
 func uv_default_loop() UVLoop
 
@@ -36,9 +39,10 @@ var global_async_t  = new_async()
 
 
 func StartUVLoop() void {
+    cond := sync.NewCond()
+    mu := sync.NewMutex()
     evloop := func(arg *byte) *byte {
         loop := uv_default_loop()
-        t := global_async_t
         cb := func (tt UVAsync) void {
             evmu.Lock()
             for ;evlist.Len()>0; {
@@ -48,12 +52,21 @@ func StartUVLoop() void {
             evmu.UnLock()
             return
         }
-        re := uv_async_init(loop,t,cb)
+        re := uv_async_init(loop,global_async_t,cb)
         if re != 0 {
             s := "main timer start failed"
             s.PrintLn()
             printIntln(re)
         }
+        idle := new_idle()
+        uv_idle_init(loop,idle)
+        uv_idle_start(idle,func (i UVIdle) void {
+            mu.Lock()
+            cond.Signal()
+            mu.UnLock()
+            uv_idle_stop(i)
+            return
+        })
         re = uv_run(loop, 0)
         if re != 0 {
             s := "main loop start failed"
@@ -63,5 +76,8 @@ func StartUVLoop() void {
         return nil
     }
     thread.New<*byte,*byte>(evloop,nil)
+    mu.Lock()
+    cond.Wait(mu)
+    mu.UnLock()
     return
 }
