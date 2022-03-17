@@ -30,6 +30,15 @@ uv_async_t* new_async(){
     return GC_MALLOC(sizeof t);
 }
 
+uv_connect_t* new_conn(){
+    uv_connect_t t;
+    return GC_MALLOC(sizeof t);
+}
+
+uv_stream_t* get_conn_stream(uv_connect_t* t) {
+    return t->handle;
+}
+
 void* get_tcp_data(uv_tcp_t* t) {
     return t->data;
 }

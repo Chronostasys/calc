@@ -10,6 +10,11 @@ import (
 
 type UVTcp *byte
 
+type UVConn *byte
+
+func get_conn_stream(conn UVConn) UVStream
+
+func new_conn() UVConn
 
 func new_tcp() UVTcp
 
@@ -19,7 +24,7 @@ func new_addr() Addr
 
 func uv_ip4_addr(ip *byte, port int32, addr Addr) int32
 
-type ConnCB func (server UVTcp, status int32) void
+type TCPConnCB func (server UVTcp, status int32) void
 
 func uv_tcp_bind(handle UVTcp, addr Addr, flags int32) int32
 
@@ -37,7 +42,7 @@ func uv_buf_init(buf *byte, len int) UVBuf
 
 type UVWrite *byte
 
-func TCPListen(ip string, port int32, cb ConnCB) void {
+func TCPListen(ip string, port int32, cb TCPConnCB) void {
     ff := func () void {
         tcp := new_tcp()
         uv_tcp_init(uv_default_loop(), tcp)
@@ -122,10 +127,22 @@ func ReadBufAsync(this server UVTcp,len int) coro.Task<*UVBuf> {
             }
             set_tcp_data(server,&Buffer{task:ag,explen:len})
             uv_read_start(server,tcpAllocCB,func (client UVStream, nread int, buf *UVBuf) void{
-                //if nread<0 {
-                //    printIntln(nread)
-                //    uv_close(client,nil)
-                //}
+                var h UVHandle
+                if nread<0 {
+                    //printIntln(nread)
+                    uv_close(client,func (t UVHandle) void{
+                        return
+                    })
+                    data := get_tcp_data(client)
+                    newbuf := &UVBuf{
+                        Data:data.buf,
+                        Len:data.len,
+                    }
+                    ag1 := data.task
+                    ag1.SetResult(newbuf)
+                    coro.TryQueueContinuous(ag1)
+                    return
+                }
                 //uv_close(server,nil)
                 data := get_tcp_data(client)
                 

@@ -1,0 +1,64 @@
+package libuv
+
+import (
+    "github.com/Chronostasys/calc/runtime/coro"
+)
+
+type ConnCB func (conn UVConn, status int32) void
+
+func uv_tcp_connect(conn UVConn, sock UVTcp, addr Addr, cb ConnCB) int32
+
+
+type TCPClient struct {
+    tcp UVTcp
+    stream UVStream
+}
+
+func NewTCPClient() *TCPClient {
+    return &TCPClient{
+        tcp: new_tcp(),
+    }
+}
+
+func ConnectAsync(this client *TCPClient, host string, port int32) coro.Task<int32> {
+    ag := coro.NewAsyncGen<int32>()
+    ag.SetJob<int32>(func () int32 {
+        ff := func () void {
+            uv_tcp_init(uv_default_loop(), client.tcp)
+            addr := new_addr()
+            re := uv_ip4_addr(host.Byte(),port,addr)
+            if re != 0 {
+                s := "init addr failed"
+                s.PrintLn()
+                printIntln(re)
+            }
+            conn := new_conn()
+            re = uv_tcp_connect(conn,client.tcp,addr, func (conn1 UVConn, status int32) void {
+                client.stream = get_conn_stream(conn1)
+                ag.SetResult(status)
+                coro.TryQueueContinuous(ag)
+                return
+            })
+            if re != 0 {
+                s := "start conn failed"
+                s.PrintLn()
+                printIntln(re)
+            }
+            return
+        }
+        QueueEvJob(ff)
+        return 0
+    })
+    coro.QueueTask(ag)
+    return ag
+}
+func WriteBufAsync(this client *TCPClient, str string) coro.Task<int> {
+    return client.tcp.WriteBufAsync(str)
+
+}
+
+func ReadBufAsync(this client *TCPClient,len int) coro.Task<*UVBuf> {
+    return client.tcp.ReadBufAsync(len)
+}
+
+

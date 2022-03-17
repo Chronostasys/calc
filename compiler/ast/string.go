@@ -27,12 +27,12 @@ func (n *StringNode) travel(f func(Node) bool) {
 func (n *StringNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 
 	ch := constant.NewCharArrayFromString(n.Str)
-	var alloca value.Value
-	if n.onheap {
-		alloca = gcmalloc(m, s, &calcedTypeNode{ch.Type()})
-	} else {
-		alloca = stackAlloc(m, s, ch.Type())
-	}
+	var alloca = gcmalloc(m, s, &calcedTypeNode{ch.Type()})
+	// if n.onheap {
+	// 	alloca = gcmalloc(m, s, &calcedTypeNode{ch.Type()})
+	// } else {
+	// 	alloca = stackAlloc(m, s, ch.Type())
+	// }
 	s.block.NewStore(ch, alloca)
 	bs := s.block.NewBitCast(alloca, types.I8Ptr)
 	va, _ := ScopeMap["github.com/Chronostasys/calc/runtime"].searchVar("newstr")
