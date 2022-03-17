@@ -481,7 +481,9 @@ func (n *SLNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		fn.Body.travel(trf)
 		fn.closureVars = closurevar
 		for k, v := range closurevar {
-			old[k] = v
+			if !old[k] {
+				old[k] = v
+			}
 		}
 		closurevar = old
 
@@ -508,7 +510,6 @@ func (n *SLNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	callfanf := func(node *CallFuncNode) {
 		for _, v := range node.Params {
 			if in, ok := v.(*InlineFuncNode); ok {
-				closurevar = map[string]bool{}
 				travel(in)
 			}
 			v.travel(func(right Node) bool {
@@ -540,7 +541,6 @@ func (n *SLNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		case *BinNode:
 			if node.Op == lexer.TYPE_ASSIGN {
 				if r, ok := node.Right.(*InlineFuncNode); ok {
-					closurevar = map[string]bool{}
 					travel(r)
 				}
 				left := getVarNode(node.Left).(*VarBlockNode)

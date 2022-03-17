@@ -811,6 +811,7 @@ func (n *InlineFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	for _, v := range dels {
 		delete(n.closureVars, v)
 	}
+	chs.trampolineVars = map[string]*fieldval{}
 
 	for k := range n.closureVars {
 		v := &fieldval{}

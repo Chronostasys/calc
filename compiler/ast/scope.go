@@ -225,13 +225,10 @@ func (s *Scope) searchVar(id string) (*variable, error) {
 			if s.closure && s != scope && s.trampolineObj != nil &&
 				s.trampolineVars[id] != nil {
 				trampolineObj := s.trampolineObj
-				tp := loadElmType(trampolineObj.Type()).(*types.StructType)
-				if len(tp.Fields) > s.trampolineVars[id].idx {
-					v := s.block.NewGetElementPtr(loadElmType(trampolineObj.Type()),
-						trampolineObj, zero, constant.NewInt(
-							types.I32, int64(s.trampolineVars[id].idx)))
-					return &variable{v: loadIfVar(v, s)}, nil
-				}
+				v := s.block.NewGetElementPtr(loadElmType(trampolineObj.Type()),
+					trampolineObj, zero, constant.NewInt(
+						types.I32, int64(s.trampolineVars[id].idx)))
+				return &variable{v: loadIfVar(v, s)}, nil
 			}
 			return val, nil
 		}
