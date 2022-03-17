@@ -8,6 +8,8 @@ type UVLoop *byte
 
 type UVIdle *byte
 
+type UVAsync *byte
+
 func uv_timer_init(loop UVLoop, handle Timer) int
 
 func uv_tcp_init(loop UVLoop, handle UVTcp) int32
@@ -18,17 +20,26 @@ func uv_idle_start(handle UVIdle, cb func (handle UVIdle) void) int32
 
 func uv_default_loop() UVLoop
 
+func new_async() UVAsync
+
+func uv_async_init(loop UVLoop, handle UVAsync, cb AsyncCB) int32
+
+func uv_async_send(handle UVAsync) int32
+
+type AsyncCB func (handle UVAsync) void
 
 func uv_run(loop UVLoop, mode int) int
 
 func new_idle() UVIdle
 
+var global_async_t  = new_async()
+
 
 func StartUVLoop() void {
     evloop := func(arg *byte) *byte {
         loop := uv_default_loop()
-        t := NewTimer()
-        cb := func (tt Timer) void {
+        t := global_async_t
+        cb := func (tt UVAsync) void {
             evmu.Lock()
             for ;evlist.Len()>0; {
                 f := evlist.Shift()
@@ -37,7 +48,7 @@ func StartUVLoop() void {
             evmu.UnLock()
             return
         }
-        re := uv_timer_start(t,cb,0,1)
+        re := uv_async_init(loop,t,cb)
         if re != 0 {
             s := "main timer start failed"
             s.PrintLn()

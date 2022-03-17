@@ -1,6 +1,9 @@
 .PHONY: compiler
 
-all: compiler test-ir test-asm test-exe
+all: uv-helper compiler test-ir test-asm test-exe
+
+uv-helper:
+	cd libuv_helper && make
 
 test-ir:
 	cd compiler && calccf.exe -d ../test -o ../test/out.ll

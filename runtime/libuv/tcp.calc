@@ -62,9 +62,7 @@ func TCPListen(ip string, port int32, cb ConnCB) void {
         }
         return
     }
-    evmu.Lock()
-    evlist.Push(ff)
-    evmu.UnLock()
+    QueueEvJob(ff)
     return
 }
 
@@ -92,9 +90,7 @@ func WriteBufAsync(this server UVTcp, str string) coro.Task<int> {
             })
             return
         }
-        evmu.Lock()
-        evlist.Push(ff)
-        evmu.UnLock()
+        QueueEvJob(ff)
         return 0
     })
     coro.QueueTask(ag)
@@ -151,9 +147,7 @@ func ReadBufAsync(this server UVTcp,len int) coro.Task<*UVBuf> {
             })
             return
         }
-        evmu.Lock()
-        evlist.Push(ff)
-        evmu.UnLock()
+        QueueEvJob(ff)
         return nil
     })
     coro.QueueTask(ag)

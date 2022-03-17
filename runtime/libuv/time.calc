@@ -62,9 +62,7 @@ func StartTimer(this t Timer, timeout int64, callback func () void) void {
         }
         return
     }
-    evmu.Lock()
-    evlist.Push(ff)
-    evmu.UnLock()
+    QueueEvJob(ff)
     return
 }
 
