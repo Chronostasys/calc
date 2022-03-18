@@ -35,10 +35,14 @@
 - [x] 并发编译
 - [x] 循环依赖检测
 - [x] Comment
+- [x] 协程
+- [ ] 基础库
+  - [x] tcp
+  - [x] async timeout
+  - [ ] async file io
+  - [ ] ...
 
 未来想要实现的
-- [ ] 协程
-- [ ] 基础库
 - [ ] vsc插件
   - [ ] debug支持
   - [ ] 语法高亮
