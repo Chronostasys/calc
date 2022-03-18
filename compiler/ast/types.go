@@ -161,7 +161,12 @@ func (v *ArrayTypeNode) calc(s *Scope) (types.Type, error) {
 		return nil, err
 	}
 	var tp types.Type
-	tp = types.NewArray(uint64(v.Len), elm)
+	if v.Len > 0 {
+		tp = types.NewArray(uint64(v.Len), elm)
+	} else {
+		gnf := ScopeMap[SLICE].getGenericStruct("Slice")
+		tp = types.NewPointer(gnf(s.m, &calcedTypeNode{elm}).structType)
+	}
 	for i := 0; i < v.PtrLevel; i++ {
 		tp = types.NewPointer(tp)
 	}
@@ -292,7 +297,7 @@ func (n *ArrayInitNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		ptr := s.block.NewGetElementPtr(atype, va,
 			constant.NewIndex(zero),
 			constant.NewIndex(constant.NewInt(types.I32, int64(k))))
-		cs, err := implicitCast(loadIfVar(v.calc(m, f, s), s), atype, s)
+		cs, err := implicitCast(loadIfVar(v.calc(m, f, s), s), atype.(*types.ArrayType).ElemType, s)
 		if err != nil {
 			panic(err)
 		}

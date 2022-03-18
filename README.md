@@ -39,7 +39,7 @@ inline_func: IFUN->FT ASYNC?  SB
 
 all_types: TYPE->MUL*  BTYPE|AT|ST|IT
 basic_types: BTYPE->tp GPC?
-array_types: AT->LSB n RSB TYPE
+array_types: AT->LSB n? RSB TYPE
 func_types: FT->FUNC FPS TYPE
 type_def: T->TP var GP TYPE
 struct_type: ST->STRUCT LB ((var TYPE NL)|NL)* RB

@@ -19,6 +19,12 @@ func main() void {
     printIntln(ss[0])
     printIntln(ss[1])
     printIntln(ss[2])
+    arr := [3]int{8,9,10}
+    var sl1 []int
+    sl1 = arr
+    printIntln(sl1[2])
+    sl2 := sl1.Slice(1,2)
+    printIntln(sl2[0])
     return
 }
 

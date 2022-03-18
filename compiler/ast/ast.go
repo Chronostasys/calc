@@ -1198,6 +1198,17 @@ func implicitCast(v value.Value, target types.Type, s *Scope) (value.Value, erro
 		}
 	FAIL1:
 		return nil, fmt.Errorf("failed to cast %v to interface %v", v, target.Name())
+	case *types.ArrayType:
+		v1 := gcmalloc(s.m, s, &calcedTypeNode{val})
+		store(v, v1, s)
+		head := s.block.NewGetElementPtr(val, v1, zero, zero)
+		gfn := ScopeMap[SLICE].getGenericFunc("FromArr")
+		slicef := gfn(s.m, &calcedTypeNode{val.ElemType})
+		slice := s.block.NewCall(slicef, head, constant.NewInt(types.I32, int64(val.Len)))
+		if target.Equal(slice.Type()) {
+			return slice, nil
+		}
+		return nil, fmt.Errorf("failed to cast %v to %v", v, target.Name())
 	default:
 		return nil, fmt.Errorf("failed to cast %v to %v", v, target)
 	}

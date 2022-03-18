@@ -55,10 +55,11 @@ func (p *Parser) arrayTypes() (n ast.TypeNode, err error) {
 		return nil, err
 	}
 	t, err := p.lexer.ScanType(lexer.TYPE_INT)
-	if err != nil {
-		return nil, err
+	if err == nil {
+		arr.Len, _ = strconv.Atoi(t)
+	} else {
+		arr.Len = -1
 	}
-	arr.Len, _ = strconv.Atoi(t)
 	_, err = p.lexer.ScanType(lexer.TYPE_RSB)
 	if err != nil {
 		return nil, err

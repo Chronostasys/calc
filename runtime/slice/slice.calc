@@ -62,8 +62,24 @@ func Append<T>(this arr *Slice<T>, arr2 *Slice<T>) *Slice<T> {
     return newarr
 }
 
+
+func Slice<T>(this arr *Slice<T>, start int32, end int32) *Slice<T> {
+    newarr := NewSlice<T>()
+    newarr.thead = _gep<*T>(arr.thead,start)
+    newarr.len = end-start
+    newarr.cap = arr.cap - start
+    return newarr
+}
+
 func Len<T>(this arr *Slice<T>) int32 {
     return arr.len
 }
 
+func FromArr<T>(head *T, len int32) *Slice<T> {
+    arr := NewSlice<T>()
+    arr.thead = head
+    arr.cap = len
+    arr.len = len
+    return arr
+}
 
