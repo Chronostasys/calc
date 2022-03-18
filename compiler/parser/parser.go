@@ -723,6 +723,7 @@ func ParseDir(dir string) *ir.Module {
 	calcmod = getModule(dir)
 	m := ir.NewModule()
 	ParseModule("", "github.com/Chronostasys/calc/runtime", m, map[string]bool{})
+	ParseModule("", "github.com/Chronostasys/calc/runtime/slice", m, map[string]bool{})
 	ParseModule("", "github.com/Chronostasys/calc/runtime/strings", m, map[string]bool{})
 	ParseModule("", "github.com/Chronostasys/calc/runtime/coro", m, map[string]bool{})
 	p1 := ParseModule(dir, "main", m, map[string]bool{})

@@ -1,0 +1,24 @@
+package main
+
+import (
+    "github.com/Chronostasys/calc/runtime/slice"
+)
+
+func main() void {
+    sl := slice.NewSlice<int>()
+    sl.Push(1)
+    sl.Push(2)
+    sl.Push(4)
+    sl.Push(5)
+    sl.Push(6)
+    printIntln(sl[0])
+    s2 := slice.NewSlice<int>()
+    s2.Push(3)
+    printIntln(s2[0])
+    ss := sl.Append(s2)
+    printIntln(ss[0])
+    printIntln(ss[1])
+    printIntln(ss[2])
+    return
+}
+

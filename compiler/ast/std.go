@@ -149,4 +149,22 @@ func AddSTDFunc(m *ir.Module, s *Scope) {
 
 	})
 
+	s.globalScope.addGeneric("_gep", func(m *ir.Module, s *Scope, gens ...TypeNode) value.Value {
+		tp, _ := gens[0].calc(s)
+		fnname := s.getFullName(fmt.Sprintf("_gep<%s>", tp.String()))
+		fn, err := s.globalScope.searchVar(fnname)
+		if err != nil {
+			p := ir.NewParam("ptr", tp)
+			p2 := ir.NewParam("i", types.I32)
+			f = m.NewFunc(fnname, tp, p, p2)
+			b = f.NewBlock("")
+			ptr := b.NewGetElementPtr(getElmType(tp), p, p2)
+			b.NewRet(ptr)
+			fn = &variable{v: f}
+			s.globalScope.addVar(f.Name(), fn)
+		}
+		return fn.v
+
+	})
+
 }
