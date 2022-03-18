@@ -4,7 +4,7 @@ import (
     "github.com/Chronostasys/calc/runtime/generator"
     "github.com/Chronostasys/calc/runtime/coro"
     "github.com/Chronostasys/calc/runtime/libuv"
-    "github.com/Chronostasys/calc/runtime"
+    "github.com/Chronostasys/calc/runtime/strings"
 )
 
 func getchar() byte
@@ -16,13 +16,11 @@ func main() void {
         await client.ConnectAsync(str,443)
         await client.WriteBufAsync("Hello world!\n")
         buf := await client.ReadBufAsync(10000)
-        ss := runtime.newstr(buf.Data,buf.Len)
+        ss := strings.NewStr(buf.Data,buf.Len)
         ss.Print()
         return 0
     }
     j()
-    for {
-        getchar()
-    }
+    getchar()
     return
 }

@@ -1,0 +1,58 @@
+package strings
+
+
+
+func PrintLn(this s string) void {
+    s.Print()
+    putchar(10)
+    return
+}
+
+func Print(this s string) void {
+    for i :=0;i<s.len;i=i+1 {
+        p := ptrtoint<*byte>(s.bs)
+        p = p + i
+        ch := inttoptr<*byte>(p)
+        putchar(*ch)
+    }
+    return
+}
+
+
+type _str struct {
+    bs *byte
+    len int
+}
+
+func NewStr(bs *byte,len int) _str {
+    return _str{
+        bs:bs,
+        len:len,
+    }
+}
+
+func putchar(ch byte) byte
+
+
+func Len(this s _str) int {
+    return s.len
+}
+
+func Byte(this s _str) *byte {
+    return s.bs
+}
+
+func Append(this s _str, NewStr _str) _str {
+    bs := GC_malloc(s.len+NewStr.len)
+    memcpy(bs,s.bs,s.len)
+    i := ptrtoint<*byte>(bs)
+    i = i + s.len
+    nbs := inttoptr<*byte>(i)
+    memcpy(nbs,NewStr.bs,NewStr.len)
+    return _str{
+        bs: bs,
+        len: s.len + NewStr.len,
+    }
+}
+
+

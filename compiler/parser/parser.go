@@ -36,7 +36,15 @@ func ParseInt(s string) (int64, *types.IntType, error) {
 	}
 	bw := 8
 	for {
-		re, err := strconv.ParseInt(s, base, bw)
+		var re int64
+		var err error
+		if base != 10 {
+			var re1 uint64
+			re1, err = strconv.ParseUint(s, base, bw)
+			re = int64(re1)
+		} else {
+			re, err = strconv.ParseInt(s, base, bw)
+		}
 		if err == nil {
 			return re, types.NewInt(uint64(bw)), err
 		} else {
@@ -715,6 +723,7 @@ func ParseDir(dir string) *ir.Module {
 	calcmod = getModule(dir)
 	m := ir.NewModule()
 	ParseModule("", "github.com/Chronostasys/calc/runtime", m, map[string]bool{})
+	ParseModule("", "github.com/Chronostasys/calc/runtime/strings", m, map[string]bool{})
 	ParseModule("", "github.com/Chronostasys/calc/runtime/coro", m, map[string]bool{})
 	p1 := ParseModule(dir, "main", m, map[string]bool{})
 	ast.AddSTDFunc(m, p1.GlobalScope)

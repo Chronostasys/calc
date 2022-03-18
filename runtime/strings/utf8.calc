@@ -1,0 +1,10 @@
+package strings
+
+// 见 https://zh.wikipedia.org/wiki/UTF-8
+// 判断某个字节是不是utf8字符的开头字节
+func IsUTF8Head(b byte) bool {
+    // 判断方法：检测开头两位是不是0b10
+    // 不是则返回true
+    return (b & 0b11000000) != 0b10000000
+}
+

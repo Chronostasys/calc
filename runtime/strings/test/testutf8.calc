@@ -1,0 +1,17 @@
+package main
+
+import (
+    "github.com/Chronostasys/calc/runtime/strings"
+)
+
+func main() void {
+    if !strings.IsUTF8Head(0b11000000) {
+        s := "0b11000000 should be utf8 head"
+        s.PrintLn()
+    }
+    if strings.IsUTF8Head(0b10000000) {
+        s := "0b10000000 shouldn't be utf8 head"
+        s.PrintLn()
+    }
+    return
+}

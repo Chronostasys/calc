@@ -221,7 +221,7 @@ func (v *BasicTypeNode) calc(sc *Scope) (types.Type, error) {
 				s = sc.getGenericType(tpname)
 			} else {
 				st.TypeName = v.Pkg + "." + tpname
-				if st.TypeName != "github.com/Chronostasys/calc/runtime._str" && sc.strict {
+				if st.TypeName != "github.com/Chronostasys/calc/runtime/strings._str" && sc.strict {
 					return fmt.Errorf("type %s not found", v.Pkg+"."+tpname)
 				}
 				s = st

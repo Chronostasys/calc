@@ -4,7 +4,7 @@ import (
     "github.com/Chronostasys/calc/runtime/generator"
     "github.com/Chronostasys/calc/runtime/coro"
     "github.com/Chronostasys/calc/runtime/libuv"
-    "github.com/Chronostasys/calc/runtime"
+    "github.com/Chronostasys/calc/runtime/strings"
 )
 
 func getchar() byte
@@ -16,7 +16,7 @@ func main() void {
         jeff := func () coro.Task<int> async {
             for {
                 buf := await server.ReadBufAsync(1)
-                ss := runtime.newstr(buf.Data,buf.Len)
+                ss := strings.NewStr(buf.Data,buf.Len)
                 ss.Print()
                 re := await server.WriteBufAsync(ss)
                 if re !=0 {
@@ -32,8 +32,6 @@ func main() void {
     })
     s1 := "tcp echo server started at 0.0.0.0:8888"
     s1.PrintLn()
-    for {
-        getchar()
-    }
+    getchar()
     return
 }

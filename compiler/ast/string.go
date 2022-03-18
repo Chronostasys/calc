@@ -35,6 +35,6 @@ func (n *StringNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	// }
 	s.block.NewStore(ch, alloca)
 	bs := s.block.NewBitCast(alloca, types.I8Ptr)
-	va, _ := ScopeMap["github.com/Chronostasys/calc/runtime"].searchVar("newstr")
+	va, _ := ScopeMap["github.com/Chronostasys/calc/runtime/strings"].searchVar("NewStr")
 	return s.block.NewCall(va.v, bs, constant.NewInt(lexer.DefaultIntType(), int64(ch.Typ.Len)))
 }

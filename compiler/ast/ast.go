@@ -32,7 +32,7 @@ var (
 
 func getstrtp() types.Type {
 	s := types.NewStruct()
-	s.TypeName = "github.com/Chronostasys/calc/runtime._str"
+	s.TypeName = "github.com/Chronostasys/calc/runtime/strings._str"
 	return s
 }
 
@@ -765,7 +765,7 @@ func (n *ProgramNode) Emit(m *ir.Module) {
 	main := mi.v.(*ir.Func)
 	initb.NewRet(nil)
 	m.Funcs = append(m.Funcs, initf)
-	realmain := m.NewFunc("main", types.Void)
+	realmain := m.NewFunc("main", types.I32)
 	entry := realmain.NewBlock("")
 	// add global init
 	entry.NewCall(initf)
@@ -787,7 +787,7 @@ func (n *ProgramNode) Emit(m *ir.Module) {
 		}
 		entry.NewCall(fe.v, in) // queue main func
 	}
-	entry.NewRet(nil)
+	entry.NewRet(zero)
 
 }
 
