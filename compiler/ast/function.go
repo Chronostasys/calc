@@ -441,6 +441,9 @@ func (n *FuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	b := fn.NewBlock("")
 	childScope := s.addChildScope(b)
 	childScope.freeFunc = nil
+	if n.Async {
+		n.generator = true
+	}
 
 	if n.generator {
 		tpname, rtp, idxmap, blockAddrId, context := buildGenaratorCtx(
@@ -835,14 +838,19 @@ func (n *InlineFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	tramptp := types.NewArray(72, types.I8)
 	tramp := gcmalloc(m, s, &calcedTypeNode{tramptp}) // alloc on heap to avoid call it in another thread
 	tramp1 := s.block.NewGetElementPtr(tramptp, tramp, zero, zero)
-
-	allo := gcmalloc(m, s, &calcedTypeNode{st})
+	// closure 存放的位置不被gc追踪，为了保证它不被提前回收需要我们手动管理它的生命周期
+	allo := malloc(m, s, &calcedTypeNode{st})
 	for i, v := range vals {
 		ptr := s.block.NewGetElementPtr(st, allo, zero,
 			constant.NewInt(types.I32, int64(i)))
 		store(v, ptr, s)
 	}
 	cloCast := s.block.NewBitCast(allo, types.I8Ptr)
+
+	// 注册trampoline的finalizer，用来回收closure
+	rtf, _ := ScopeMap[RUNTIME].searchVar("regTrampFinalizer")
+	s.block.NewCall(rtf.v, tramp1, cloCast)
+
 	fncast := s.block.NewBitCast(fn, types.I8Ptr)
 	s.block.NewCall(trampInit.v, tramp1, fncast, cloCast)
 	fnptr := s.block.NewCall(trampAdj.v, tramp1)
@@ -882,6 +890,9 @@ func (n *InlineFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		return true
 
 	})
+	if n.Async {
+		generator = true
+	}
 
 	if generator {
 		tpname, rtp, idxmap, blockAddrId, context := buildGenaratorCtx(

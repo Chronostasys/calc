@@ -2,10 +2,44 @@ package runtime
 
 func heapalloc<T>() *T {
     size := sizeof<T>()
-    bs := GC_malloc(size)
-    seted := memset(bs,0,size)
-    return unsafecast<*byte,*T>(seted)
+    bs :=GC_malloc_uncollectable(size)
+    //bs = memset(bs,0,size)
+    return unsafecast<*byte,*T>(bs)
 }
+func heapmalloc<T>() *T {
+    size := sizeof<T>()
+    bs := GC_malloc_uncollectable(size)
+    //bs = memset(bs,0,size)
+    return unsafecast<*byte,*T>(bs)
+}
+
+func GC_free(o *byte) void
+
+func GC_register_finalizer_unreachable(o *byte, f GC_Finalizer, cd *byte, of GC_Finalizer, ocd **byte) void
+
+func regTrampFinalizer(tramp *byte, closure *byte) void {
+    GC_register_finalizer_unreachable(tramp,trampolineFinalizer,closure,nil,nil)
+    return
+}
+
+
+func GC_set_java_finalization(i int32) void
+
+func trampolineFinalizer(o *byte, cd *byte) void {
+    // cd should be closure
+    //printIntln(111)
+    GC_free(cd)
+    return
+}
+
+type GC_Finalizer func (o *byte, cd *byte) void
+
+func GC_malloc_uncollectable(n int) *byte
+
+func GC_debug_malloc(n int) *byte
+
+func GC_init() void
+
 
 func GC_remove_roots(start *byte, end *byte) void
 func GC_add_roots(start *byte, end *byte) void

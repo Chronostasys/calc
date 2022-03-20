@@ -17,7 +17,7 @@ func uv_timer_start(handle Timer, cb func(t Timer) void, timeout int64, repeat i
 func uv_timer_stop(handle Timer) int
 
 
-func NewTimer() Timer {
+func newTimer() Timer {
     t := new_timer2()
     re := uv_timer_init(uv_default_loop(), t)
     if re !=0 {
@@ -28,27 +28,26 @@ func NewTimer() Timer {
     return t
 }
 
-func Delay(this t Timer, timeout int64) coro.Task<int> {
+func Delay(timeout int64) coro.Task<int> {
     ag := &AsyncGen{lock:sync.NewMutex()}
     cb := func () void {
         coro.TryQueueContinuous(ag)
         return
     }
     f := func () void {
-        t.StartTimer(timeout,cb)
+        StartTimer(timeout,cb)
         return
     }
-    if ag.lock==nil {
-        s := "ag lock nil"
-        s.PrintLn()
-    }
     ag.f = f
-    coro.QueueTask(ag)
-    return ag
+    var st coro.Task<int>
+    st = ag
+    coro.QueueTask(st)
+    return st
 }
 
-func StartTimer(this t Timer, timeout int64, callback func () void) void {
+func StartTimer(timeout int64, callback func () void) void {
     ff := func () void {
+        t := newTimer()
         cb := func (t Timer) void {
             callback()
             uv_timer_stop(t)

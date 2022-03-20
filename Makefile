@@ -23,4 +23,4 @@ gc-dependency:
 	cd bdwgc && git clone git://github.com/ivmai/libatomic_ops.git
 
 gc-windows:
-	cd bdwgc && nmake -f NT_MAKEFILE cpu=AMD64 nodebug=1 && copy gc.lib  ..\compiler\gc.lib && copy gc.dll ..\compiler\gc.dll
+	cd bdwgc && nmake -f NT_MAKEFILE cpu=AMD64 nodebug=1

@@ -38,8 +38,7 @@ func testCoroutineAsync() coro.Task<int> async {
 }
 
 func coroutine1() coro.Task<int> async {
-    t := libuv.NewTimer()
-    await t.Delay(1000)
+    await libuv.Delay(1000)
     return 8989
 }
 

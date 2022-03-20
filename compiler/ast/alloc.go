@@ -15,6 +15,15 @@ func gcmalloc(m *ir.Module, s *Scope, gtp TypeNode) value.Value {
 	v := s.block.NewCall(fnv)
 	return v
 }
+func malloc(m *ir.Module, s *Scope, gtp TypeNode) value.Value {
+	gfn := s.globalScope.getGenericFunc("heapmalloc")
+	if gfn == nil {
+		gfn = ScopeMap["github.com/Chronostasys/calc/runtime"].getGenericFunc("heapmalloc")
+	}
+	fnv := gfn(m, gtp)
+	v := s.block.NewCall(fnv)
+	return v
+}
 
 func stackAlloc(m *ir.Module, s *Scope, gtp types.Type) value.Value {
 	v := s.block.NewAlloca(gtp)

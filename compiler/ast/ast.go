@@ -3,6 +3,7 @@ package ast
 import (
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 
 	"github.com/Chronostasys/calc/compiler/helper"
@@ -223,11 +224,6 @@ func store(r, lptr value.Value, s *Scope) value.Value {
 	if rtp.Equal(elmtp) {
 		s.block.NewStore(r, lptr)
 		return lptr
-	}
-	lt := loadElmType(lptr.Type())
-	rt := loadElmType(r.Type())
-	if lt.Equal(rt) {
-
 	}
 	if _, ok := lptr.Type().(*types.PointerType).ElemType.(*interf); ok {
 		store := &ir.InstStore{Src: r, Dst: lptr}
@@ -767,6 +763,11 @@ func (n *ProgramNode) Emit(m *ir.Module) {
 	m.Funcs = append(m.Funcs, initf)
 	realmain := m.NewFunc("main", types.I32)
 	entry := realmain.NewBlock("")
+	// initgc
+	setfin, _ := ScopeMap[RUNTIME].searchVar("GC_set_java_finalization")
+	entry.NewCall(setfin.v, constant.NewInt(types.I32, 1))
+	ini, _ := ScopeMap[RUNTIME].searchVar("GC_init")
+	entry.NewCall(ini.v)
 	// add global init
 	entry.NewCall(initf)
 	if ScopeMap[CORO_MOD] != nil {
@@ -863,10 +864,13 @@ func (n *RetNode) travel(f func(Node) bool) {
 	n.Exp.travel(f)
 }
 
+var i = 0
+
 func (n *RetNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	if n.Exp == nil {
 		if n.async {
-			nb := f.NewBlock(".exit")
+			i++
+			nb := f.NewBlock(".exit" + strconv.Itoa(i))
 			store(constant.NewBlockAddress(f, nb), s.yieldBlock, s)
 
 			i := ScopeMap[CORO_SM_MOD].getStruct("StateMachine").structType
@@ -885,6 +889,7 @@ func (n *RetNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 
 			s.block.NewRet(constant.False)
 			s.block = nb
+			s.block.NewRet(constant.False)
 		} else {
 			s.block.NewRet(nil)
 		}
@@ -905,7 +910,8 @@ func (n *RetNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		s.freeFunc(s)
 	}
 	if n.async {
-		nb := f.NewBlock(".exit")
+		i++
+		nb := f.NewBlock(".exit" + strconv.Itoa(i))
 		store(constant.NewBlockAddress(f, nb), s.yieldBlock, s)
 		store(v, s.yieldRet, s)
 
@@ -921,6 +927,7 @@ func (n *RetNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 
 		s.block.NewRet(constant.False)
 		s.block = nb
+		s.block.NewRet(constant.False)
 		return zero
 	}
 	s.block.NewRet(v)

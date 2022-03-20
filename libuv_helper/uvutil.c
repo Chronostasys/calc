@@ -1,3 +1,4 @@
+#define GC_THREADS
 #include "uv.h"
 #include "gc.h"
 
@@ -44,6 +45,15 @@ void* get_tcp_data(uv_tcp_t* t) {
 }
 void set_tcp_data(uv_tcp_t* t, void* data) {
     t->data = data;
+    return;
+}
+
+void* GC_calloc(size_t count, size_t size){
+    return GC_malloc((count)*(size));
+}
+
+void replace_allocator() {
+    uv_replace_allocator(GC_malloc,GC_realloc,GC_calloc,GC_free);
     return;
 }
 

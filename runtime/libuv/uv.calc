@@ -37,8 +37,12 @@ func new_idle() UVIdle
 
 var global_async_t  = new_async()
 
+func replace_allocator() void
+
+func GC_dump() void
 
 func StartUVLoop() void {
+    replace_allocator()
     cond := sync.NewCond()
     mu := sync.NewMutex()
     evloop := func(arg *byte) *byte {

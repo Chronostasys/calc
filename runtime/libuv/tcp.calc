@@ -88,11 +88,15 @@ func WriteBufAsync(this server UVTcp, str string) coro.Task<int> {
                 Data: str.Byte(),
                 Len: str.Len(),
             }
-            uv_write(wt,server,buf,1,func (server UVWrite, status int32) void{
+            re := uv_write(wt,server,buf,1,func (server UVWrite, status int32) void{
                 ag.SetResult(status)
                 coro.TryQueueContinuous(ag)
                 return
             })
+            if re != 0 {
+                ag.SetResult(re)
+                coro.TryQueueContinuous(ag)
+            }
             return
         }
         QueueEvJob(ff)
@@ -118,6 +122,10 @@ func ReadBufAsync(this server UVTcp,len int) coro.Task<*UVBuf> {
                     }
                     data.buf = inttoptr<*byte>(ptrtoint<*byte>(data.buf)+len)
                     ag.SetResult(newbuf)
+                    buf := GC_malloc(data.max)
+                    memcpy(buf,data.buf,data.len)
+                    data.buf = buf
+                    data.gc_head = buf
                     coro.TryQueueContinuous(ag)
                     return
                 }
@@ -128,11 +136,11 @@ func ReadBufAsync(this server UVTcp,len int) coro.Task<*UVBuf> {
             set_tcp_data(server,&Buffer{task:ag,explen:len})
             uv_read_start(server,tcpAllocCB,func (client UVStream, nread int, buf *UVBuf) void{
                 var h UVHandle
-                if nread<0 {
+                if nread<=0 {
                     //printIntln(nread)
-                    uv_close(client,func (t UVHandle) void{
-                        return
-                    })
+                    //uv_close(client,func (t UVHandle) void{
+                    //    return
+                    //})
                     data := get_tcp_data(client)
                     newbuf := &UVBuf{
                         Data:data.buf,
@@ -158,6 +166,10 @@ func ReadBufAsync(this server UVTcp,len int) coro.Task<*UVBuf> {
                     data.buf = inttoptr<*byte>(ptrtoint<*byte>(data.buf)+data.explen)
                     data.len = data.len-data.explen
                     data.max = data.max-data.explen
+                    buf := GC_malloc(data.max-data.explen)
+                    memcpy(buf,data.buf,data.len-data.explen)
+                    data.buf = buf
+                    data.gc_head = buf
                     data.task = nil
                 }
                 return

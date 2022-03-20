@@ -24,9 +24,14 @@ func ConnectAsync(this client *TCPClient, host string, port int32) coro.Task<int
     ag := coro.NewAsyncGen<int32>()
     ag.SetJob<int32>(func () int32 {
         ff := func () void {
-            uv_tcp_init(uv_default_loop(), client.tcp)
+            re := uv_tcp_init(uv_default_loop(), client.tcp)
+            if re !=0 {
+                s := "init tcp failed"
+                s.PrintLn()
+                printIntln(re)
+            }
             addr := new_addr()
-            re := uv_ip4_addr(host.Byte(),port,addr)
+            re = uv_ip4_addr(host.Byte(),port,addr)
             if re != 0 {
                 s := "init addr failed"
                 s.PrintLn()

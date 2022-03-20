@@ -48,14 +48,16 @@ type fieldval struct {
 }
 
 var externMap = map[string]bool{
-	"printf":                 true,
-	"memset":                 true,
-	"GC_malloc":              true,
-	"memcpy":                 true,
-	"Sleep":                  true,
-	"llvm.init.trampoline":   true,
-	"llvm.adjust.trampoline": true,
-	"malloc":                 true,
+	"printf":                  true,
+	"memset":                  true,
+	"GC_malloc":               true,
+	"GC_debug_malloc":         true,
+	"GC_malloc_uncollectable": true,
+	"memcpy":                  true,
+	"Sleep":                   true,
+	"llvm.init.trampoline":    true,
+	"llvm.adjust.trampoline":  true,
+	"malloc":                  true,
 }
 
 func MergeGlobalScopes(ss ...*Scope) *Scope {

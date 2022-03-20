@@ -3,24 +3,70 @@ package main
 import (
     "github.com/Chronostasys/calc/runtime/generator"
     "github.com/Chronostasys/calc/runtime/coro"
+    "github.com/Chronostasys/calc/runtime/coro/sync"
     "github.com/Chronostasys/calc/runtime/libuv"
     "github.com/Chronostasys/calc/runtime/strings"
 )
 
 func getchar() byte
 
-func main() void {
-    client := libuv.NewTCPClient()
+func time(t int) int
+
+
+func makej() func () coro.Task<int> {
+    mu := sync.NewMutex()
+    i := 0
     j := func () coro.Task<int> async {
-        str := "118.31.105.213"
-        await client.ConnectAsync(str,443)
-        await client.WriteBufAsync("Hello world!\n")
-        buf := await client.ReadBufAsync(10000)
-        ss := strings.NewStr(buf.Data,buf.Len)
-        ss.Print()
+        //await libuv.Delay(1000)
+        client := libuv.NewTCPClient()
+        str := "120.79.152.10"
+        re := await client.ConnectAsync(str,8000)
+        if re!=0{
+            s := "failed"
+            s.PrintLn()
+            return 0
+        }
+        payload := "GET /api/post/list?pageNo=1&size=1 HTTP/1.1\r\naccept: */*\r\nHost: 120.79.152.10:8000\r\n\r\n"
+        re1 := await client.WriteBufAsync(payload)
+        if re1!=0{
+            s1 := "failed"
+            s1.PrintLn()
+            return 0
+        }
+        buf := await client.ReadBufAsync(300)
+        libuv.uv_close(client.tcp,func (t libuv.UVHandle) void{
+            return
+        })
+        mu.Lock()
+        //ss := strings.NewStr(buf.Data,buf.Len)
+        //ss.PrintLn()
+        i = i + 1
+        printIntln(i)
+        //if i == 10 {
+        //    sec := time(0) - curr
+        //    printIntln(sec)
+        //}
+        mu.UnLock()
         return 0
     }
-    j()
+    return j
+}
+
+func main() void {
+    mu := sync.NewMutex()
+    curr := time(0)
+    i := 0
+    j := makej()
+    printIntln(curr)
+    f := func () coro.Task<int> async {
+        i1 := 0
+        for ;i1<100; {
+            j()
+            i1=i1+1
+        }
+        return 0
+    }
+    f()
     getchar()
     return
 }

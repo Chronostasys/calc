@@ -8,8 +8,12 @@ import (
 var evlist = linkedlist.New<func () void>()
 var evmu = sync.NewMutex()
 
+var ii = 0
+
 func QueueEvJob(f func () void) void {
     evmu.Lock()
+    //ii = ii + 1
+    //printIntln(ii)
     evlist.Push(f)
     evmu.UnLock()
     uv_async_send(global_async_t)
