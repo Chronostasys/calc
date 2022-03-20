@@ -2,7 +2,7 @@ package runtime
 
 func heapalloc<T>() *T {
     size := sizeof<T>()
-    bs :=GC_malloc_uncollectable(size)
+    bs := GC_malloc(size)
     //bs = memset(bs,0,size)
     return unsafecast<*byte,*T>(bs)
 }
