@@ -2,6 +2,7 @@ package libuv
 
 import (
     "github.com/Chronostasys/calc/runtime/coro"
+    "github.com/Chronostasys/calc/runtime"
 )
 
 type Buffer struct {
@@ -10,7 +11,7 @@ type Buffer struct {
     len int
     explen int
     task *coro.AsyncGen<*UVBuf>
-    gc_head *byte
+    done bool
 }
 
 func Write(this buf *Buffer, data *byte, len int) void {
@@ -22,7 +23,6 @@ func Write(this buf *Buffer, data *byte, len int) void {
         buf.max = len+buf.len
         buf.len = len+buf.len
         buf.buf = newbuf
-        buf.gc_head = newbuf
         return
     }
     ptr := inttoptr<*byte>(ptrtoint<*byte>(buf.buf)+buf.len)
@@ -32,6 +32,9 @@ func Write(this buf *Buffer, data *byte, len int) void {
 }
 
 func PreWrite(this buf *Buffer, len int) *byte {
+    if buf.done {
+        return nil
+    }
     if len+buf.len>buf.max {
         newbuf := GC_malloc(len+buf.len)
         if buf.len>0 {
@@ -39,7 +42,6 @@ func PreWrite(this buf *Buffer, len int) *byte {
         }
         buf.max = len+buf.len
         buf.buf = newbuf
-        buf.gc_head = newbuf
         return inttoptr<*byte>(ptrtoint<*byte>(buf.buf)+buf.len)
     }
     return inttoptr<*byte>(ptrtoint<*byte>(buf.buf)+buf.len)

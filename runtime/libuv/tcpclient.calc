@@ -2,6 +2,7 @@ package libuv
 
 import (
     "github.com/Chronostasys/calc/runtime/coro"
+    "github.com/Chronostasys/calc/runtime"
 )
 
 type ConnCB func (conn UVConn, status int32) void
@@ -12,11 +13,15 @@ func uv_tcp_connect(conn UVConn, sock UVTcp, addr Addr, cb ConnCB) int32
 type TCPClient struct {
     tcp UVTcp
     stream UVStream
+    conn UVConn// iocp过程中libuv不会保留对UVConn的引用，因此我们需要手动加个引用防止它被提前gc
 }
 
 func NewTCPClient() *TCPClient {
+    tcp := new_tcp()
+    //runtime.regTrampFinalizer(tcp,nil)
+
     return &TCPClient{
-        tcp: new_tcp(),
+        tcp: tcp,
     }
 }
 
@@ -38,6 +43,7 @@ func ConnectAsync(this client *TCPClient, host string, port int32) coro.Task<int
                 printIntln(re)
             }
             conn := new_conn()
+            client.conn = conn
             re = uv_tcp_connect(conn,client.tcp,addr, func (conn1 UVConn, status int32) void {
                 client.stream = get_conn_stream(conn1)
                 ag.SetResult(status)
@@ -66,4 +72,19 @@ func ReadBufAsync(this client *TCPClient,len int) coro.Task<*UVBuf> {
     return client.tcp.ReadBufAsync(len)
 }
 
+func CloseAsync(this client *TCPClient) coro.Task<int> async {
+    re := await client.tcp.CloseAsync()
+    buf := get_tcp_data(client.tcp)
+    runtime.GC_free(client.tcp)
+    runtime.GC_free(client.conn)
+    if buf != nil {
+        runtime.GC_free(buf.buf)
+        buf.buf = nil
+        buf.done = true
+    }
+    client.conn = nil
+    client.stream = nil
+    client.tcp = nil
+    return re
+}
 

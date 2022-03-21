@@ -764,6 +764,8 @@ func (n *ProgramNode) Emit(m *ir.Module) {
 	realmain := m.NewFunc("main", types.I32)
 	entry := realmain.NewBlock("")
 	// initgc
+	setexe, _ := ScopeMap[RUNTIME].searchVar("GC_set_pages_executable")
+	entry.NewCall(setexe.v, constant.NewInt(types.I32, 1))
 	setfin, _ := ScopeMap[RUNTIME].searchVar("GC_set_java_finalization")
 	entry.NewCall(setfin.v, constant.NewInt(types.I32, 1))
 	ini, _ := ScopeMap[RUNTIME].searchVar("GC_init")

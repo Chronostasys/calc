@@ -6,6 +6,7 @@ import (
     "github.com/Chronostasys/calc/runtime/coro/sync"
     "github.com/Chronostasys/calc/runtime/coro/thread"
     "github.com/Chronostasys/calc/runtime/coro/sm"
+    "github.com/Chronostasys/calc/runtime"
 )
 
 var sch = NewScheduler()
@@ -70,6 +71,10 @@ func TryQueueContinuous(st sm.StateMachine) void {
     mu.Lock()
     st.SetDone()
     c := st.GetContinuous()
+    if c != nil {
+        next := unsafecast<*sm.StateMachine,*int>(&st)
+        *next = 0
+    }
     QueueTaskIfPossible(c)
     mu.UnLock()
 
@@ -94,6 +99,7 @@ func Exec() void {
     return
 }
 
+func GC_is_heap_ptr(ptr *byte) int32
 
 func Exec(this ds *defaultScheduler) void {
     job := func (id *int) *byte {
@@ -104,8 +110,12 @@ func Exec(this ds *defaultScheduler) void {
             }
             t := ds.tasks.Shift()
             ds.mu.UnLock()
+            bs := unsafecast<*sm.StateMachine,*byte>(&t)
+            //runtime.regTrampFinalizer(bs,nil)
+
             for ;t.StepNext(); {
             }
+            runtime.GC_free(bs)
         }
         return nil
     }

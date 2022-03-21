@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/Chronostasys/calc/compiler/helper"
+	"github.com/Chronostasys/calc/compiler/lexer"
 	"github.com/llir/llvm/ir"
 	"github.com/llir/llvm/ir/constant"
 	"github.com/llir/llvm/ir/enum"
@@ -833,13 +834,15 @@ func (n *InlineFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	// alloc closure captured var
 	trampInit, _ := s.globalScope.searchVar("llvm.init.trampoline")
 	trampAdj, _ := s.globalScope.searchVar("llvm.adjust.trampoline")
-	enableExe, _ := s.globalScope.searchVar("__enable_execute_stack")
+	// enableExe, _ := s.globalScope.searchVar("__enable_execute_stack")
 	// 72 bytes and 16 align, see https://stackoverflow.com/questions/15509341/how-much-space-for-a-llvm-trampoline
-	tramptp := types.NewArray(72, types.I8)
+	// 多出来的8 byte是个指针，存放closure，防止误收集closure
+	tramptp := types.NewArray(80, types.I8)
 	tramp := gcmalloc(m, s, &calcedTypeNode{tramptp}) // alloc on heap to avoid call it in another thread
+
 	tramp1 := s.block.NewGetElementPtr(tramptp, tramp, zero, zero)
-	// closure 存放的位置不被gc追踪，为了保证它不被提前回收需要我们手动管理它的生命周期
-	allo := malloc(m, s, &calcedTypeNode{st})
+
+	allo := gcmalloc(m, s, &calcedTypeNode{st})
 	for i, v := range vals {
 		ptr := s.block.NewGetElementPtr(st, allo, zero,
 			constant.NewInt(types.I32, int64(i)))
@@ -847,19 +850,22 @@ func (n *InlineFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	}
 	cloCast := s.block.NewBitCast(allo, types.I8Ptr)
 
-	// 注册trampoline的finalizer，用来回收closure
-	rtf, _ := ScopeMap[RUNTIME].searchVar("regTrampFinalizer")
-	s.block.NewCall(rtf.v, tramp1, cloCast)
-
 	fncast := s.block.NewBitCast(fn, types.I8Ptr)
 	s.block.NewCall(trampInit.v, tramp1, fncast, cloCast)
-	fnptr := s.block.NewCall(trampAdj.v, tramp1)
-	s.block.NewCall(enableExe.v, fnptr)
+	s.block.NewCall(trampAdj.v, tramp1)
+	// s.block.NewCall(enableExe.v, fnptr)
+
+	// 把closure指针放到trampoline的最后方，防止gc误回收
+	closureptr := s.block.NewGetElementPtr(tramptp, tramp, zero, constant.NewInt(lexer.DefaultIntType(), 72))
+	intptr := s.block.NewBitCast(closureptr, types.NewPointer(lexer.DefaultIntType()))
+	interger := s.block.NewPtrToInt(cloCast, lexer.DefaultIntType())
+	store(interger, intptr, s)
+
 	var tp types.Type = types.NewPointer(fntp)
 	if n.Async { // 记录async方法
 		asyncInlineFunc[tp] = n.Async
 	}
-	fun := s.block.NewBitCast(fnptr, tp)
+	fun := s.block.NewBitCast(tramp1, tp)
 	chs.trampolineObj = chs.block.NewBitCast(closureArg, allo.Type())
 	// chs.freeFunc = func(s *Scope) { // make closure var gcable
 	// 	store(constant.NewNull(allo.Type().(*types.PointerType)), g, s)

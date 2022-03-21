@@ -75,6 +75,9 @@ func tcpAllocCB(handle UVHandle, suggested_size int, buf *UVBuf) void {
     buf.Len = suggested_size
     data := get_tcp_data(handle)
     buf.Data = data.PreWrite(suggested_size)
+    if buf.Data==nil {
+        buf.Len = 0
+    }
     return
 }
 
@@ -89,6 +92,7 @@ func WriteBufAsync(this server UVTcp, str string) coro.Task<int> {
                 Len: str.Len(),
             }
             re := uv_write(wt,server,buf,1,func (server UVWrite, status int32) void{
+                runtime.GC_free(server)
                 ag.SetResult(status)
                 coro.TryQueueContinuous(ag)
                 return
@@ -107,6 +111,32 @@ func WriteBufAsync(this server UVTcp, str string) coro.Task<int> {
 
 }
 
+func uv_read_stop(s UVStream) int32
+
+func CloseAsync(this server UVTcp) coro.Task<int> {
+    return CloseAsync(server)
+    
+}
+
+func CloseAsync(server UVHandle) coro.Task<int> {
+    ag := coro.NewAsyncGen<int>()
+    ag.SetJob<int>(func () int {
+        ff := func () void {
+            uv_close(server,func (t UVHandle) void{
+                ag.SetResult(0)
+                coro.TryQueueContinuous(ag)
+                return
+            })
+            return
+        }
+        QueueEvJob(ff)
+        return 0
+    })
+    coro.QueueTask(ag)
+    return ag
+    
+}
+
 func ReadBufAsync(this server UVTcp,len int) coro.Task<*UVBuf> {
     ag := coro.NewAsyncGen<*UVBuf>()
     ag.SetJob<*UVBuf>(func () *UVBuf {
@@ -120,12 +150,11 @@ func ReadBufAsync(this server UVTcp,len int) coro.Task<*UVBuf> {
                         Data:data.buf,
                         Len:len,
                     }
-                    data.buf = inttoptr<*byte>(ptrtoint<*byte>(data.buf)+len)
                     ag.SetResult(newbuf)
-                    buf := GC_malloc(data.max)
-                    memcpy(buf,data.buf,data.len)
-                    data.buf = buf
-                    data.gc_head = buf
+                    //buf := GC_malloc(data.max)
+                    //memcpy(buf,data.buf,data.len)
+                    //data.buf = buf
+                    //data.gc_head = buf
                     coro.TryQueueContinuous(ag)
                     return
                 }
@@ -136,12 +165,17 @@ func ReadBufAsync(this server UVTcp,len int) coro.Task<*UVBuf> {
             set_tcp_data(server,&Buffer{task:ag,explen:len})
             uv_read_start(server,tcpAllocCB,func (client UVStream, nread int, buf *UVBuf) void{
                 var h UVHandle
+                data := get_tcp_data(client)
+                if data==nil || data.task==nil {
+                    return
+                }
                 if nread<=0 {
                     //printIntln(nread)
                     //uv_close(client,func (t UVHandle) void{
                     //    return
                     //})
-                    data := get_tcp_data(client)
+                    
+                    //uv_read_stop(client)
                     newbuf := &UVBuf{
                         Data:data.buf,
                         Len:data.len,
@@ -152,7 +186,6 @@ func ReadBufAsync(this server UVTcp,len int) coro.Task<*UVBuf> {
                     return
                 }
                 //uv_close(server,nil)
-                data := get_tcp_data(client)
                 
                 data.len = data.len+nread
                 ag1 := data.task
@@ -166,10 +199,6 @@ func ReadBufAsync(this server UVTcp,len int) coro.Task<*UVBuf> {
                     data.buf = inttoptr<*byte>(ptrtoint<*byte>(data.buf)+data.explen)
                     data.len = data.len-data.explen
                     data.max = data.max-data.explen
-                    buf := GC_malloc(data.max-data.explen)
-                    memcpy(buf,data.buf,data.len-data.explen)
-                    data.buf = buf
-                    data.gc_head = buf
                     data.task = nil
                 }
                 return

@@ -9,9 +9,14 @@ func heapalloc<T>() *T {
 func heapmalloc<T>() *T {
     size := sizeof<T>()
     bs := GC_malloc_uncollectable(size)
+    //GC_add_roots(bs,inttoptr<*byte>(ptrtoint<*byte>(bs)+size))
     //bs = memset(bs,0,size)
     return unsafecast<*byte,*T>(bs)
 }
+
+func GC_reachable_here(ptr *byte) void
+
+func GC_set_pages_executable(i int32) void
 
 func GC_free(o *byte) void
 
@@ -27,8 +32,8 @@ func GC_set_java_finalization(i int32) void
 
 func trampolineFinalizer(o *byte, cd *byte) void {
     // cd should be closure
-    //printIntln(111)
-    GC_free(cd)
+    printIntln(111)
+    //GC_free(cd)
     return
 }
 

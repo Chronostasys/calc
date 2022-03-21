@@ -1,5 +1,7 @@
 package linkedlist
 
+import "github.com/Chronostasys/calc/runtime"
+
 type Node<T> struct {
     val T
     next *Node<T>
@@ -69,13 +71,13 @@ func Pop<T>(this li *List<T>) T {
 
 func remove<T>(this li *List<T>, n *Node<T>) void {
     li.len = li.len - 1
-    if n.prev==nil&&n.next==nil {
+    if n.prev==nil&&n.next==nil {// 唯一一个元素被删除
         li.first = nil
         li.tail = nil
-    }else if n.prev==nil{
+    }else if n.prev==nil{// head被删除
         li.first = n.next
         n.next.prev = nil
-    }else if n.next==nil{
+    }else if n.next==nil{// tail被删除
         li.tail = n.prev
         li.tail.next = nil
     }else {
