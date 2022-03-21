@@ -17,6 +17,14 @@ func GC_gcollect() void
 
 func GC_dump() void
 
+func coljob() coro.Task<int> async {
+    for {
+        await libuv.Delay(1000)
+        GC_gcollect()
+    }
+    return 0
+}
+
 func makej() func () coro.Task<int> {
     curr := time(0)
     mu := sync.NewMutex()
@@ -24,7 +32,7 @@ func makej() func () coro.Task<int> {
     //a := GC_malloc(100)
     //runtime.regTrampFinalizer(a,nil)
     j := func () coro.Task<int> async {
-        //a := GC_malloc(1024*1024)
+        //a := runtime.heapalloc<[1048576]byte>()
         //runtime.regTrampFinalizer(a,nil)
         ////await libuv.Delay(1000)
         client := libuv.NewTCPClient()
@@ -59,7 +67,9 @@ func makej() func () coro.Task<int> {
     jj := func () coro.Task<int> async {
         for {
             await j()
-            //await libuv.Delay(100)
+            //re.StepNext()
+            //Sleep(100)
+            //printIntln(coro.sch.Len())
             //GC_gcollect()
         }
         return 0
@@ -85,6 +95,7 @@ func main() void {
         }
         return 0
     }
+    //coljob()
     f()
     getchar()
     return

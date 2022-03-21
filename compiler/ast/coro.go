@@ -91,7 +91,7 @@ func (n *AwaitNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	if s.yieldBlock != nil {
 		store(constant.NewBlockAddress(f, nb), s.yieldBlock, s)
 	}
-	s.block.NewRet(b) // 自身出队列
+	s.block.NewRet(b) // 自身根据情况出队列火继续执行
 
 	// 获取返回值
 	f1 := smtp.interfaceFuncs["GetResult"]
@@ -109,5 +109,8 @@ func (n *AwaitNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		nb.NewIntToPtr(sti, types.I8Ptr))
 	r := gcmalloc(m, s, &calcedTypeNode{ret.Type()})
 	store(ret, r, s)
+	// rawsmtp := stateMachine.Type()
+	v := stackAlloc(m, s, smtp)
+	store(loadIfVar(v, s), stateMachine, s) // free async statemachine resource
 	return r
 }

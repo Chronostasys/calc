@@ -316,6 +316,19 @@ func buildGenerator(rtp types.Type, ps []*ir.Param,
 			2,
 		)))
 		store(constant.True, retptr, chs)
+		// set data fields zero for gc
+		memset, _ := s.searchVar("memset")
+		start := gcentry.NewGetElementPtr(stp, p, zero, constant.NewInt(types.I32, int64(
+			3,
+		)))
+		end := gcentry.NewGetElementPtr(stp, p, zero, constant.NewInt(types.I32, int64(
+			len(stp.(*types.StructType).Fields)-3,
+		)))
+		starti := gcentry.NewPtrToInt(start, lexer.DefaultIntType())
+		endi := gcentry.NewPtrToInt(end, lexer.DefaultIntType())
+		len := gcentry.NewSub(endi, starti)
+		bss := gcentry.NewIntToPtr(starti, types.I8Ptr)
+		gcentry.NewCall(memset.v, bss, constant.NewInt(lexer.DefaultIntType(), 0), len)
 		gcentry.NewRet(nil)
 	}
 

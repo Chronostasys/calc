@@ -41,7 +41,8 @@ func SetResult<T>(this ag *AsyncGen<T>, t T) void {
 }
 
 func GetContinuous<T>(this ag *AsyncGen<T>) *sm.StateMachine {
-    return inttoptr<*sm.StateMachine>(ag.nextTask)
+    ptr := inttoptr<*sm.StateMachine>(ag.nextTask)
+    return ptr
 }
 
 func IsDone<T>(this ag *AsyncGen<T>) bool {
