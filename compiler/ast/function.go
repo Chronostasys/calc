@@ -322,7 +322,7 @@ func buildGenerator(rtp types.Type, ps []*ir.Param,
 			3,
 		)))
 		end := gcentry.NewGetElementPtr(stp, p, zero, constant.NewInt(types.I32, int64(
-			len(stp.(*types.StructType).Fields)-3,
+			len(stp.(*types.StructType).Fields)-2,
 		)))
 		starti := gcentry.NewPtrToInt(start, lexer.DefaultIntType())
 		endi := gcentry.NewPtrToInt(end, lexer.DefaultIntType())

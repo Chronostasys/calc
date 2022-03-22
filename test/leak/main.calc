@@ -1,0 +1,10 @@
+package main
+
+
+func main() void {
+    //realmain()
+    //getchar()
+    a := 0
+    printIntln(a)
+    return
+}
