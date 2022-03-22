@@ -18,6 +18,8 @@ func GC_reachable_here(ptr *byte) void
 
 func GC_set_pages_executable(i int32) void
 
+func GC_base(ptr *byte) *byte
+
 func GC_free(o *byte) void
 
 func GC_register_finalizer_unreachable(o *byte, f GC_Finalizer, cd *byte, of GC_Finalizer, ocd **byte) void
@@ -30,9 +32,12 @@ func regTrampFinalizer(tramp *byte, closure *byte) void {
 
 func GC_set_java_finalization(i int32) void
 
+var iii = 0
+
 func trampolineFinalizer(o *byte, cd *byte) void {
     // cd should be closure
-    printIntln(111)
+    iii = iii + 1
+    printIntln(iii)
     //GC_free(cd)
     return
 }

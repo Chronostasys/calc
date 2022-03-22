@@ -11,7 +11,6 @@ type Buffer struct {
     len int
     explen int
     task *coro.AsyncGen<*UVBuf>
-    done bool
 }
 
 func Write(this buf *Buffer, data *byte, len int) void {
@@ -22,6 +21,7 @@ func Write(this buf *Buffer, data *byte, len int) void {
         memcpy(ptr,data,len)
         buf.max = len+buf.len
         buf.len = len+buf.len
+        runtime.GC_free(runtime.GC_base(buf.buf))
         buf.buf = newbuf
         return
     }
@@ -32,15 +32,13 @@ func Write(this buf *Buffer, data *byte, len int) void {
 }
 
 func PreWrite(this buf *Buffer, len int) *byte {
-    if buf.done {
-        return nil
-    }
     if len+buf.len>buf.max {
         newbuf := GC_malloc(len+buf.len)
         if buf.len>0 {
             memcpy(newbuf,buf.buf,buf.len)
         }
         buf.max = len+buf.len
+        runtime.GC_free(runtime.GC_base(buf.buf))
         buf.buf = newbuf
         return inttoptr<*byte>(ptrtoint<*byte>(buf.buf)+buf.len)
     }

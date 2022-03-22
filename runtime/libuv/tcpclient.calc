@@ -74,17 +74,16 @@ func ReadBufAsync(this client *TCPClient,len int) coro.Task<*UVBuf> {
 
 func CloseAsync(this client *TCPClient) coro.Task<int> async {
     re := await client.tcp.CloseAsync()
-    //buf := get_tcp_data(client.tcp)
-    //runtime.GC_free(client.tcp)
-    //runtime.GC_free(client.conn)
-    //if buf != nil {
-    //    runtime.GC_free(buf.buf)
-    //    buf.buf = nil
-    //    buf.done = true
-    //}
-    //client.conn = nil
-    //client.stream = nil
-    //client.tcp = nil
+    buf := get_tcp_data(client.tcp)
+    runtime.GC_free(client.tcp)
+    runtime.GC_free(client.conn)
+    if buf != nil {
+        runtime.GC_free(runtime.GC_base(buf.buf))
+        buf.buf = nil
+    }
+    client.conn = nil
+    client.stream = nil
+    client.tcp = nil
     return re
 }
 

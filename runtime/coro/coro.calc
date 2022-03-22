@@ -110,12 +110,10 @@ func Exec(this ds *defaultScheduler) void {
             }
             t := ds.tasks.Shift()
             ds.mu.UnLock()
-            bs := unsafecast<*sm.StateMachine,*byte>(&t)
             //runtime.regTrampFinalizer(bs,nil)
 
             for ;t.StepNext(); {
             }
-            runtime.GC_free(bs)
         }
         return nil
     }

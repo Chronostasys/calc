@@ -40,8 +40,6 @@ func IsDone(this ag *AsyncGen) bool {
     return ag.done
 }
 func SetDone(this ag *AsyncGen) void {
-    ag.f = nil
-    ag.lock = nil
     ag.done = true
     return
 }

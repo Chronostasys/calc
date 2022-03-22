@@ -61,4 +61,13 @@ QueueTask的每个状态机运行完之后，检查该状态机的头部StateMac
 
 ## memory leak
 
-不知道为啥，目前异步函数会有memory leak问题。
+~~不知道为啥，目前异步函数会有memory leak问题。~~  
+之前版本的async await会导致memory leak，因为每个async generator都会包含所有的内部变量，
+包括在它内部被await的别的async generator。因此如果不能再合适的时机取消这种引用，async函数
+的资源将永远不会被gc。所以我的初步解决方案是：  
+- 在await的之后直接free掉该方法的generator资源
+这个方法有以下几个问题：
+- 当你不await异步方法的时候会导致memory leak
+- generator只能被await一次
+
+但是以上两个目前不是什么大问题。

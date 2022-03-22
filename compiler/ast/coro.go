@@ -104,13 +104,17 @@ func (n *AwaitNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	stiptr := s.block.NewGetElementPtr(smtp.Type, stateMachine,
 		zero, zero)
 	sti := loadIfVar(stiptr, s)
+	bsptr := nb.NewIntToPtr(sti, types.I8Ptr)
 	ret := nb.NewCall(nb.NewIntToPtr(loadIfVar(fn, s),
 		types.NewPointer(types.NewFunc(tp, types.I8Ptr))),
-		nb.NewIntToPtr(sti, types.I8Ptr))
+		bsptr)
 	r := gcmalloc(m, s, &calcedTypeNode{ret.Type()})
 	store(ret, r, s)
-	// rawsmtp := stateMachine.Type()
-	v := stackAlloc(m, s, smtp)
-	store(loadIfVar(v, s), stateMachine, s) // free async statemachine resource
+
+	// manually free awaited async statemachine
+	free, _ := ScopeMap[RUNTIME].searchVar("GC_free")
+	s.block.NewCall(free.v, bsptr)
+	// v := stackAlloc(m, s, smtp)
+	// store(loadIfVar(v, s), stateMachine, s) // free async statemachine resource
 	return r
 }

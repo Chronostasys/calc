@@ -41,6 +41,7 @@ func Push<T>(this li *List<T>, t T) void {
     li.tail.next = n
     n.prev = li.tail
     li.tail = n
+    //runtime.regTrampFinalizer(unsafecast<*Node<T>,*byte>(n),nil)
     return
 }
 func Len<T>(this li *List<T>) int {
@@ -58,8 +59,9 @@ func IndexOp<T>(this li *List<T>, index int) T {
 
 func Shift<T>(this li *List<T>) T {
     n := li.first
+    val := n.val
     li.remove(n)
-    return n.val
+    return val
 }
 func Pop<T>(this li *List<T>) T {
     n := li.tail
@@ -84,6 +86,9 @@ func remove<T>(this li *List<T>, n *Node<T>) void {
         n.prev.next = n.next
         n.next.prev = n.prev
     }
+    //n.prev = nil
+    //n.next = nil
+    //runtime.GC_free(unsafecast<*Node<T>,*byte>(n))
     return
 }
 

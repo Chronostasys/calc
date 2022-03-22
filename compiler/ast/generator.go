@@ -69,7 +69,7 @@ func buildCtx(sl *SLNode, s *Scope, tps []types.Type, ps []*ir.Param) ([]types.T
 	trf = func(n Node) {
 		switch node := n.(type) {
 		case *IfElseNode:
-			ntps, ct := buildCtx(node.Statements.(*SLNode), s.addChildScope(tpf.NewBlock("")), []types.Type{}, ps)
+			ntps, ct := buildCtx(node.Statements.(*SLNode), tpsc.addChildScope(tpf.NewBlock("")), []types.Type{}, ps)
 			tps = append(tps, types.NewStruct(ntps...))
 			ct.father = c
 			ct.id = c.i
@@ -77,21 +77,21 @@ func buildCtx(sl *SLNode, s *Scope, tps []types.Type, ps []*ir.Param) ([]types.T
 
 			c.i++
 		case *IfNode:
-			ntps, ct := buildCtx(node.Statements.(*SLNode), s.addChildScope(tpf.NewBlock("")), []types.Type{}, ps)
+			ntps, ct := buildCtx(node.Statements.(*SLNode), tpsc.addChildScope(tpf.NewBlock("")), []types.Type{}, ps)
 			tps = append(tps, types.NewStruct(ntps...))
 			ct.father = c
 			ct.id = c.i
 			c.idxmap = append(c.idxmap, ct)
 			c.i++
 		case *ForNode:
-			ntps, ct := buildCtx(node.Statements.(*SLNode), s.addChildScope(tpf.NewBlock("")), []types.Type{}, ps)
+			ntps, ct := buildCtx(node.Statements.(*SLNode), tpsc.addChildScope(tpf.NewBlock("")), []types.Type{}, ps)
 			tps = append(tps, types.NewStruct(ntps...))
 			ct.father = c
 			ct.id = c.i
 			c.idxmap = append(c.idxmap, ct)
 			c.i++
 		case *InlineFuncNode:
-			ntps, ct := buildCtx(node.Body.(*SLNode), s, []types.Type{}, ps)
+			ntps, ct := buildCtx(node.Body.(*SLNode), tpsc, []types.Type{}, ps)
 			tps = append(tps, types.NewStruct(ntps...))
 			ct.father = c
 			ct.i = c.i

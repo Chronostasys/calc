@@ -146,8 +146,10 @@ func ReadBufAsync(this server UVTcp,len int) coro.Task<*UVBuf> {
                 if data.len>=len {
                     data.len = data.len-len
                     data.max = data.max-len
+                    bs := GC_malloc(len)
+                    memcpy(bs,data.buf,len)
                     newbuf := &UVBuf{
-                        Data:data.buf,
+                        Data:bs,
                         Len:len,
                     }
                     ag.SetResult(newbuf)
@@ -176,8 +178,10 @@ func ReadBufAsync(this server UVTcp,len int) coro.Task<*UVBuf> {
                     //})
                     
                     //uv_read_stop(client)
+                    bs := GC_malloc(data.len)
+                    memcpy(bs,data.buf,data.len)
                     newbuf := &UVBuf{
-                        Data:data.buf,
+                        Data:bs,
                         Len:data.len,
                     }
                     ag1 := data.task
@@ -190,8 +194,10 @@ func ReadBufAsync(this server UVTcp,len int) coro.Task<*UVBuf> {
                 data.len = data.len+nread
                 ag1 := data.task
                 if ag1!=nil&&data.len>=data.explen {
+                    bs := GC_malloc(data.explen)
+                    memcpy(bs,data.buf,data.explen)
                     newbuf := &UVBuf{
-                        Data:data.buf,
+                        Data:bs,
                         Len:data.explen,
                     }
                     ag1.SetResult(newbuf)
