@@ -99,7 +99,6 @@ func Exec() void {
     return
 }
 
-func GC_is_heap_ptr(ptr *byte) int32
 
 func Exec(this ds *defaultScheduler) void {
     job := func (id *int) *byte {
@@ -110,8 +109,6 @@ func Exec(this ds *defaultScheduler) void {
             }
             t := ds.tasks.Shift()
             ds.mu.UnLock()
-            //runtime.regTrampFinalizer(bs,nil)
-
             for ;t.StepNext(); {
             }
         }

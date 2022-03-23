@@ -86,9 +86,6 @@ func remove<T>(this li *List<T>, n *Node<T>) void {
         n.prev.next = n.next
         n.next.prev = n.prev
     }
-    //n.prev = nil
-    //n.next = nil
-    //runtime.GC_free(unsafecast<*Node<T>,*byte>(n))
     return
 }
 

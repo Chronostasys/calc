@@ -10,7 +10,7 @@
             "request": "launch",
             "mode": "auto",
             "program": "${workspaceFolder}/compiler",
-            "args": ["-d","../test/tcpclient"]
+            "args": ["-d","../test/leak"]
         }
     ]
 }

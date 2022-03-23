@@ -3,6 +3,7 @@ package main
 import (
     "github.com/Chronostasys/calc/runtime/generator"
     "github.com/Chronostasys/calc/runtime/coro"
+    "github.com/Chronostasys/calc/runtime/coro/thread"
     "github.com/Chronostasys/calc/runtime/coro/sync"
     "github.com/Chronostasys/calc/runtime/libuv"
     "github.com/Chronostasys/calc/runtime/strings"
@@ -16,14 +17,17 @@ func getchar() byte
 
 func time(t int) int
 
+func GC_gcollect_and_unmap() void
+
 func GC_gcollect() void
 
 func GC_dump() void
 
 func coljob() coro.Task<int> async {
     for {
-        await libuv.Delay(1000)
-        GC_gcollect()
+        Sleep(1000)
+        GC_gcollect_and_unmap()
+        GC_dump()
     }
     return 0
 }
@@ -43,10 +47,10 @@ func makesyncListj() func () void {
             //list.Shift()
         }
         ii = 0
-        for ;ii<1000; {
-            list.Shift()
-            ii = ii + 1
-        }
+        //for ;ii<1000; {
+        //    list.Shift()
+        //    ii = ii + 1
+        //}
         return
     }
 }
@@ -58,14 +62,14 @@ func makesyncj() func () void {
     //a := GC_malloc(100)
     //runtime.regTrampFinalizer(a,nil)
     j := func () void {
-        a := runtime.heapalloc<[1048576]byte>()
-        runtime.regTrampFinalizer(unsafecast<*[1048576]byte,*byte>(a),nil)
+        a := runtime.heapalloc<[1024]byte>()
+        //runtime.regTrampFinalizer(unsafecast<*[1048576]byte,*byte>(a),nil)
         //runtime.regTrampFinalizer(a,nil)
         return
     }
     jj := func () void {
         ii := 0
-        for ;ii<1000; {
+        for ;ii<100000; {
             j()
             //re.StepNext()
             //Sleep(100)
@@ -73,6 +77,7 @@ func makesyncj() func () void {
             //GC_gcollect()
             ii = ii +1
         }
+        printIntln(999)
         return
     }
     return jj
@@ -85,27 +90,23 @@ func makej() func () coro.Task<int> {
     i := 0
     //a := GC_malloc(100)
     //runtime.regTrampFinalizer(a,nil)
-    j := func () coro.Task<int> async {
-        a := runtime.heapalloc<[1048576]byte>()
-        //runtime.regTrampFinalizer(unsafecast<*[1048576]byte,*byte>(a),nil)
-        //runtime.regTrampFinalizer(a,nil)
+    j := func () coro.Task<int32> async {
+        a := runtime.heapalloc<[1024]byte>()
         return 0
     }
     jj := func () coro.Task<int> async {
-        ii := 0
-        for ;ii<10; {
-            re := j()
-            ptr := unsafecast<*coro.Task<int>,*int>(&re)
-            bs := inttoptr<*byte>(*ptr)
-            //runtime.regTrampFinalizer(bs,nil)
-            await re
-            //runtime.GC_free(bs)
-            //re.StepNext()
-            //Sleep(100)
-            //printIntln(coro.sch.Len())
+        for  {
+            ii := 0
+            for ;ii<100000; {
+                await j()
+                ii = ii + 1
+            }
+            printIntln(888)
             //GC_gcollect()
-            ii = ii + 1
+            //GC_dump()
         }
+        printIntln(999)
+        //Sleep(1000000)
         return 0
     }
     return jj
@@ -119,13 +120,14 @@ func main() void {
     printIntln(curr)
     f := func () int {
         i1 := 0
-        for ;i1<10; {
+        for ;i1<100; {
             j()
             i1=i1+1
         }
         return 0
     }
-    coljob()
+    //coljob()
+
     f()
     getchar()
     return

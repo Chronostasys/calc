@@ -22,7 +22,7 @@ func (n *TakePtrNode) travel(f func(Node) bool) {
 
 func (n *TakePtrNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	v := n.Node.calc(m, f, s)
-	ptr := s.block.NewAlloca(v.Type())
+	ptr := stackAlloc(m, s, v.Type())
 	s.block.NewStore(v, ptr)
 	return ptr
 }

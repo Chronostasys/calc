@@ -167,4 +167,23 @@ func AddSTDFunc(m *ir.Module, s *Scope) {
 
 	})
 
+	s.globalScope.addGeneric("printnameof", func(m *ir.Module, s *Scope, gens ...TypeNode) value.Value {
+		tp, _ := gens[0].calc(s)
+		fnname := s.getFullName(fmt.Sprintf("printnameof<%s>", tp.String()))
+		fn, err := s.globalScope.searchVar(fnname)
+		if err != nil {
+			f = m.NewFunc(fnname, types.Void)
+			b = f.NewBlock("")
+			str := constant.NewCharArrayFromString(tp.String() + "\n\x00")
+			stra := b.NewAlloca(str.Typ)
+			b.NewStore(str, stra)
+			b.NewCall(printf, b.NewGetElementPtr(str.Typ, stra, zero, zero))
+			b.NewRet(nil)
+			fn = &variable{v: f}
+			s.globalScope.addVar(f.Name(), fn)
+		}
+		return fn.v
+
+	})
+
 }

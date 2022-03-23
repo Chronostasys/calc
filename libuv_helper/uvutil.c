@@ -33,7 +33,7 @@ uv_async_t* new_async(){
 
 uv_connect_t* new_conn(){
     uv_connect_t t;
-    return GC_MALLOC(sizeof t);
+    return GC_malloc_uncollectable(sizeof t);
 }
 
 uv_stream_t* get_conn_stream(uv_connect_t* t) {
@@ -49,11 +49,11 @@ void set_tcp_data(uv_tcp_t* t, void* data) {
 }
 
 void* GC_calloc(size_t count, size_t size){
-    return GC_malloc((count)*(size));
+    return GC_malloc_uncollectable((count)*(size));
 }
 
 void replace_allocator() {
-    uv_replace_allocator(GC_malloc,GC_realloc,GC_calloc,GC_free);
+    uv_replace_allocator(GC_malloc_uncollectable,GC_realloc,GC_calloc,GC_free);
     return;
 }
 

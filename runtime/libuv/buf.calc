@@ -21,7 +21,7 @@ func Write(this buf *Buffer, data *byte, len int) void {
         memcpy(ptr,data,len)
         buf.max = len+buf.len
         buf.len = len+buf.len
-        runtime.GC_free(runtime.GC_base(buf.buf))
+        //runtime.GC_free(runtime.GC_base(buf.buf))
         buf.buf = newbuf
         return
     }
@@ -38,7 +38,7 @@ func PreWrite(this buf *Buffer, len int) *byte {
             memcpy(newbuf,buf.buf,buf.len)
         }
         buf.max = len+buf.len
-        runtime.GC_free(runtime.GC_base(buf.buf))
+        //runtime.GC_free(runtime.GC_base(buf.buf))
         buf.buf = newbuf
         return inttoptr<*byte>(ptrtoint<*byte>(buf.buf)+buf.len)
     }

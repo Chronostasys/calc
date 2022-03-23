@@ -36,7 +36,8 @@ func (n *AwaitNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	if n.val != nil {
 		stateMachine = n.val(s)
 		st := n.Exp.calc(m, f, s)
-		store(loadIfVar(st, s), stateMachine, s)
+		t := loadIfVar(st, s)
+		store(t, stateMachine, s)
 	} else {
 		stateMachine = n.Exp.calc(m, f, s)
 	}
@@ -111,9 +112,10 @@ func (n *AwaitNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	r := gcmalloc(m, s, &calcedTypeNode{ret.Type()})
 	store(ret, r, s)
 
-	// manually free awaited async statemachine
-	free, _ := ScopeMap[RUNTIME].searchVar("GC_free")
-	s.block.NewCall(free.v, bsptr)
+	// // free resources
+	// free, _ := ScopeMap[RUNTIME].searchVar("GC_free")
+	// // manually free awaited async statemachine
+	// s.block.NewCall(free.v, bsptr)
 	// v := stackAlloc(m, s, smtp)
 	// store(loadIfVar(v, s), stateMachine, s) // free async statemachine resource
 	return r
