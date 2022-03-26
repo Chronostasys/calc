@@ -4,26 +4,26 @@ type UVStream *byte
 
 func uv_accept(server UVStream, client UVStream) int32
 
-type UVBuf struct {
-    Len int
-    Data *byte
-}
+type UVBuf *byte
 
 type UVHandle *byte
 
-type AllocCB func (handle UVHandle, suggested_size int, buf *UVBuf) void
-type ReadCB func (client UVStream, nread int, buf *UVBuf) void 
+type AllocCB func (handle UVHandle, suggested_size int, buf UVBuf) void
+type ReadCB func (client UVStream, nread int, buf UVBuf) void 
 
 func uv_read_start(stream UVStream,alloc_cb AllocCB,uv_read_cb ReadCB) int32
 
+func new_buf_t() UVBuf
+
+func get_buf_data(buf UVBuf) *byte
+
+func get_buf_len(buf UVBuf) int
+
+func set_buf_data(buf UVBuf, data *byte) void
+
+func set_buf_len(buf UVBuf, len int) void
 
 func uv_listen(stream UVStream, backlog int32, cb TCPConnCB) int32
 
 func uv_close(handle UVHandle , cb func(t UVHandle) void) void
-
-func DefaultAllocCB(handle UVHandle, suggested_size int, buf *UVBuf) void {
-    buf.Len = suggested_size
-    buf.Data = GC_malloc(suggested_size)
-    return
-}
 

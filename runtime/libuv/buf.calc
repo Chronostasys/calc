@@ -10,7 +10,7 @@ type Buffer struct {
     buf *byte
     len int
     explen int
-    task *coro.AsyncGen<*UVBuf>
+    task *coro.AsyncGen<*Buf>
 }
 
 func Write(this buf *Buffer, data *byte, len int) void {

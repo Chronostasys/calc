@@ -36,7 +36,7 @@ func set_tcp_data(t UVTcp, buf *Buffer) void
 
 type WriteCB func (server UVWrite, status int32) void
 
-func uv_write(req UVWrite, handle UVStream, bufs *UVBuf, nbufs int, cb WriteCB) int32
+func uv_write(req UVWrite, handle UVStream, bufs UVBuf, nbufs int, cb WriteCB) int32
 
 func new_write() UVWrite
 
@@ -57,8 +57,16 @@ func TCPListen(ip string, port int32, cb TCPConnCB) void {
         uv_tcp_bind(tcp,addr,0)
         realcb := func (server UVTcp, status int32) void {
             client := new_tcp()
-            uv_tcp_init(uv_default_loop(),client)
-            uv_accept(server, client)
+            re := uv_tcp_init(uv_default_loop(),client)
+            if re != 0 {
+                s := "tcp init failed"
+                s.PrintLn()
+            }
+            re = uv_accept(server, client)
+            if re != 0 {
+                s := "tcp accept failed"
+                s.PrintLn()
+            }
             cb(client,status)
             return
         }
@@ -73,14 +81,14 @@ func TCPListen(ip string, port int32, cb TCPConnCB) void {
     return
 }
 
-func tcpAllocCB(handle UVHandle, suggested_size int, buf *UVBuf) void {
-    buf.Len = suggested_size
+func tcpAllocCB(handle UVHandle, suggested_size int, buf UVBuf) void {
+    set_buf_len(buf,suggested_size)
     data := get_tcp_data(handle)
     if data == nil {
-        buf.Len = 0
+        set_buf_len(buf,0)
         return
     }
-    buf.Data = data.PreWrite(suggested_size)
+    set_buf_data(buf,data.PreWrite(suggested_size))
     return
 }
 
@@ -90,10 +98,9 @@ func WriteBufAsync(this server UVTcp, str string) coro.Task<int> {
     ag.SetJob<int>(func () int {
         ff := func () void {
             wt := new_write()
-            buf := &UVBuf{
-                Data: str.Byte(),
-                Len: str.Len(),
-            }
+            buf := new_buf_t()
+            set_buf_data(buf,str.Byte())
+            set_buf_len(buf,str.Len())
             re := uv_write(wt,server,buf,1,func (server UVWrite, status int32) void{
                 //runtime.GC_free(server)
                 ag.SetResult(status)
@@ -101,6 +108,7 @@ func WriteBufAsync(this server UVTcp, str string) coro.Task<int> {
                 return
             })
             if re != 0 {
+                //print_uv_err(re)
                 ag.SetResult(re)
                 coro.TryQueueContinuous(ag)
             }
@@ -140,16 +148,24 @@ func CloseAsync(server UVHandle) coro.Task<int> {
     
 }
 
-func ReadBufAsync(this server UVTcp,len int) coro.Task<*UVBuf> {
-    ag := coro.NewAsyncGen<*UVBuf>()
-    ag.SetJob<*UVBuf>(func () *UVBuf {
+func print_uv_err(err int) void
+
+
+type Buf struct {
+    Data *byte
+    Len int
+}
+
+func ReadBufAsync(this server UVTcp,len int) coro.Task<*Buf> {
+    ag := coro.NewAsyncGen<*Buf>()
+    ag.SetJob<*Buf>(func () *Buf {
         ff := func () void {
             data := get_tcp_data(server)
             if data!=nil{
                 if data.len>=len {
                     data.len = data.len-len
                     data.max = data.max-len
-                    newbuf := &UVBuf{
+                    newbuf := &Buf{
                         Data:data.buf,
                         Len:len,
                     }
@@ -163,14 +179,14 @@ func ReadBufAsync(this server UVTcp,len int) coro.Task<*UVBuf> {
                 return
             }
             set_tcp_data(server,&Buffer{task:ag,explen:len})
-            uv_read_start(server,tcpAllocCB,func (client UVStream, nread int, buf *UVBuf) void{
+            re := uv_read_start(server,tcpAllocCB,func (client UVStream, nread int, buf UVBuf) void{
                 var h UVHandle
                 data := get_tcp_data(client)
                 if data==nil || data.task==nil {
                     return
                 }
                 if nread<=0 {
-                    newbuf := &UVBuf{
+                    newbuf := &Buf{
                         Data:data.buf,
                         Len:data.len,
                     }
@@ -184,7 +200,7 @@ func ReadBufAsync(this server UVTcp,len int) coro.Task<*UVBuf> {
                 data.len = data.len+nread
                 ag1 := data.task
                 if ag1!=nil&&data.len>=data.explen {
-                    newbuf := &UVBuf{
+                    newbuf := &Buf{
                         Data:data.buf,
                         Len:data.explen,
                     }

@@ -19,6 +19,9 @@ test-exe:
 compiler:
 	cd compiler && go build -o calccf.exe main.go && copy calccf.exe ..\bin\win\calccf.exe
 
+compiler-linux:
+	cd compiler && go build -o calccf main.go && sudo cp calccf /usr/local/bin/calccf
+
 gc-dependency:
 	cd bdwgc && git clone git://github.com/ivmai/libatomic_ops.git
 

@@ -1,11 +1,13 @@
 package sync
 
-func pthread_mutex_lock(l *int) int32
-func pthread_mutex_unlock(l *int) int32
-func pthread_mutex_init(l *int, attr *int32) int32
+func pthread_mutex_lock(l *byte) int32
+func pthread_mutex_unlock(l *byte) int32
+func pthread_mutex_init(l *byte, attr *int32) int32
+
+func new_pthread_mutex_t() *byte
 
 type Mutex struct {
-    mu *int
+    mu *byte
 }
 
 type Locker interface {
@@ -14,9 +16,9 @@ type Locker interface {
 }
 
 func NewMutex() *Mutex {
-    i := 0
+    i := new_pthread_mutex_t()
     mu := &Mutex{
-        mu: &i,
+        mu: i,
     }
     re := pthread_mutex_init(mu.mu, nil)
     if re !=0 {

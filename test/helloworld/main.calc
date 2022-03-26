@@ -1,7 +1,10 @@
 package main
 
+func getchar() byte
+
 func main() void {
     a := "hello world"
     a.PrintLn()
+    getchar()
     return
 }

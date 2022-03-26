@@ -1,20 +1,25 @@
 package sync
 
-func pthread_cond_wait(cond *int, mutex *int) int32
+func pthread_cond_wait(cond *byte, mutex *byte) int32
 
-func pthread_cond_signal(cond *int) int32
+func pthread_cond_signal(cond *byte) int32
 
-func pthread_cond_init(cond *int, attr *byte) int32
+func pthread_cond_init(cond *byte, attr *byte) int32
 
 type Cond struct {
-    con *int
+    con *byte
 }
+func new_pthread_cond_t() *byte
 
 func NewCond() *Cond {
-    con := 0
-    pthread_cond_init(&con,nil)
+    con := new_pthread_cond_t()
+    re := pthread_cond_init(con,nil)
+    if re != 0 {
+        s := "init cond failed"
+        s.PrintLn()
+    }
     return &Cond{
-        con: &con,
+        con: con,
     }
 }
 

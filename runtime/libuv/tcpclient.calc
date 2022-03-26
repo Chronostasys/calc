@@ -63,10 +63,9 @@ func ConnectAsync(this client *TCPClient, host string, port int32) coro.Task<int
 }
 func WriteBufAsync(this client *TCPClient, str string) coro.Task<int> {
     return client.tcp.WriteBufAsync(str)
-
 }
 
-func ReadBufAsync(this client *TCPClient,len int) coro.Task<*UVBuf> {
+func ReadBufAsync(this client *TCPClient,len int) coro.Task<*Buf> {
     return client.tcp.ReadBufAsync(len)
 }
 

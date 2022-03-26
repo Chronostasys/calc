@@ -48,9 +48,9 @@ func AddSTDFunc(m *ir.Module, s *Scope) {
 	f = m.NewFunc("malloc", types.I8Ptr, p)
 	s.globalScope.addVar(f.Name(), &variable{v: f})
 
-	p = ir.NewParam("i", lexer.DefaultIntType())
-	f = m.NewFunc("Sleep", lexer.DefaultIntType(), p)
-	s.globalScope.addVar(f.Name(), &variable{v: f})
+	// p = ir.NewParam("i", lexer.DefaultIntType())
+	// f = m.NewFunc("Sleep", lexer.DefaultIntType(), p)
+	// s.globalScope.addVar(f.Name(), &variable{v: f})
 
 	p = ir.NewParam("i", types.I8Ptr)
 	f = m.NewFunc("free", types.Void, p)

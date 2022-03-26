@@ -1,5 +1,9 @@
 package runtime
 
+func Malloc<T>() *T {
+    return heapalloc<T>()
+}
+
 func heapalloc<T>() *T {
     size := sizeof<T>()
     bs := GC_malloc(size)

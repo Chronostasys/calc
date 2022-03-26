@@ -34,11 +34,12 @@ func Run<T>(job func () T) Task<T> {
 func NewScheduler() Scheduler {
     mu := sync.NewMutex()
     cond := sync.NewCond()
-    return &defaultScheduler{
+    ds := &defaultScheduler{
         tasks: linkedlist.New<sm.StateMachine>(),
         mu: mu,
         cond: cond,
     }
+    return ds
 }
 
 func QueueTask(this s *defaultScheduler, st sm.StateMachine) void {
@@ -114,7 +115,7 @@ func Exec(this ds *defaultScheduler) void {
         }
         return nil
     }
-    for i := 0;i<8;i=i+1 {
+    for i := 0;i<1;i=i+1 {
         t := 0
         thid := i
         th := thread.New<*int,*byte>(job,&thid)
