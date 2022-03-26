@@ -2,23 +2,7 @@ package runtime
 
 func heapalloc<T>() *T {
     size := sizeof<T>()
-    //if size<=64&&size>48 {
-    //    printnameof<T>()
-    //    printIntln(size)
-    //}
-    //b := false
-    //if size==64 {
-    //    //b = true
-    //    //iii = iii + 1
-    //    //printIntln(iii)
-    //    printnameof<T>()
-    //    //size = size+6400
-    //}
     bs := GC_malloc(size)
-    //if b {
-    //    regTrampFinalizer(bs,nil)
-    //}
-    //bs = memset(bs,0,size)
     return unsafecast<*byte,*T>(bs)
 }
 func heapmalloc<T>() *T {

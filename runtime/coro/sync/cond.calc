@@ -21,7 +21,7 @@ func NewCond() *Cond {
 // A Cond will release the mutex before it sleep, 
 // then aquire it just after it is awaked
 func Wait(this cond *Cond, mu *Mutex) void {
-    re := pthread_cond_wait(cond.con,mu.mu)
+    re := pthread_cond_wait(cond.con, mu.mu)
     if re !=0 {
         s := "cond wait failed"
         s.PrintLn()

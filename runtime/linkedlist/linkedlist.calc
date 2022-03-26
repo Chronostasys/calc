@@ -17,7 +17,7 @@ type List<T> struct {
 func UnShift<T>(this li *List<T>, t T) void {
     li.len = li.len + 1
     n := &Node<T>{val:t}
-    if li.first==nil {
+    if li.first == nil {
         li.first = n
         li.tail = n
         return
@@ -76,13 +76,13 @@ func remove<T>(this li *List<T>, n *Node<T>) void {
     if n.prev==nil&&n.next==nil {// 唯一一个元素被删除
         li.first = nil
         li.tail = nil
-    }else if n.prev==nil{// head被删除
+    } else if n.prev==nil {// head被删除
         li.first = n.next
         n.next.prev = nil
-    }else if n.next==nil{// tail被删除
+    } else if n.next==nil {// tail被删除
         li.tail = n.prev
         li.tail.next = nil
-    }else {
+    } else {
         n.prev.next = n.next
         n.next.prev = n.prev
     }

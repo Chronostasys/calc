@@ -5,6 +5,7 @@ import (
     "github.com/Chronostasys/calc/runtime/coro/sm"
     "github.com/Chronostasys/calc/runtime/coro"
     "github.com/Chronostasys/calc/runtime"
+    "github.com/Chronostasys/calc/runtime/strings"
     "github.com/Chronostasys/calc/runtime/coro/sync"
 )
 
@@ -148,17 +149,12 @@ func ReadBufAsync(this server UVTcp,len int) coro.Task<*UVBuf> {
                 if data.len>=len {
                     data.len = data.len-len
                     data.max = data.max-len
-                    //bs := GC_malloc(len)
-                    //memcpy(bs,data.buf,len)
                     newbuf := &UVBuf{
                         Data:data.buf,
                         Len:len,
                     }
+                    data.buf = inttoptr<*byte>(ptrtoint<*byte>(data.buf)+len)
                     ag.SetResult(newbuf)
-                    //buf := GC_malloc(data.max)
-                    //memcpy(buf,data.buf,data.len)
-                    //data.buf = buf
-                    //data.gc_head = buf
                     coro.TryQueueContinuous(ag)
                     return
                 }
@@ -174,14 +170,6 @@ func ReadBufAsync(this server UVTcp,len int) coro.Task<*UVBuf> {
                     return
                 }
                 if nread<=0 {
-                    //printIntln(nread)
-                    //uv_close(client,func (t UVHandle) void{
-                    //    return
-                    //})
-                    
-                    //uv_read_stop(client)
-                    //bs := GC_malloc(data.len)
-                    //memcpy(bs,data.buf,data.len)
                     newbuf := &UVBuf{
                         Data:data.buf,
                         Len:data.len,
@@ -196,8 +184,6 @@ func ReadBufAsync(this server UVTcp,len int) coro.Task<*UVBuf> {
                 data.len = data.len+nread
                 ag1 := data.task
                 if ag1!=nil&&data.len>=data.explen {
-                    //bs := GC_malloc(data.explen)
-                    //memcpy(bs,data.buf,data.explen)
                     newbuf := &UVBuf{
                         Data:data.buf,
                         Len:data.explen,
