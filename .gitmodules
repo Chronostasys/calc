@@ -1,3 +1,6 @@
 [submodule "bdwgc"]
 	path = bdwgc
 	url = https://github.com/ivmai/bdwgc
+[submodule "libuv"]
+	path = libuv
+	url = https://github.com/libuv/libuv
