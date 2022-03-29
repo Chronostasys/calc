@@ -17,6 +17,17 @@
 - golang 1.17.1
 - libuv
 - bdwgc
+
+## Installation
+clone本项目，在项目目录执行./install脚本能在大部分Debian Linux系统上安装calc编译器
+```sh
+git clone https://github.com/Chronostasys/calc.git
+cd calc
+./install.sh
+calcc -?
+```
+
+
 ## 语法规则
 ```
 program: P->PD NL* IS? (FN|NL|T|D|DA)+

@@ -53,7 +53,7 @@ fi
 # echo "$outpath"
 # echo "$llpath"
 
-calccf.exe -d $ccdir -o $llpath
+calccf -d $ccdir -o $llpath
 clang $llpath /usr/local/lib/uvutil.a /usr/local/lib/libuv.a /usr/local/lib/libgc.so  -ldl -static-libgcc -static-libstdc++ -lpthread  -o $outpath
 if [ "$rmll" = "true" ]
 then
