@@ -14,3 +14,13 @@
 !bin/**/*
 .vscode/c_cpp_properties.json
 *.out
+bin/win/calccf.exe
+bin/win/bdwgc/libgc-1.dll
+bin/win/bdwgc/libgc.dll.a
+bin/win/bdwgc/libgc.la
+bin/win/bdwgc/libgc.lai
+bin/win/bdwgc/libwinpthread-1.dll
+bin/win/libuv/uv_a.lib
+bin/win/libuv/uv.dll
+bin/win/libuv/uv.lib
+bin/win/libuv/uvutil.a

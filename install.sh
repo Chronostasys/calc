@@ -42,7 +42,7 @@ if ! command -v go &> /dev/null
 then
     echo -e "${GREEN}go not found, try to install...${ENDCOLOR}"
     wget -q -O - https://raw.githubusercontent.com/canha/golang-tools-install-script/master/goinstall.sh | bash
-    source /home/chronos/.bashrc
+    source ~/.bashrc
 fi
 echo -e "${GREEN}try to install calcc${ENDCOLOR}"
 cd ..
