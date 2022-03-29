@@ -23,6 +23,7 @@ clone本项目，在项目目录执行./install脚本能在大部分Debian Linux
 ```sh
 git clone https://github.com/Chronostasys/calc.git
 cd calc
+chmod +x ./install.sh
 ./install.sh
 calcc -?
 ```

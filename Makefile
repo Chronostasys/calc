@@ -23,7 +23,7 @@ compiler-linux:
 	cd compiler && go build -o calccf main.go && sudo cp calccf /usr/local/bin/calccf
 
 install: compiler-linux
-	sudo cp bin/linux/calcc.sh /usr/local/bin/calcc
+	sudo cp bin/linux/calcc.sh /usr/local/bin/calcc && sudo chmod +x /usr/local/bin/calcc
 
 gc-dependency:
 	cd bdwgc && git clone git://github.com/ivmai/libatomic_ops.git
