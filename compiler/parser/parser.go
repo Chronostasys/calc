@@ -2,9 +2,11 @@ package parser
 
 import (
 	"fmt"
+	"io/fs"
 	"io/ioutil"
 	"log"
 	"os"
+	"os/exec"
 	"path"
 	"strconv"
 	"strings"
@@ -218,7 +220,7 @@ func (p *Parser) program() *ast.ProgramNode {
 	n.PKG = astnode
 	_, m := path.Split(p.mod)
 	if astnode.Name != m && astnode.Name != "main" {
-		panic(fmt.Errorf("bad mod %s", astnode.Name))
+		panic(fmt.Errorf("bad mod %s, expect mod %s", astnode.Name, m))
 	}
 	if astnode.Name == "main" {
 		p.mod = astnode.Name
@@ -236,16 +238,10 @@ func (p *Parser) program() *ast.ProgramNode {
 	if imp != nil {
 		p.imp = imp.Imports
 		for _, v := range p.imp {
-			if strings.Index(v, calcmod) == 0 {
-				// sub module of mod
-				if p.fathers[v] {
-					panic(fmt.Sprintf("found loop referencing in %s. refmap: %v", v, p.fathers))
-				}
-				ParseModule("", v, p.m, p.fathers)
-			} else {
-				// TODO external module
-				panic("not impl")
+			if p.fathers[v] {
+				panic(fmt.Sprintf("found loop referencing in %s. refmap: %v", v, p.fathers))
 			}
+			ParseModule("", v, p.m, p.fathers)
 		}
 	}
 	for {
@@ -732,7 +728,34 @@ func ParseDir(dir string) *ir.Module {
 }
 func ParseModule(dir, mod string, m *ir.Module, fathers map[string]bool) *ast.ProgramNode {
 	if mod != "main" {
-		dir = path.Join(maindir, mod[len(calcmod):])
+		if strings.Index(mod, calcmod) == 0 { // current mod
+			dir = path.Join(maindir, mod[len(calcmod):])
+		} else { // other mod
+			mname := strings.Split(mod, "/")
+			binpath := os.Getenv("CALC_BIN")
+			if len(binpath) == 0 {
+				binpath = "~/calc"
+			}
+			basedir := path.Join(binpath, mname[0], mname[1])
+			basedir = path.Join(basedir, mname[2])
+			dir = path.Join(basedir, path.Join(mname[3:]...))
+			_, err := os.Stat(dir)
+			if err != nil && !os.IsNotExist(err) {
+				panic(err)
+			}
+			err = os.MkdirAll(basedir, fs.ModeDir)
+			if os.IsNotExist(err) {
+				fmt.Println("	Found module", mod, "missing, cloning to", basedir)
+				cmd := exec.Command("git", "clone", "https://"+strings.Join(mname[:3], "/")+".git", basedir)
+				cmd.Env = os.Environ()
+				cmd.Stderr = os.Stdout
+				cmd.Stdout = os.Stdout
+				err := cmd.Run()
+				if err != nil {
+					panic(err)
+				}
+			}
+		}
 	}
 	mu.Lock()
 	ch := startMap[mod]

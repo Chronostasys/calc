@@ -18,7 +18,7 @@ if ($h) {
 }
 $ErrorActionPreference = "Stop"
 mkdir "$o" -erroraction 'silentlycontinue'
-& "$env:CALC_BIN\win\calccf.exe" -d $d -o "$o\$n.ll"
+& "$env:CALC_BIN\calccf.exe" -d $d -o "$o\$n.ll"
 if ($LastExitCode -ne 0) {
     "compile error"
     exit
@@ -26,10 +26,10 @@ if ($LastExitCode -ne 0) {
 if ($ll) {
     "llvm ir write to $o\$n.ll"
 }
-$from = "$env:CALC_BIN\win\bdwgc\*.*"
+$from = "$env:CALC_BIN\bdwgc\*.*"
 $to = "$o"
 Copy-Item -Path "$from" -Destination "$to"
-$from = "$env:CALC_BIN\win\libuv\*.*"
+$from = "$env:CALC_BIN\libuv\*.*"
 Copy-Item -Path "$from" -Destination "$to"
 clang "$o\$n.ll" $o\libgc.dll.a $o\uv.lib $o\uvutil.a -static-libgcc -static-libstdc++ -lpthread  -o $o\$n
 if ($LastExitCode -ne 0) {
