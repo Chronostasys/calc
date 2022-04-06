@@ -11,6 +11,7 @@
 ## 和golang主要区别
 - 支持泛型，是尖括号
 - 不能多返回值
+- 采用无栈协程
 
 ## 工具链
 - clang (llvm 12.0+) windows要使用[llvm mingw](https://github.com/mstorsjo/llvm-mingw/releases)
@@ -89,3 +90,187 @@ import_statement: IS->imp str|imp LP ((SE var?)|NL)* RP
 
 idx_op_reload: IOR->OP LSB RSB LP EFP COMMA FP RP TYPE SB
 ```
+
+## Examples
+
+[test](test/)文件夹中有很多例子  
+
+### Hello World
+
+```
+package main
+
+func main() void {
+    a := "hello world"
+    a.PrintLn()
+    return
+}
+
+```
+
+### Functions
+```
+package xxx
+
+func Foo() void {
+    b := &Boo{}
+    b.FooOfBoo()
+    return
+}
+
+type Boo struct {
+}
+
+func FooOfBoo(this boo *Boo) void {
+    return
+}
+
+```
+### Generics(泛型)
+[泛型链表](runtime/linkedlist/linkedlist.calc)
+```
+package linkedlist
+
+type Node<T> struct {
+    val T
+    next *Node<T>
+    prev *Node<T>
+}
+
+type List<T> struct {
+    first *Node<T>
+    tail *Node<T>
+    len int
+}
+
+func UnShift<T>(this li *List<T>, t T) void {
+    li.len = li.len + 1
+    n := &Node<T>{val:t}
+    if li.first == nil {
+        li.first = n
+        li.tail = n
+        return
+    }
+    n.next = li.first
+    li.first.prev = n
+    li.first = n
+    return
+}
+
+
+func Push<T>(this li *List<T>, t T) void {
+    li.len = li.len + 1
+    n := &Node<T>{val:t}
+    if li.first==nil {
+        li.first = n
+        li.tail = n
+        return
+    }
+
+    li.tail.next = n
+    n.prev = li.tail
+    li.tail = n
+    return
+}
+func Len<T>(this li *List<T>) int {
+    return li.len
+}
+
+func IndexOp<T>(this li *List<T>, index int) T {
+    i := 0
+    var n *Node<T>
+    for n = li.first;i!=index;n=n.next {
+        i=i+1
+    }
+    return n.val
+}
+
+func Shift<T>(this li *List<T>) T {
+    n := li.first
+    val := n.val
+    li.remove(n)
+    return val
+}
+func Pop<T>(this li *List<T>) T {
+    n := li.tail
+    li.remove(n)
+    return n.val
+}
+
+
+
+func remove<T>(this li *List<T>, n *Node<T>) void {
+    li.len = li.len - 1
+    if n.prev==nil&&n.next==nil {// 唯一一个元素被删除
+        li.first = nil
+        li.tail = nil
+    } else if n.prev==nil {// head被删除
+        li.first = n.next
+        n.next.prev = nil
+    } else if n.next==nil {// tail被删除
+        li.tail = n.prev
+        li.tail.next = nil
+    } else {
+        n.prev.next = n.next
+        n.next.prev = n.prev
+    }
+    return
+}
+
+
+
+func New<T>() *List<T> {
+    return &List<T>{}
+}
+
+```
+
+### 异步操作和协程
+协程包是`"github.com/Chronostasys/calc/runtime/coro"`
+
+[tcp echo server](test/tcpserver/server.calc)
+
+```
+package main
+
+import (
+    "github.com/Chronostasys/calc/runtime/coro"
+    "github.com/Chronostasys/calc/runtime/libuv"
+    "github.com/Chronostasys/calc/runtime/strings"
+)
+
+func getchar() byte
+
+func main() void {
+    libuv.TCPListen("0.0.0.0",8888,func (server libuv.UVTcp, status int32) void {
+        s := "new tcp conn"
+        s.PrintLn()
+        jobf := func () coro.Task<int> async {
+            for {
+                buf := await server.ReadBufAsync(1)
+                ss := strings.NewStr(buf.Data,buf.Len)
+                ss.Print()
+                re := await server.WriteBufAsync(ss)
+                if re !=0 {
+                    sss := "write failed"
+                    sss.PrintLn()
+                    printIntln(re)
+                }
+            }
+            return 0
+        }
+        jobf()
+        return
+    })
+    s1 := "tcp echo server started at 0.0.0.0:8888"
+    s1.PrintLn()
+    getchar()
+    return
+}
+```
+可以使用netcat进行连接测试
+```
+nc 127.0.0.1 8888
+```
+
+TODO

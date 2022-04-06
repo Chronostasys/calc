@@ -1,7 +1,6 @@
 package main
 
 import (
-    "github.com/Chronostasys/calc/runtime/generator"
     "github.com/Chronostasys/calc/runtime/coro"
     "github.com/Chronostasys/calc/runtime/libuv"
     "github.com/Chronostasys/calc/runtime/strings"
@@ -13,7 +12,7 @@ func main() void {
     libuv.TCPListen("0.0.0.0",8888,func (server libuv.UVTcp, status int32) void {
         s := "new tcp conn"
         s.PrintLn()
-        jeff := func () coro.Task<int> async {
+        jobf := func () coro.Task<int> async {
             for {
                 buf := await server.ReadBufAsync(1)
                 ss := strings.NewStr(buf.Data,buf.Len)
@@ -27,7 +26,7 @@ func main() void {
             }
             return 0
         }
-        jeff()
+        jobf()
         return
     })
     s1 := "tcp echo server started at 0.0.0.0:8888"

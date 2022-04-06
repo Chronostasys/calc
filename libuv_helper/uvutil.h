@@ -25,3 +25,4 @@ char* get_buf_data(uv_buf_t* t);
 ULONG get_buf_len(uv_buf_t* t);
 void set_buf_data(uv_buf_t* t, char* data);
 void set_buf_len(uv_buf_t* t, ULONG len);
+int get_available_parallelism();

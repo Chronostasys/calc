@@ -100,6 +100,8 @@ func Exec() void {
     return
 }
 
+func get_available_parallelism() int
+
 
 func Exec(this ds *defaultScheduler) void {
     job := func (id *int) *byte {
@@ -115,7 +117,7 @@ func Exec(this ds *defaultScheduler) void {
         }
         return nil
     }
-    for i := 0;i<1;i=i+1 {
+    for i := 0;i<get_available_parallelism();i=i+1 {
         t := 0
         thid := i
         th := thread.New<*int,*byte>(job,&thid)
