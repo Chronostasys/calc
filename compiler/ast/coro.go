@@ -92,7 +92,7 @@ func (n *AwaitNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	if s.yieldBlock != nil {
 		store(constant.NewBlockAddress(f, nb), s.yieldBlock, s)
 	}
-	s.block.NewRet(b) // 自身根据情况出队列火继续执行
+	s.block.NewRet(b) // 自身根据情况出队列或继续执行
 
 	// 获取返回值
 	f1 := smtp.interfaceFuncs["GetResult"]

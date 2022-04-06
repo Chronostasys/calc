@@ -12,6 +12,7 @@ type AsyncGen<T> struct {
     done bool
     f func() T
     re T
+    reFromFunc bool
 }
 
 func SetJob<T>(this ag *AsyncGen<T>,f func() T) void {
@@ -26,7 +27,10 @@ func NewAsyncGen<T>() *AsyncGen<T> {
 }
 
 func StepNext<T>(this ag *AsyncGen<T>) bool {
-    ag.re = ag.f()
+    reee := ag.f()
+    if ag.reFromFunc {
+        ag.re = reee
+    }
     return false
 }
 func GetResult<T>(this ag *AsyncGen<T>) T {

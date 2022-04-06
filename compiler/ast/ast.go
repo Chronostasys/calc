@@ -178,7 +178,7 @@ func (n *BinNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 			return rawL
 		}
 		val := rawL
-		r1, err := implicitCast(r, l.Type(), s)
+		r1, err := implicitCast(r, val.Type().(*types.PointerType).ElemType, s)
 		if err != nil {
 			panic(err)
 		}
@@ -1008,21 +1008,26 @@ func (n *DefAndAssignNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value 
 	var v value.Value
 	var tp types.Type
 	var tpNode TypeNode
-	switch val.Type().(type) {
-	case *types.FloatType:
-		tp = lexer.DefaultFloatType()
-		tpNode = &BasicTypeNode{ResType: lexer.TYPE_RES_FLOAT}
-	case *types.IntType:
-		if val.Type().(*types.IntType).BitSize == 1 {
-			tp = val.Type()
-			tpNode = &BasicTypeNode{ResType: lexer.TYPE_RES_BOOL}
-		} else {
-			tp = lexer.DefaultIntType()
-			tpNode = &BasicTypeNode{ResType: lexer.TYPE_RES_INT}
-		}
-	default:
+	if _, ok := n.ValNode.(*CallFuncNode); ok {
 		tp = val.Type()
 		tpNode = &calcedTypeNode{tp}
+	} else {
+		switch val.Type().(type) {
+		case *types.FloatType:
+			tp = lexer.DefaultFloatType()
+			tpNode = &BasicTypeNode{ResType: lexer.TYPE_RES_FLOAT}
+		case *types.IntType:
+			if val.Type().(*types.IntType).BitSize == 1 {
+				tp = val.Type()
+				tpNode = &BasicTypeNode{ResType: lexer.TYPE_RES_BOOL}
+			} else {
+				tp = lexer.DefaultIntType()
+				tpNode = &BasicTypeNode{ResType: lexer.TYPE_RES_INT}
+			}
+		default:
+			tp = val.Type()
+			tpNode = &calcedTypeNode{tp}
+		}
 	}
 	if !global {
 		v = autoAlloc(m, n.ID,

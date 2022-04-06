@@ -31,7 +31,7 @@ func uv_async_send(handle UVAsync) int32
 
 type AsyncCB func (handle UVAsync) void
 
-func uv_run(loop UVLoop, mode int) int
+func uv_run(loop UVLoop, mode int) int32
 
 func new_idle() UVIdle
 

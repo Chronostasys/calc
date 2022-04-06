@@ -26,6 +26,7 @@ type Scheduler interface {
 func Run<T>(job func () T) Task<T> {
     ag := NewAsyncGen<T>()
     ag.SetJob<T>(job)
+    ag.reFromFunc = true
     QueueTask(ag)
     return ag
 }

@@ -156,6 +156,7 @@ type Buf struct {
     Len int
 }
 
+
 func ReadBufAsync(this server UVTcp,len int) coro.Task<*Buf> {
     ag := coro.NewAsyncGen<*Buf>()
     ag.SetJob<*Buf>(func () *Buf {
