@@ -2,6 +2,7 @@ package ast
 
 import (
 	"fmt"
+	"log"
 	"reflect"
 	"strconv"
 	"strings"
@@ -13,6 +14,8 @@ import (
 	"github.com/llir/llvm/ir/types"
 	"github.com/llir/llvm/ir/value"
 )
+
+var errn = 0
 
 var (
 	typedic = map[int]types.Type{
@@ -40,6 +43,26 @@ func getstrtp() types.Type {
 type Node interface {
 	calc(*ir.Module, *ir.Func, *Scope) value.Value
 	travel(func(Node) bool)
+}
+
+type ErrSTNode struct {
+	File string
+	Line int
+	Src  string
+}
+
+func (n *ErrSTNode) calc(*ir.Module, *ir.Func, *Scope) value.Value {
+	fmt.Printf("\033[31m[error]\033[0m: failed to parse statement \n%s\n at line %d. (%s:%d)\n", n.Src, n.Line, n.File, n.Line)
+	errn++
+	return nil
+}
+func (n *ErrSTNode) travel(func(Node) bool) {
+}
+
+func CheckErr() {
+	if errn > 0 {
+		log.Fatalf("compile failed with %d errors.", errn)
+	}
 }
 
 type ExpNode interface {
@@ -292,6 +315,9 @@ type VarBlockNode struct {
 	Idxs        []Node
 	parent      value.Value
 	Next        *VarBlockNode
+	Pos         int
+	Lexer       *lexer.Lexer
+	SrcFile     string
 	allocOnHeap bool
 }
 
@@ -326,9 +352,14 @@ func (n *VarBlockNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		val, err = s.searchVar(n.Token)
 		if err != nil {
 			scope := ScopeMap[n.Token]
+			if scope == nil {
+				ln, off := n.Lexer.Currpos(n.Pos)
+				panic(fmt.Errorf("\033[31m[error]\033[0m: variable %s not defined (%s:%d:%d)", n.Token, n.SrcFile, ln, off))
+			}
 			val, err = scope.searchVar(n.Next.Token)
 			if err != nil {
-				panic(fmt.Errorf("variable %s not defined", n.Token))
+				ln, off := n.Lexer.Currpos(n.Pos)
+				panic(fmt.Errorf("\033[31m[error]\033[0m: variable %s not defined (%s:%d:%d)", n.Token, n.SrcFile, ln, off))
 			}
 			n = n.Next
 		}
@@ -657,7 +688,17 @@ func (n *SLNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	s.heapAllocTable = heapAllocTable
 LOOP:
 	for _, v := range n.Children {
-		v.calc(m, f, s)
+		f := func() {
+			defer func() {
+				err := recover()
+				if err != nil {
+					fmt.Println(err)
+					errn++
+				}
+			}()
+			v.calc(m, f, s)
+		}
+		f()
 	}
 	return zero
 }

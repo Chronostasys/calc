@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -65,15 +66,17 @@ type Parser struct {
 	lexer   *lexer.Lexer
 	m       *ir.Module
 	fathers map[string]bool
+	path    string
 }
 
-func NewParser(mod string, m *ir.Module, fathers map[string]bool) *Parser {
+func NewParser(mod, path string, m *ir.Module, fathers map[string]bool) *Parser {
 	p := &Parser{
 		lexer:   &lexer.Lexer{},
 		scope:   ast.NewGlobalScope(m),
 		mod:     mod,
 		m:       m,
 		fathers: fathers,
+		path:    path,
 	}
 	p.scope.Pkgname = mod
 	return p
@@ -143,49 +146,62 @@ func (p *Parser) define() (n ast.Node, err error) {
 	return &ast.DefineNode{ID: id, TP: tp}, nil
 }
 
-func (p *Parser) statement() ast.Node {
+func (p *Parser) statement() (n ast.Node) {
+	ch1 := p.lexer.SetCheckpoint()
+	defer func() {
+		err := recover()
+		if err != nil {
+			p.lexer.GobackTo(ch1)
+			src, ln := p.lexer.SkipLn()
+			n = &ast.ErrSTNode{
+				File: p.path,
+				Line: ln,
+				Src:  src,
+			}
+		}
+	}()
 	_, err := p.lexer.ScanType(lexer.TYPE_RES_AWAIT)
 	if err == nil {
 		return &ast.AwaitNode{Exp: p.allexp()}
 	}
-	ast, err := p.runWithCatch2(p.continueST)
+	astn, err := p.runWithCatch2(p.continueST)
 	if err == nil {
-		return ast
+		return astn
 	}
-	ast, err = p.runWithCatch2(p.breakST)
+	astn, err = p.runWithCatch2(p.breakST)
 	if err == nil {
-		return ast
+		return astn
 	}
-	ast, err = p.runWithCatch2(p.yield)
+	astn, err = p.runWithCatch2(p.yield)
 	if err == nil {
-		return ast
+		return astn
 	}
-	ast, err = p.runWithCatch2(p.forloop)
+	astn, err = p.runWithCatch2(p.forloop)
 	if err == nil {
-		return ast
+		return astn
 	}
-	ast, err = p.runWithCatch2(p.defineAndAssign)
+	astn, err = p.runWithCatch2(p.defineAndAssign)
 	if err == nil {
-		return ast
+		return astn
 	}
-	ast, err = p.runWithCatch2(p.ifstatement)
+	astn, err = p.runWithCatch2(p.ifstatement)
 	if err == nil {
-		return ast
+		return astn
 	}
-	ast, err = p.runWithCatch2(p.assign)
+	astn, err = p.runWithCatch2(p.assign)
 	if err == nil {
-		return ast
+		return astn
 	}
-	ast, err = p.runWithCatch2(p.define)
+	astn, err = p.runWithCatch2(p.define)
 	if err == nil {
-		return ast
+		return astn
 	}
-	ast, err = p.runWithCatch2(p.returnST)
+	astn, err = p.runWithCatch2(p.returnST)
 	if err == nil {
-		return ast
+		return astn
 	}
 	ch := p.lexer.SetCheckpoint()
-	c, t, _ := p.lexer.Scan()
+	c, _, _ := p.lexer.Scan()
 	if c == lexer.TYPE_VAR {
 		p.lexer.GobackTo(ch)
 		cf := p.callFunc()
@@ -195,7 +211,14 @@ func (p *Parser) statement() ast.Node {
 		p.lexer.GobackTo(ch)
 		return p.empty()
 	}
-	panic(fmt.Sprintf("parse fail %s", t))
+	p.lexer.GobackTo(ch1)
+	src, ln := p.lexer.SkipLn()
+	return &ast.ErrSTNode{
+		File: p.path,
+		Line: ln,
+		Src:  src,
+	}
+	// panic(fmt.Sprintf("parse fail %s", t))
 }
 
 func (p *Parser) statementList() ast.Node {
@@ -638,12 +661,16 @@ func (p *Parser) varChain() (n ast.ExpNode, err error) {
 	return head, nil
 }
 func (p *Parser) varBlock() (n *ast.VarBlockNode, err error) {
+	pos := p.lexer.GetPos()
 	t, err := p.lexer.ScanType(lexer.TYPE_VAR)
 	if err != nil {
 		return nil, err
 	}
 	n = &ast.VarBlockNode{
-		Token: t,
+		Token:   t,
+		Pos:     pos,
+		Lexer:   p.lexer,
+		SrcFile: p.path,
 	}
 	for {
 		_, err := p.lexer.ScanType(lexer.TYPE_LSB)
@@ -724,6 +751,7 @@ func ParseDir(dir string) *ir.Module {
 	ParseModule("", "github.com/Chronostasys/calc/runtime/coro", m, map[string]bool{})
 	p1 := ParseModule(dir, "main", m, map[string]bool{})
 	ast.AddSTDFunc(m, p1.GlobalScope)
+	ast.CheckErr()
 	return m
 }
 func ParseModule(dir, mod string, m *ir.Module, fathers map[string]bool) *ast.ProgramNode {
@@ -794,12 +822,14 @@ func ParseModule(dir, mod string, m *ir.Module, fathers map[string]bool) *ast.Pr
 			}
 			fileNum++
 			go func() {
-				bs, err := ioutil.ReadFile(path.Join(dir, name))
+				pth := path.Join(dir, name)
+				pth, _ = filepath.Abs(pth)
+				bs, err := ioutil.ReadFile(pth)
 				if err != nil {
 					errch <- err
 				}
 				str := string(bs)
-				p := NewParser(mod, m, newF)
+				p := NewParser(mod, pth, m, newF)
 				nodeCh <- p.ParseAST(str)
 			}()
 		}

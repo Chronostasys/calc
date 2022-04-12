@@ -201,6 +201,43 @@ func (l *Lexer) GobackTo(c Checkpoint) {
 func (l *Lexer) GetPos() int {
 	return l.pos
 }
+func (l *Lexer) Currpos(pos int) (line, off int) {
+	line = 1
+	last := 0
+	for i, v := range l.runes[:pos] {
+		if v == '\n' {
+			line++
+			last = i
+		}
+	}
+	for i := 0; true; i++ {
+		if l.runes[pos+i] != ' ' {
+			return line, pos + i - last
+		}
+	}
+	return
+
+}
+
+func (l *Lexer) SkipLn() (src string, line int) {
+	line = 1
+	for _, v := range l.runes[:l.pos] {
+		if v == '\n' {
+			line++
+		}
+	}
+	prevpos := l.pos
+	for {
+		code, _, _ := l.PeekToken()
+		if code == TYPE_NL {
+			s := string(l.runes[prevpos:l.pos])
+			l.Scan()
+			return s, line
+		}
+		l.Scan()
+	}
+
+}
 
 func (l *Lexer) ScanType(code int) (token string, err error) {
 	if code == TYPE_LG {
