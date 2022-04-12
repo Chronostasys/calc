@@ -1,11 +1,18 @@
 package main
 
+type as struct {
+
+}
+
+
 func main() void {
     -100
     200
     f = 0
     dff
     a := 0
+    d := as{}
+    d.ff()
 
 }
 

@@ -334,6 +334,10 @@ func (b *VarBlockNode) tp() TypeNode {
 func (n *VarBlockNode) travel(f func(Node) bool) {
 	f(n)
 }
+func (n *VarBlockNode) err() {
+	ln, off := n.Lexer.Currpos(n.Pos)
+	panic(fmt.Errorf("\033[31m[error]\033[0m: symbol %s not defined (%s:%d:%d)", n.Token, n.SrcFile, ln, off))
+}
 
 type alloca interface {
 	setAlloc(onheap bool)
@@ -353,13 +357,11 @@ func (n *VarBlockNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		if err != nil {
 			scope := ScopeMap[n.Token]
 			if scope == nil {
-				ln, off := n.Lexer.Currpos(n.Pos)
-				panic(fmt.Errorf("\033[31m[error]\033[0m: variable %s not defined (%s:%d:%d)", n.Token, n.SrcFile, ln, off))
+				n.err()
 			}
 			val, err = scope.searchVar(n.Next.Token)
 			if err != nil {
-				ln, off := n.Lexer.Currpos(n.Pos)
-				panic(fmt.Errorf("\033[31m[error]\033[0m: variable %s not defined (%s:%d:%d)", n.Token, n.SrcFile, ln, off))
+				n.err()
 			}
 			n = n.Next
 		}
@@ -692,6 +694,11 @@ LOOP:
 			defer func() {
 				err := recover()
 				if err != nil {
+					// if e, ok := err.(error); ok {
+					// 	if strings.Contains(e.Error(), "runtime") {
+					// 		panic(e)
+					// 	}
+					// }
 					fmt.Println(err)
 					errn++
 				}

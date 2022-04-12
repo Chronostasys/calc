@@ -617,7 +617,7 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 				}
 				fnv = gfn(m, gs...)
 			} else {
-				panic(fmt.Errorf("cannot find generic method %s", name))
+				fnNode.err()
 			}
 		} else {
 			var va *variable
@@ -629,11 +629,14 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 				sse := ss[len(ss)-1]
 				st := scope.getStruct(ssf)
 				if st == nil {
-					panic(fmt.Sprintf("var %s not found", name))
+					fnNode.err()
 				}
 				idx := st.fieldsIdx[sse]
 				va = &variable{}
 				err = nil
+				if idx == nil {
+					fnNode.err()
+				}
 				va.v = s.block.NewGetElementPtr(st.structType, alloca, zero, constant.NewInt(types.I32, int64(idx.idx)))
 				member = true
 			}
