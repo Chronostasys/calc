@@ -152,11 +152,13 @@ func (p *Parser) statement() (n ast.Node) {
 		err := recover()
 		if err != nil {
 			p.lexer.GobackTo(ch1)
+			_, off := p.lexer.Currpos(p.lexer.GetPos())
 			src, ln := p.lexer.SkipLn()
 			n = &ast.ErrSTNode{
 				File: p.path,
-				Line: ln,
+				Pos:  off,
 				Src:  src,
+				Line: ln,
 			}
 		}
 	}()
@@ -742,7 +744,9 @@ var calcmod, maindir string
 var startMap = map[string]chan struct{}{}
 var mu = &sync.Mutex{}
 
-func ParseDir(dir string) *ir.Module {
+func GetDiagnostics(dir string) *ir.Module {
+	ast.ResetErr()
+	startMap = map[string]chan struct{}{}
 	calcmod = getModule(dir)
 	m := ir.NewModule()
 	ParseModule("", "github.com/Chronostasys/calc/runtime", m, map[string]bool{})
@@ -751,6 +755,11 @@ func ParseDir(dir string) *ir.Module {
 	ParseModule("", "github.com/Chronostasys/calc/runtime/coro", m, map[string]bool{})
 	p1 := ParseModule(dir, "main", m, map[string]bool{})
 	ast.AddSTDFunc(m, p1.GlobalScope)
+	return m
+}
+
+func ParseDir(dir string) *ir.Module {
+	m := GetDiagnostics(dir)
 	ast.CheckErr()
 	return m
 }
@@ -771,8 +780,9 @@ func ParseModule(dir, mod string, m *ir.Module, fathers map[string]bool) *ast.Pr
 			if err != nil && !os.IsNotExist(err) {
 				panic(err)
 			}
-			err = os.MkdirAll(basedir, fs.ModeDir)
+			_, err = os.Stat(path.Join(basedir, "calc.mod"))
 			if os.IsNotExist(err) {
+				os.MkdirAll(basedir, fs.ModeDir)
 				fmt.Println("	Found module", mod, "missing, cloning to", basedir)
 				cmd := exec.Command("git", "clone", "https://"+strings.Join(mname[:3], "/")+".git", basedir)
 				cmd.Env = os.Environ()
@@ -802,7 +812,7 @@ func ParseModule(dir, mod string, m *ir.Module, fathers map[string]bool) *ast.Pr
 	tmpm := ir.NewModule()
 	c, err := os.ReadDir(dir)
 	if err != nil {
-		panic(err)
+		panic(fmt.Sprintf("%s,%s", err.Error(), dir))
 	}
 	nodes := []*ast.ProgramNode{}
 	fileNum := 0

@@ -13,6 +13,7 @@ import (
 	"github.com/llir/llvm/ir/constant"
 	"github.com/llir/llvm/ir/types"
 	"github.com/llir/llvm/ir/value"
+	protocol "github.com/tliron/glsp/protocol_3_16"
 )
 
 var errn = 0
@@ -46,23 +47,54 @@ type Node interface {
 }
 
 type ErrSTNode struct {
-	File string
-	Line int
-	Src  string
+	File      string
+	Pos, Line int
+	Src       string
 }
 
 func (n *ErrSTNode) calc(*ir.Module, *ir.Func, *Scope) value.Value {
-	fmt.Printf("\033[31m[error]\033[0m: failed to parse statement \n%s\n at line %d. (%s:%d)\n", n.Src, n.Line, n.File, n.Line)
+	msg := fmt.Sprintf("calcls: failed to parse statement `%s` at line %d. (%s:%d)\n", n.Src, n.Line, n.File, n.Line)
 	errn++
+	e := protocol.DiagnosticSeverityError
+	s := "calc lsp"
+	diagnostics = append(diagnostics, protocol.Diagnostic{
+		Range: protocol.Range{
+			Start: protocol.Position{
+				Line:      uint32(n.Line) - 1,
+				Character: uint32(n.Pos) - 1,
+			},
+			End: protocol.Position{
+				Line:      uint32(n.Line) - 1,
+				Character: uint32(n.Pos) + uint32(len(n.Src)) - 1,
+			},
+		},
+		Severity: &e,
+		Source:   &s,
+		Message:  msg,
+	})
 	return nil
 }
 func (n *ErrSTNode) travel(func(Node) bool) {
 }
 
+var diagnostics = []protocol.Diagnostic{}
+
+func ResetErr() {
+	errn = 0
+	diagnostics = []protocol.Diagnostic{}
+}
+
 func CheckErr() {
 	if errn > 0 {
+		for _, v := range diagnostics {
+			fmt.Println("\033[31m[error]\033[0m:", v.Message)
+		}
 		log.Fatalf("compile failed with %d errors.", errn)
 	}
+}
+
+func GetDiagnostics() []protocol.Diagnostic {
+	return diagnostics
 }
 
 type ExpNode interface {
@@ -336,7 +368,26 @@ func (n *VarBlockNode) travel(f func(Node) bool) {
 }
 func (n *VarBlockNode) err() {
 	ln, off := n.Lexer.Currpos(n.Pos)
-	panic(fmt.Errorf("\033[31m[error]\033[0m: symbol %s not defined (%s:%d:%d)", n.Token, n.SrcFile, ln, off))
+	errn++
+	e := protocol.DiagnosticSeverityError
+	s := "calc lsp"
+	msg := fmt.Sprintf("calcls: symbol %s not defined (%s:%d:%d)", n.Token, n.SrcFile, ln, off)
+	diagnostics = append(diagnostics, protocol.Diagnostic{
+		Range: protocol.Range{
+			Start: protocol.Position{
+				Line:      uint32(ln) - 1,
+				Character: uint32(off) - 1,
+			},
+			End: protocol.Position{
+				Line:      uint32(ln) - 1,
+				Character: uint32(off) + uint32(len(n.Token)) - 1,
+			},
+		},
+		Severity: &e,
+		Source:   &s,
+		Message:  msg,
+	})
+	panic(msg)
 }
 
 type alloca interface {
@@ -694,13 +745,13 @@ LOOP:
 			defer func() {
 				err := recover()
 				if err != nil {
-					// if e, ok := err.(error); ok {
-					// 	if strings.Contains(e.Error(), "runtime") {
-					// 		panic(e)
-					// 	}
-					// }
-					fmt.Println(err)
-					errn++
+					if e, ok := err.(string); ok {
+						if !strings.Contains(e, "calcls") {
+							panic(e)
+						}
+					} else {
+						panic(e)
+					}
 				}
 			}()
 			v.calc(m, f, s)

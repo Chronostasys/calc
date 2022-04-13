@@ -11,6 +11,12 @@
             "mode": "auto",
             "program": "${workspaceFolder}/compiler",
             "args": ["-d","../test/tcpserver"]
+        },{
+            "name": "Launch lsp",
+            "type": "go",
+            "request": "launch",
+            "mode": "auto",
+            "program": "${workspaceFolder}/lsp",
         }
     ]
 }
