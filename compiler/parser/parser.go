@@ -716,7 +716,35 @@ func (p *Parser) ParseAST(s string) *ast.ProgramNode {
 	return p.program()
 }
 
-func getModule(dir string) string {
+func getModule(dir string) (mod, sub string) {
+	c, err := os.ReadDir(dir)
+	ismain := false
+	if err != nil {
+		panic(fmt.Sprintf("%s,%s", err.Error(), dir))
+	}
+	for _, v := range c {
+		sp := helper.SplitLast(v.Name(), ".")
+		if !v.IsDir() && sp[1] == "calc" {
+			bs, err := ioutil.ReadFile(path.Join(dir, v.Name()))
+			if err != nil {
+				panic(err)
+			}
+			str := string(bs)
+			submodn := ""
+			for {
+				fmt.Sscanf(str, "package %s", &submodn)
+				if len(submodn) == 0 {
+					tp := ""
+					n, _ := fmt.Sscanln(str, &tp)
+					str = str[n:]
+					continue
+				}
+				ismain = submodn == "main"
+				break
+			}
+			break
+		}
+	}
 	for i := 0; i < 20; i++ {
 		_, err := os.Stat(path.Join(dir, "calc.mod"))
 		if err == nil {
@@ -726,13 +754,18 @@ func getModule(dir string) string {
 				panic(err)
 			}
 			str := string(bs)
-			mod := ""
 			fmt.Sscanf(str, "module %s", &mod)
 			maindir = dir
-			return mod
+			if ismain {
+				sub = "main"
+			} else {
+				sub = strings.Trim(path.Join(mod, sub), "/")
+			}
+			return mod, sub
 		}
 		if os.IsNotExist(err) {
-			dir = path.Join(dir, "..")
+			sub = path.Join(sub, path.Base(dir))
+			dir = path.Dir(dir)
 			continue
 		}
 		panic(err)
@@ -746,15 +779,18 @@ var mu = &sync.Mutex{}
 
 func GetDiagnostics(dir string) *ir.Module {
 	ast.ResetErr()
-	startMap = map[string]chan struct{}{}
-	calcmod = getModule(dir)
+	var submod string
+	calcmod, submod = getModule(dir)
+	delete(startMap, submod)
 	m := ir.NewModule()
 	ParseModule("", "github.com/Chronostasys/calc/runtime", m, map[string]bool{})
 	ParseModule("", "github.com/Chronostasys/calc/runtime/slice", m, map[string]bool{})
 	ParseModule("", "github.com/Chronostasys/calc/runtime/strings", m, map[string]bool{})
 	ParseModule("", "github.com/Chronostasys/calc/runtime/coro", m, map[string]bool{})
-	p1 := ParseModule(dir, "main", m, map[string]bool{})
-	ast.AddSTDFunc(m, p1.GlobalScope)
+	p1 := ParseModule(dir, submod, m, map[string]bool{})
+	if p1 != nil {
+		ast.AddSTDFunc(m, p1.GlobalScope)
+	}
 	return m
 }
 
@@ -834,13 +870,26 @@ func ParseModule(dir, mod string, m *ir.Module, fathers map[string]bool) *ast.Pr
 			go func() {
 				pth := path.Join(dir, name)
 				pth, _ = filepath.Abs(pth)
-				bs, err := ioutil.ReadFile(pth)
-				if err != nil {
-					errch <- err
+				var str string
+				f, ok := GetActiveFile(pth)
+				if !ok {
+					bs, err := ioutil.ReadFile(pth)
+					if err != nil {
+						errch <- err
+					}
+					str = string(bs)
+				} else {
+					if f.changed {
+						str = f.content
+					} else {
+						nodeCh <- f.parsedNode
+						return
+					}
 				}
-				str := string(bs)
 				p := NewParser(mod, pth, m, newF)
-				nodeCh <- p.ParseAST(str)
+				n := p.ParseAST(str)
+				SetActiveFileParsed(pth, str, n)
+				nodeCh <- n
 			}()
 		}
 	}

@@ -32,6 +32,24 @@ func main() {
 			if runtime.GOOS == "windows" {
 				p = p[1:]
 			}
+			parser.ChangeActiveFile(p, params.ContentChanges)
+			parser.GetDiagnostics(path.Dir(p))
+
+			// protocol.Diagnostic
+			// fmt.Println(params.TextDocument.URI)
+			context.Notify(protocol.ServerTextDocumentPublishDiagnostics, &protocol.PublishDiagnosticsParams{
+				URI:         params.TextDocument.URI,
+				Diagnostics: ast.GetDiagnostics(),
+			})
+			return nil
+		},
+		TextDocumentDidOpen: func(context *glsp.Context, params *protocol.DidOpenTextDocumentParams) error {
+			url, _ := url.ParseRequestURI(params.TextDocument.URI)
+			p := url.Path
+			if runtime.GOOS == "windows" {
+				p = p[1:]
+			}
+			parser.SetActiveFile(p, params.TextDocument.Text)
 			parser.GetDiagnostics(path.Dir(p))
 
 			// protocol.Diagnostic
