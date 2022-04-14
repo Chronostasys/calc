@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/Chronostasys/calc/compiler/helper"
 	"github.com/Chronostasys/calc/compiler/lexer"
@@ -47,29 +48,147 @@ type Node interface {
 }
 
 type ErrSTNode struct {
-	File      string
-	Pos, Line int
-	Src       string
+	File         string
+	Pos, Line    int
+	Src          string
+	ParticalNode Node // used for auto complete
 }
 
-func (n *ErrSTNode) calc(*ir.Module, *ir.Func, *Scope) value.Value {
+var autocompleteMap = map[uint32][2][]protocol.CompletionItem{}
+var autocompleteMu = &sync.RWMutex{}
+
+func setAutocomplete(line uint32, cmpls []protocol.CompletionItem) {
+	autocompleteMu.Lock()
+	defer autocompleteMu.Unlock()
+	autocompleteMap[line] = [2][]protocol.CompletionItem{cmpls, autocompleteMap[line][1]}
+}
+func setDotAutocomplete(line uint32, cmpls []protocol.CompletionItem) {
+	autocompleteMu.Lock()
+	defer autocompleteMu.Unlock()
+	autocompleteMap[line] = [2][]protocol.CompletionItem{autocompleteMap[line][0], cmpls}
+}
+func GetAutocomplete(line uint32) []protocol.CompletionItem {
+	autocompleteMu.RLock()
+	defer autocompleteMu.RUnlock()
+	return autocompleteMap[line][0]
+}
+func GetDotAutocomplete(line uint32) []protocol.CompletionItem {
+	autocompleteMu.RLock()
+	defer autocompleteMu.RUnlock()
+	return autocompleteMap[line][1]
+}
+
+func genAutoComplete(sc *Scope, leading string) []protocol.CompletionItem {
+	m := map[string]struct{}{}
+	cmpls := []protocol.CompletionItem{}
+	for {
+		for k, v := range sc.vartable {
+			if externMap[k] {
+				continue
+			}
+			k = helper.LastBlock(k)
+			if strings.Index(k, leading) < 0 {
+				continue
+			}
+			if strings.Contains(k, "<") {
+				continue
+			}
+			if _, ok := m[k]; ok {
+				continue
+			}
+			m[k] = struct{}{}
+			kind := protocol.CompletionItemKindVariable
+			ins := k
+			if _, ok := v.v.(*ir.Func); ok {
+				kind = protocol.CompletionItemKindFunction
+				ins = ins + "()"
+			}
+			cmpls = append(cmpls, protocol.CompletionItem{
+				Label:      k,
+				Kind:       &kind,
+				InsertText: &ins,
+			})
+		}
+		for k := range sc.genericFuncs {
+			if externMap[k] {
+				continue
+			}
+			k = helper.LastBlock(k)
+			if strings.Index(k, leading) < 0 {
+				continue
+			}
+			if _, ok := m[k]; ok {
+				continue
+			}
+			m[k] = struct{}{}
+			kind := protocol.CompletionItemKindFunction
+			ins := k + "()"
+			cmpls = append(cmpls, protocol.CompletionItem{
+				Label:      k,
+				Kind:       &kind,
+				InsertText: &ins,
+			})
+		}
+		sc = sc.parent
+		if sc == nil {
+			break
+		}
+	}
+	return cmpls
+}
+
+func (n *ErrSTNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	msg := fmt.Sprintf("calcls: failed to parse statement `%s` at line %d. (%s:%d)\n", n.Src, n.Line, n.File, n.Line)
+	end := protocol.Position{
+		Line:      uint32(n.Line) - 1,
+		Character: uint32(n.Pos) + uint32(len(n.Src)) - 1,
+	}
+	if n.ParticalNode != nil {
+		func() {
+			defer func() {
+				recover()
+			}()
+			pn := n.ParticalNode.(*VarBlockNode)
+			sc, ok := ScopeMap[pn.Token]
+			if !ok && pn.Next == nil && len(n.Src) > 0 && n.Src[len(n.Src)-1] != '.' {
+				cmpls := genAutoComplete(s, pn.Token)
+				setAutocomplete(end.Line, cmpls)
+				return
+			}
+			if ok && pn.Next == nil {
+				cmpls := genAutoComplete(sc, "")
+				setAutocomplete(end.Line, cmpls)
+				return
+			}
+			v := n.ParticalNode.calc(m, f, s)
+			info := getTypeInfo(v, s)
+			cmpls := []protocol.CompletionItem{}
+			for k := range info.fieldsIdx {
+				kind := protocol.CompletionItemKindField
+				ins := k
+				cmpls = append(cmpls, protocol.CompletionItem{
+					Label:      k,
+					Kind:       &kind,
+					InsertText: &ins,
+				})
+			}
+			setDotAutocomplete(end.Line, cmpls)
+		}()
+
+	}
 	errn++
 	e := protocol.DiagnosticSeverityError
-	s := "calc lsp"
+	ss := "calc lsp"
 	diagnostics = append(diagnostics, protocol.Diagnostic{
 		Range: protocol.Range{
 			Start: protocol.Position{
 				Line:      uint32(n.Line) - 1,
 				Character: uint32(n.Pos) - 1,
 			},
-			End: protocol.Position{
-				Line:      uint32(n.Line) - 1,
-				Character: uint32(n.Pos) + uint32(len(n.Src)) - 1,
-			},
+			End: end,
 		},
 		Severity: &e,
-		Source:   &s,
+		Source:   &ss,
 		Message:  msg,
 	})
 	return nil
@@ -398,6 +517,18 @@ func (n *VarBlockNode) setAlloc(onheap bool) {
 	n.allocOnHeap = onheap
 }
 
+func getTypeInfo(v value.Value, s *Scope) *typedef {
+	s1 := getTypeName(v.Type())
+	s2 := helper.SplitLast(s1, ".")
+	ss := s2[0]
+	var scope = s
+	if len(s2) > 1 {
+		ss = s2[1]
+		scope = ScopeMap[s2[0]]
+	}
+	return scope.getStruct(ss)
+}
+
 func (n *VarBlockNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	var va value.Value
 	if n.parent == nil {
@@ -420,15 +551,7 @@ func (n *VarBlockNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	} else {
 		va = n.parent
 
-		s1 := getTypeName(va.Type())
-		s2 := helper.SplitLast(s1, ".")
-		ss := s2[0]
-		var scope = s
-		if len(s2) > 1 {
-			ss = s2[1]
-			scope = ScopeMap[s2[0]]
-		}
-		tp := scope.getStruct(ss)
+		tp := getTypeInfo(va, s)
 		fi := tp.fieldsIdx[n.Token]
 		va = s.block.NewGetElementPtr(tp.structType, va,
 			constant.NewIndex(zero),

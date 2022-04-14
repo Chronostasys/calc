@@ -60,6 +60,18 @@ func main() {
 			})
 			return nil
 		},
+		TextDocumentCompletion: func(context *glsp.Context, params *protocol.CompletionParams) (interface{}, error) {
+			// k := protocol.CompletionItemKindClass
+			// // params.PartialResultToken
+			// in := "fuck()"
+			var ls interface{}
+			if params.Context.TriggerCharacter != nil && *params.Context.TriggerCharacter == "." {
+				ls = ast.GetDotAutocomplete(params.Position.Line)
+			} else {
+				ls = ast.GetAutocomplete(params.Position.Line)
+			}
+			return ls, nil
+		},
 	}
 
 	server := server.NewServer(&handler, lsName, false)
@@ -70,7 +82,9 @@ func main() {
 func initialize(context *glsp.Context, params *protocol.InitializeParams) (interface{}, error) {
 	root = *params.RootPath
 	capabilities := handler.CreateServerCapabilities()
-
+	capabilities.CompletionProvider = &protocol.CompletionOptions{
+		TriggerCharacters: []string{"."},
+	}
 	return protocol.InitializeResult{
 		Capabilities: capabilities,
 		ServerInfo: &protocol.InitializeResultServerInfo{

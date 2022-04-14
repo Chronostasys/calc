@@ -153,13 +153,19 @@ func (p *Parser) statement() (n ast.Node) {
 		if err != nil {
 			p.lexer.GobackTo(ch1)
 			_, off := p.lexer.Currpos(p.lexer.GetPos())
+			node, err := p.particalvarChain()
+			p.lexer.GobackTo(ch1)
 			src, ln := p.lexer.SkipLn()
-			n = &ast.ErrSTNode{
+			errnode := &ast.ErrSTNode{
 				File: p.path,
 				Pos:  off,
 				Src:  src,
 				Line: ln,
 			}
+			if err == nil {
+				errnode.ParticalNode = node
+			}
+			n = errnode
 		}
 	}()
 	_, err := p.lexer.ScanType(lexer.TYPE_RES_AWAIT)
@@ -214,12 +220,18 @@ func (p *Parser) statement() (n ast.Node) {
 		return p.empty()
 	}
 	p.lexer.GobackTo(ch1)
+	node, err := p.particalvarChain()
+	p.lexer.GobackTo(ch1)
 	src, ln := p.lexer.SkipLn()
-	return &ast.ErrSTNode{
+	errnode := &ast.ErrSTNode{
 		File: p.path,
 		Line: ln,
 		Src:  src,
 	}
+	if err == nil {
+		errnode.ParticalNode = node
+	}
+	return errnode
 	// panic(fmt.Sprintf("parse fail %s", t))
 }
 
@@ -662,6 +674,31 @@ func (p *Parser) varChain() (n ast.ExpNode, err error) {
 	}
 	return head, nil
 }
+
+func (p *Parser) particalvarChain() (n ast.ExpNode, err error) {
+	head, err := p.varBlock()
+	if err != nil {
+		return nil, err
+	}
+	pkg, ok := p.imp[head.Token]
+	if ok {
+		head.Token = pkg
+	}
+	curr := head
+	for {
+		_, err := p.lexer.ScanType(lexer.TYPE_DOT)
+		if err != nil {
+			break
+		}
+		curr.Next, err = p.varBlock()
+		if err != nil {
+			return head, nil
+		}
+		curr = curr.Next
+	}
+	return head, nil
+}
+
 func (p *Parser) varBlock() (n *ast.VarBlockNode, err error) {
 	pos := p.lexer.GetPos()
 	t, err := p.lexer.ScanType(lexer.TYPE_VAR)

@@ -16,6 +16,14 @@ func SplitLast(str, sep string) []string {
 	return []string{first, last}
 }
 
+func LastBlock(str string) string {
+	idx := strings.LastIndex(str, ".")
+	if idx == -1 {
+		return str
+	}
+	return str[idx+1:]
+}
+
 func Trim(str string) string {
 	return strings.Trim(str, "%*\"")
 }
