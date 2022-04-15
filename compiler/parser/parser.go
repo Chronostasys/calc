@@ -946,7 +946,9 @@ func ParseModule(dir, mod string, m *ir.Module, fathers map[string]bool) *ast.Pr
 	ast.AddSTDFunc(tmpm, p.GlobalScope)
 	emitMu.Lock()
 	defer emitMu.Unlock()
+	ast.ScopeMapMu.Lock()
 	ast.ScopeMap[mod] = p.GlobalScope
+	ast.ScopeMapMu.Unlock()
 	p.Emit(m)
 	return p
 

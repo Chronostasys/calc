@@ -4,6 +4,7 @@ import (
 	"net/url"
 	"path"
 	"runtime"
+	"strings"
 
 	"github.com/Chronostasys/calc/compiler/ast"
 	"github.com/Chronostasys/calc/compiler/parser"
@@ -39,7 +40,7 @@ func main() {
 			// fmt.Println(params.TextDocument.URI)
 			context.Notify(protocol.ServerTextDocumentPublishDiagnostics, &protocol.PublishDiagnosticsParams{
 				URI:         params.TextDocument.URI,
-				Diagnostics: ast.GetDiagnostics(),
+				Diagnostics: ast.GetDiagnostics(p),
 			})
 			return nil
 		},
@@ -47,7 +48,7 @@ func main() {
 			url, _ := url.ParseRequestURI(params.TextDocument.URI)
 			p := url.Path
 			if runtime.GOOS == "windows" {
-				p = p[1:]
+				p = strings.Trim(p, "/")
 			}
 			parser.SetActiveFile(p, params.TextDocument.Text)
 			parser.GetDiagnostics(path.Dir(p))
@@ -56,19 +57,24 @@ func main() {
 			// fmt.Println(params.TextDocument.URI)
 			context.Notify(protocol.ServerTextDocumentPublishDiagnostics, &protocol.PublishDiagnosticsParams{
 				URI:         params.TextDocument.URI,
-				Diagnostics: ast.GetDiagnostics(),
+				Diagnostics: ast.GetDiagnostics(p),
 			})
 			return nil
 		},
 		TextDocumentCompletion: func(context *glsp.Context, params *protocol.CompletionParams) (interface{}, error) {
-			// k := protocol.CompletionItemKindClass
-			// // params.PartialResultToken
-			// in := "fuck()"
+			url, _ := url.ParseRequestURI(params.TextDocument.URI)
+			p := url.Path
+			if runtime.GOOS == "windows" {
+				p = strings.Trim(p, "/")
+			}
+
+			sp := p
+
 			var ls interface{}
 			if params.Context.TriggerCharacter != nil && *params.Context.TriggerCharacter == "." {
-				ls = ast.GetDotAutocomplete(params.Position.Line)
+				ls = ast.GetDotAutocomplete(sp, params.Position.Line)
 			} else {
-				ls = ast.GetAutocomplete(params.Position.Line)
+				ls = ast.GetAutocomplete(sp, params.Position.Line)
 			}
 			return ls, nil
 		},

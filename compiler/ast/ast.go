@@ -3,6 +3,7 @@ package ast
 import (
 	"fmt"
 	"log"
+	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
@@ -54,85 +55,143 @@ type ErrSTNode struct {
 	ParticalNode Node // used for auto complete
 }
 
-var autocompleteMap = map[uint32][2][]protocol.CompletionItem{}
+type autoComplete struct {
+	completes [2][]protocol.CompletionItem
+	scope     string
+	m         map[string]struct{}
+	leading   string
+}
+
+var autocompleteMap = map[string]map[uint32]autoComplete{}
 var autocompleteMu = &sync.RWMutex{}
 
-func setAutocomplete(line uint32, cmpls []protocol.CompletionItem) {
+func setAutocomplete(file, mod string, line uint32, cmpls []protocol.CompletionItem) {
 	autocompleteMu.Lock()
 	defer autocompleteMu.Unlock()
-	autocompleteMap[line] = [2][]protocol.CompletionItem{cmpls, autocompleteMap[line][1]}
+	file, _ = filepath.Abs(file)
+	if autocompleteMap[file] == nil {
+		autocompleteMap[file] = map[uint32]autoComplete{}
+	}
+	autocompleteMap[file][line] = autoComplete{
+		completes: [2][]protocol.CompletionItem{cmpls, autocompleteMap[file][line].completes[1]},
+		scope:     mod,
+	}
 }
-func setDotAutocomplete(line uint32, cmpls []protocol.CompletionItem) {
+func setDotAutocomplete(file, mod string, line uint32, cmpls []protocol.CompletionItem) {
 	autocompleteMu.Lock()
 	defer autocompleteMu.Unlock()
-	autocompleteMap[line] = [2][]protocol.CompletionItem{autocompleteMap[line][0], cmpls}
-}
-func GetAutocomplete(line uint32) []protocol.CompletionItem {
-	autocompleteMu.RLock()
-	defer autocompleteMu.RUnlock()
-	return autocompleteMap[line][0]
-}
-func GetDotAutocomplete(line uint32) []protocol.CompletionItem {
-	autocompleteMu.RLock()
-	defer autocompleteMu.RUnlock()
-	return autocompleteMap[line][1]
+	file, _ = filepath.Abs(file)
+	if autocompleteMap[file] == nil {
+		autocompleteMap[file] = map[uint32]autoComplete{}
+	}
+	autocompleteMap[file][line] = autoComplete{
+		completes: [2][]protocol.CompletionItem{autocompleteMap[file][line].completes[0], cmpls},
+		scope:     mod,
+	}
 }
 
-func genAutoComplete(sc *Scope, leading string) []protocol.CompletionItem {
+var mu = &sync.RWMutex{}
+
+func GetAutocomplete(file string, line uint32) []protocol.CompletionItem {
+	autocompleteMu.RLock()
+	file, _ = filepath.Abs(file)
+	ls := autocompleteMap[file][line].completes[0]
+	ac := autocompleteMap[file][line]
+	autocompleteMu.RUnlock()
+	ScopeMapMu.RLock()
+	sc := ScopeMap[ac.scope]
+	ScopeMapMu.RUnlock()
+	mu.RLock()
+	cmpls := getCurrentScopeAutoComplete(ac.m, sc, ac.leading)
+	mu.RUnlock()
+	return append(ls, cmpls...)
+}
+
+func GetDotAutocomplete(file string, line uint32) []protocol.CompletionItem {
+	autocompleteMu.RLock()
+	defer autocompleteMu.RUnlock()
+	file, _ = filepath.Abs(file)
+	return autocompleteMap[file][line].completes[1]
+}
+
+func getCurrentScopeAutoComplete(m map[string]struct{}, sc *Scope, leading string) []protocol.CompletionItem {
+	cmpls := []protocol.CompletionItem{}
+	for k, v := range sc.vartable {
+		if v.attachedFunc {
+			continue
+		}
+		if externMap[k] {
+			continue
+		}
+		k = helper.LastBlock(k)
+		if strings.Index(k, leading) < 0 {
+			continue
+		}
+		if strings.Contains(k, "<") {
+			continue
+		}
+		if _, ok := m[k]; ok {
+			continue
+		}
+		m[k] = struct{}{}
+		kind := protocol.CompletionItemKindVariable
+		ins := k
+		if _, ok := v.v.(*ir.Func); ok {
+			kind = protocol.CompletionItemKindFunction
+			ins = ins + "()"
+		}
+		cmpls = append(cmpls, protocol.CompletionItem{
+			Label:      k,
+			Kind:       &kind,
+			InsertText: &ins,
+		})
+	}
+	for k := range sc.genericFuncs {
+		if genericAttached[k] {
+			continue
+		}
+		if externMap[k] {
+			continue
+		}
+		k = helper.LastBlock(k)
+		if strings.Index(k, leading) < 0 {
+			continue
+		}
+		if _, ok := m[k]; ok {
+			continue
+		}
+		m[k] = struct{}{}
+		kind := protocol.CompletionItemKindFunction
+		ins := k + "()"
+		cmpls = append(cmpls, protocol.CompletionItem{
+			Label:      k,
+			Kind:       &kind,
+			InsertText: &ins,
+		})
+	}
+	return cmpls
+}
+
+func genAutoComplete(file string, line uint32, sc *Scope, leading string) []protocol.CompletionItem {
 	m := map[string]struct{}{}
 	cmpls := []protocol.CompletionItem{}
 	for {
-		for k, v := range sc.vartable {
-			if externMap[k] {
-				continue
-			}
-			k = helper.LastBlock(k)
-			if strings.Index(k, leading) < 0 {
-				continue
-			}
-			if strings.Contains(k, "<") {
-				continue
-			}
-			if _, ok := m[k]; ok {
-				continue
-			}
-			m[k] = struct{}{}
-			kind := protocol.CompletionItemKindVariable
-			ins := k
-			if _, ok := v.v.(*ir.Func); ok {
-				kind = protocol.CompletionItemKindFunction
-				ins = ins + "()"
-			}
-			cmpls = append(cmpls, protocol.CompletionItem{
-				Label:      k,
-				Kind:       &kind,
-				InsertText: &ins,
-			})
-		}
-		for k := range sc.genericFuncs {
-			if externMap[k] {
-				continue
-			}
-			k = helper.LastBlock(k)
-			if strings.Index(k, leading) < 0 {
-				continue
-			}
-			if _, ok := m[k]; ok {
-				continue
-			}
-			m[k] = struct{}{}
-			kind := protocol.CompletionItemKindFunction
-			ins := k + "()"
-			cmpls = append(cmpls, protocol.CompletionItem{
-				Label:      k,
-				Kind:       &kind,
-				InsertText: &ins,
-			})
-		}
+		cmpls = append(cmpls, getCurrentScopeAutoComplete(m, sc, leading)...)
 		sc = sc.parent
-		if sc == nil {
+		if sc == nil || sc.parent == nil {
 			break
 		}
+	}
+	autocompleteMu.Lock()
+	defer autocompleteMu.Unlock()
+	if autocompleteMap[file] == nil {
+		autocompleteMap[file] = map[uint32]autoComplete{}
+	}
+	autocompleteMap[file][line] = autoComplete{
+		completes: [2][]protocol.CompletionItem{cmpls, autocompleteMap[file][line].completes[1]},
+		m:         m,
+		scope:     sc.Pkgname,
+		leading:   leading,
 	}
 	return cmpls
 }
@@ -151,13 +210,11 @@ func (n *ErrSTNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 			pn := n.ParticalNode.(*VarBlockNode)
 			sc, ok := ScopeMap[pn.Token]
 			if !ok && pn.Next == nil && len(n.Src) > 0 && n.Src[len(n.Src)-1] != '.' {
-				cmpls := genAutoComplete(s, pn.Token)
-				setAutocomplete(end.Line, cmpls)
+				genAutoComplete(n.File, end.Line, s, pn.Token)
 				return
 			}
 			if ok && pn.Next == nil {
-				cmpls := genAutoComplete(sc, "")
-				setAutocomplete(end.Line, cmpls)
+				genAutoComplete(n.File, end.Line, sc, "")
 				return
 			}
 			v := n.ParticalNode.calc(m, f, s)
@@ -172,14 +229,26 @@ func (n *ErrSTNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 					InsertText: &ins,
 				})
 			}
-			setDotAutocomplete(end.Line, cmpls)
+			if info.funcs != nil {
+				for k := range info.funcs {
+					kind := protocol.CompletionItemKindMethod
+					ins := k + "()"
+					cmpls = append(cmpls, protocol.CompletionItem{
+						Label:      k,
+						Kind:       &kind,
+						InsertText: &ins,
+					})
+				}
+			}
+			setDotAutocomplete(n.File, s.Pkgname, end.Line, cmpls)
 		}()
 
 	}
 	errn++
 	e := protocol.DiagnosticSeverityError
 	ss := "calc lsp"
-	diagnostics = append(diagnostics, protocol.Diagnostic{
+	diagMu.Lock()
+	diagnostics[n.File] = append(diagnostics[n.File], protocol.Diagnostic{
 		Range: protocol.Range{
 			Start: protocol.Position{
 				Line:      uint32(n.Line) - 1,
@@ -191,29 +260,44 @@ func (n *ErrSTNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		Source:   &ss,
 		Message:  msg,
 	})
+	diagMu.Unlock()
 	return nil
 }
 func (n *ErrSTNode) travel(func(Node) bool) {
 }
 
-var diagnostics = []protocol.Diagnostic{}
+var diagnostics = map[string][]protocol.Diagnostic{}
+
+var diagMu = &sync.RWMutex{}
 
 func ResetErr() {
 	errn = 0
-	diagnostics = []protocol.Diagnostic{}
+	diagMu.Lock()
+	diagnostics = make(map[string][]protocol.Diagnostic)
+	diagMu.Unlock()
 }
 
 func CheckErr() {
 	if errn > 0 {
+		diagMu.RLock()
 		for _, v := range diagnostics {
-			fmt.Println("\033[31m[error]\033[0m:", v.Message)
+			for _, v := range v {
+				fmt.Println("\033[31m[error]\033[0m:", v.Message)
+			}
 		}
+		diagMu.RUnlock()
 		log.Fatalf("compile failed with %d errors.", errn)
 	}
 }
 
-func GetDiagnostics() []protocol.Diagnostic {
-	return diagnostics
+func GetDiagnostics(file string) []protocol.Diagnostic {
+	diagMu.RLock()
+	defer diagMu.RUnlock()
+	file, _ = filepath.Abs(file)
+	if diagnostics[file] == nil {
+		return []protocol.Diagnostic{}
+	}
+	return diagnostics[file]
 }
 
 type ExpNode interface {
@@ -491,7 +575,8 @@ func (n *VarBlockNode) err() {
 	e := protocol.DiagnosticSeverityError
 	s := "calc lsp"
 	msg := fmt.Sprintf("calcls: symbol %s not defined (%s:%d:%d)", n.Token, n.SrcFile, ln, off)
-	diagnostics = append(diagnostics, protocol.Diagnostic{
+	diagMu.Lock()
+	diagnostics[n.SrcFile] = append(diagnostics[n.SrcFile], protocol.Diagnostic{
 		Range: protocol.Range{
 			Start: protocol.Position{
 				Line:      uint32(ln) - 1,
@@ -506,6 +591,7 @@ func (n *VarBlockNode) err() {
 		Source:   &s,
 		Message:  msg,
 	})
+	diagMu.Unlock()
 	panic(msg)
 }
 
@@ -930,7 +1016,9 @@ func Merge(ns ...*ProgramNode) *ProgramNode {
 }
 
 func (n *ProgramNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
+	mu.Lock()
 	n.Emit(m)
+	mu.Unlock()
 	return zero
 }
 

@@ -3,6 +3,7 @@ package ast
 import (
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/llir/llvm/ir"
 	"github.com/llir/llvm/ir/constant"
@@ -41,6 +42,8 @@ type Scope struct {
 	continueTask   value.Value
 	strict         bool
 }
+
+var genericAttached = map[string]bool{}
 
 type fieldval struct {
 	idx int
@@ -88,13 +91,15 @@ func MergeGlobalScopes(ss ...*Scope) *Scope {
 }
 
 type variable struct {
-	v        value.Value
-	generics []types.Type
+	v            value.Value
+	generics     []types.Type
+	attachedFunc bool
 }
 
 type typedef struct {
 	structType types.Type
 	fieldsIdx  map[string]*field
+	funcs      map[string]struct{}
 	generics   []types.Type
 }
 
@@ -306,3 +311,4 @@ func (s *Scope) getGenericFunc(id string) func(m *ir.Module, gens ...TypeNode) v
 }
 
 var ScopeMap = map[string]*Scope{}
+var ScopeMapMu = &sync.RWMutex{}

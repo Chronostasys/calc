@@ -84,6 +84,7 @@ func (p *Parser) function() ast.Node {
 			name = name[:idx]
 		}
 		fn.ID = name + "." + fn.ID
+		fn.Attached = true
 	}
 	tp, err := p.allTypes()
 	if err != nil {

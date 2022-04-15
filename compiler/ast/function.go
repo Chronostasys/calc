@@ -61,6 +61,7 @@ type FuncNode struct {
 	Async      bool
 	generator  bool
 	i          int
+	Attached   bool
 }
 
 func (n *FuncNode) AddtoScope(s *Scope) {
@@ -92,18 +93,45 @@ func (n *FuncNode) AddtoScope(s *Scope) {
 	}
 
 	if len(n.Generics) > 0 {
+		if n.Attached {
+			genericAttached[s.getFullName(n.ID)] = true
+		}
 		s.globalScope.addGeneric(n.ID, func(m *ir.Module, s *Scope, gens ...TypeNode) value.Value {
 			psn := n.Params
 			ps := []*ir.Param{}
 			sig := fmt.Sprintf("%s<", n.ID)
 			defparams := func() {
 				s.currParam = 0
-				for _, v := range psn.Params {
+				for i, v := range psn.Params {
 					p := v
 					tp, err := p.TP.calc(s)
 					s.currParam++
 					if err != nil {
 						panic(err)
+					}
+					if i == 0 && n.Attached {
+						name := helper.LastBlock(getTypeName(tp))
+						if len(name) > 0 {
+
+							def := s.getStruct(name)
+							if def != nil {
+								if def.funcs == nil {
+									def.funcs = map[string]struct{}{}
+								}
+								def.funcs[n.ID] = struct{}{}
+							}
+							gendef := s.getGenericStruct(name)
+							if gendef != nil {
+								s.genericStructs[name] = func(m *ir.Module, s *Scope, gens ...TypeNode) *typedef {
+									td := gendef(m, gens...)
+									if td.funcs == nil {
+										td.funcs = map[string]struct{}{}
+									}
+									td.funcs[n.ID] = struct{}{}
+									return td
+								}
+							}
+						}
 					}
 					param := ir.NewParam(p.ID, tp)
 					ps = append(ps, param)
@@ -154,7 +182,7 @@ func (n *FuncNode) AddtoScope(s *Scope) {
 			}()
 
 			asyncFunc[s.getFullName(sig)] = n.Async
-			s.globalScope.addVar(sig, &variable{v: fun, generics: s.generics})
+			s.globalScope.addVar(sig, &variable{v: fun, generics: s.generics, attachedFunc: n.Attached})
 			b := fun.NewBlock("")
 			childScope := s.addChildScope(b)
 			childScope.freeFunc = nil
@@ -180,11 +208,36 @@ func (n *FuncNode) AddtoScope(s *Scope) {
 		s.globalScope.funcDefFuncs = append(s.globalScope.funcDefFuncs, func(s *Scope) {
 			psn := n.Params
 			ps := []*ir.Param{}
-			for _, v := range psn.Params {
+			for i, v := range psn.Params {
 				p := v
 				tp, err := p.TP.calc(s.globalScope)
 				if err != nil {
 					panic(err)
+				}
+				if i == 0 && n.Attached {
+					n1 := getTypeName(tp)
+					name := helper.LastBlock(n1)
+					if len(name) > 0 {
+
+						def := s.getStruct(name)
+						if def != nil {
+							if def.funcs == nil {
+								def.funcs = map[string]struct{}{}
+							}
+							def.funcs[helper.LastBlock(n.ID)] = struct{}{}
+						}
+						gendef := s.getGenericStruct(name)
+						if gendef != nil {
+							s.genericStructs[name] = func(m *ir.Module, s *Scope, gens ...TypeNode) *typedef {
+								td := gendef(m, gens...)
+								if td.funcs == nil {
+									td.funcs = map[string]struct{}{}
+								}
+								td.funcs[helper.LastBlock(n.ID)] = struct{}{}
+								return td
+							}
+						}
+					}
 				}
 				param := ir.NewParam(p.ID, tp)
 				ps = append(ps, param)
@@ -198,7 +251,7 @@ func (n *FuncNode) AddtoScope(s *Scope) {
 				fullname = s.getFullName(n.ID)
 			}
 			asyncFunc[s.getFullName(n.ID)] = n.Async
-			s.globalScope.addVar(n.ID, &variable{v: ir.NewFunc(fullname, tp, ps...)})
+			s.globalScope.addVar(n.ID, &variable{v: ir.NewFunc(fullname, tp, ps...), attachedFunc: n.Attached})
 		})
 	}
 }
