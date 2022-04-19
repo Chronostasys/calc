@@ -3,6 +3,8 @@ package lexer
 import (
 	"fmt"
 	"log"
+
+	protocol "github.com/tliron/glsp/protocol_3_16"
 )
 
 const (
@@ -126,9 +128,9 @@ var (
 )
 
 type Lexer struct {
-	input string
-	pos   int
-	runes []rune
+	input          string
+	pos, line, col int
+	runes          []rune
 }
 
 func IsResType(token string) (code int, ok bool) {
@@ -161,9 +163,23 @@ func (l *Lexer) PeekToken() (code int, token string, eos bool) {
 
 func (l *Lexer) getCh() (ch rune, end bool) {
 	defer func() {
-		l.pos++
+		l.addPos()
 	}()
 	return l.Peek()
+}
+
+func (l *Lexer) SkipEmpty() {
+	check := l.SetCheckpoint()
+	ch, end := l.getCh()
+	if end {
+		return
+	}
+	if ch == ' ' || ch == '\t' {
+		l.SkipEmpty()
+		return
+	}
+	l.GobackTo(check)
+	return
 }
 
 func (l *Lexer) getChSkipEmpty() (ch rune, end bool) {
@@ -187,52 +203,63 @@ func isNum(ch rune) bool {
 }
 
 type Checkpoint struct {
-	pos int
+	pos, line, col int
 }
 
 func (l *Lexer) SetCheckpoint() Checkpoint {
 	return Checkpoint{
-		pos: l.pos,
+		pos:  l.pos,
+		line: l.line,
+		col:  l.col,
 	}
 }
 func (l *Lexer) GobackTo(c Checkpoint) {
 	l.pos = c.pos
+	l.line = c.line
+	l.col = c.col
 }
 func (l *Lexer) GetPos() int {
 	return l.pos
 }
-func (l *Lexer) Currpos(pos int) (line, off int) {
-	line = 1
-	last := 0
-	for i, v := range l.runes[:pos] {
-		if v == '\n' {
-			line++
-			last = i
-		}
-	}
-	for i := 0; true; i++ {
-		if l.runes[pos+i] != ' ' {
-			return line, pos + i - last
-		}
-	}
-	return
+func (l *Lexer) Currpos() (line, off int) {
+	return l.line, l.col
 
 }
 
-func (l *Lexer) SkipLn() (src string, line int) {
-	line = 1
-	for _, v := range l.runes[:l.pos] {
-		if v == '\n' {
-			line++
-		}
+func (l *Lexer) SkipLn() (src string, rang protocol.Range) {
+	l.SkipEmpty()
+	rang.Start = protocol.Position{
+		Line:      uint32(l.line),
+		Character: uint32(l.col),
 	}
 	prevpos := l.pos
+	stack := []int{}
 	for {
-		code, _, _ := l.PeekToken()
-		if code == TYPE_NL {
-			s := string(l.runes[prevpos:l.pos])
+		code, _, eos := l.PeekToken()
+		if eos {
+			s := string(l.runes[prevpos:])
+			rang.End = protocol.Position{
+				Line:      uint32(l.line),
+				Character: uint32(l.col),
+			}
+			return s, rang
+		}
+		if len(stack) > 0 && stack[len(stack)-1] == code {
+			stack = stack[:len(stack)-1]
 			l.Scan()
-			return s, line
+			continue
+		}
+		if code == TYPE_LP || code == TYPE_LB {
+			stack = append(stack, code)
+		}
+		if len(stack) == 0 && code == TYPE_NL {
+			s := string(l.runes[prevpos:l.pos])
+			rang.End = protocol.Position{
+				Line:      uint32(l.line),
+				Character: uint32(l.col),
+			}
+			l.Scan()
+			return s, rang
 		}
 		l.Scan()
 	}
@@ -261,6 +288,20 @@ func (l *Lexer) ScanType(code int) (token string, err error) {
 	// fmt.Println(pos, t)
 	l.GobackTo(ch)
 	return "", ErrTYPE
+}
+
+func (l *Lexer) addPos() {
+	if l.pos >= len(l.runes) {
+		l.pos++
+		return
+	}
+	if l.runes[l.pos] == '\n' {
+		l.line++
+		l.col = 0
+	} else {
+		l.col++
+	}
+	l.pos++
 }
 
 func (l *Lexer) PrintCurrent() {
@@ -322,12 +363,13 @@ START:
 	if isLetterOrUnderscore(ch) {
 		i := []rune{ch}
 		for {
+			check := l.SetCheckpoint()
 			c, end := l.getCh()
 			if end {
 				break
 			}
 			if !isLetterOrUnderscore(c) && !isNum(c) {
-				l.pos--
+				l.GobackTo(check)
 				break
 			}
 			i = append(i, c)
@@ -349,6 +391,7 @@ START:
 			i = append(i, next)
 		}
 		for {
+			check := l.SetCheckpoint()
 			c, end := l.getCh()
 			if end {
 				break
@@ -359,7 +402,7 @@ START:
 				continue
 			}
 			if !isNum(c) {
-				l.pos--
+				l.GobackTo(check)
 				break
 			}
 			i = append(i, c)
@@ -401,7 +444,7 @@ START:
 	case '\r':
 		c, e := l.Peek()
 		if !e && c == '\n' { // CRLF
-			l.pos++
+			l.addPos()
 			return TYPE_NL, "\n", e
 		}
 	case '{':
@@ -467,7 +510,7 @@ START:
 	case '^':
 		return TYPE_BIT_XOR, "^", end
 	}
-	log.Fatalf("unrecognized letter %c inl.pos %d", ch, l.pos)
+	log.Fatalf("unrecognized letter %c at pos %d", ch, l.pos)
 	return
 
 }

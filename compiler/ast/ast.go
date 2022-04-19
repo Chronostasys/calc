@@ -51,7 +51,7 @@ type Node interface {
 
 type ErrSTNode struct {
 	File         string
-	Pos, Line    int
+	Pos          protocol.Range
 	Src          string
 	ParticalNode Node // used for auto complete
 }
@@ -211,11 +211,8 @@ func genAutoComplete(file string, line uint32, sc *Scope, leading string, set, e
 }
 
 func (n *ErrSTNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
-	msg := fmt.Sprintf("calcls: failed to parse statement `%s` at line %d. (%s:%d)\n", n.Src, n.Line, n.File, n.Line)
-	end := protocol.Position{
-		Line:      uint32(n.Line) - 1,
-		Character: uint32(n.Pos) + uint32(len(n.Src)) - 1,
-	}
+	msg := fmt.Sprintf("calcls: failed to parse statement `%s` at line %d. (%s:%d)\n", n.Src, n.Pos.End.Line+1, n.File, n.Pos.End.Line+1)
+	end := n.Pos.End
 	if n.ParticalNode != nil {
 		func() {
 			defer func() {
@@ -264,13 +261,7 @@ func (n *ErrSTNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	ss := "calc lsp"
 	diagMu.Lock()
 	diagnostics[n.File] = append(diagnostics[n.File], protocol.Diagnostic{
-		Range: protocol.Range{
-			Start: protocol.Position{
-				Line:      uint32(n.Line) - 1,
-				Character: uint32(n.Pos) - 1,
-			},
-			End: end,
-		},
+		Range:    n.Pos,
 		Severity: &e,
 		Source:   &ss,
 		Message:  msg,
@@ -565,8 +556,7 @@ type VarBlockNode struct {
 	Idxs        []Node
 	parent      value.Value
 	Next        *VarBlockNode
-	Pos         int
-	Lexer       *lexer.Lexer
+	Pos         protocol.Range
 	SrcFile     string
 	allocOnHeap bool
 }
@@ -585,23 +575,13 @@ func (n *VarBlockNode) travel(f func(Node) bool) {
 	f(n)
 }
 func (n *VarBlockNode) err() {
-	ln, off := n.Lexer.Currpos(n.Pos)
 	errn++
 	e := protocol.DiagnosticSeverityError
 	s := "calc lsp"
-	msg := fmt.Sprintf("calcls: symbol %s not defined (%s:%d:%d)", n.Token, n.SrcFile, ln, off)
+	msg := fmt.Sprintf("calcls: symbol %s not defined (%s:%d:%d)", n.Token, n.SrcFile, n.Pos.Start.Line+1, n.Pos.Start.Character+1)
 	diagMu.Lock()
 	diagnostics[n.SrcFile] = append(diagnostics[n.SrcFile], protocol.Diagnostic{
-		Range: protocol.Range{
-			Start: protocol.Position{
-				Line:      uint32(ln) - 1,
-				Character: uint32(off) - 1,
-			},
-			End: protocol.Position{
-				Line:      uint32(ln) - 1,
-				Character: uint32(off) + uint32(len(n.Token)) - 1,
-			},
-		},
+		Range:    n.Pos,
 		Severity: &e,
 		Source:   &s,
 		Message:  msg,

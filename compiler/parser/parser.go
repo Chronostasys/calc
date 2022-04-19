@@ -17,6 +17,7 @@ import (
 	"github.com/Chronostasys/calc/compiler/helper"
 	"github.com/llir/llvm/ir"
 	"github.com/llir/llvm/ir/types"
+	protocol "github.com/tliron/glsp/protocol_3_16"
 
 	"github.com/Chronostasys/calc/compiler/lexer"
 )
@@ -152,15 +153,13 @@ func (p *Parser) statement() (n ast.Node) {
 		err := recover()
 		if err != nil {
 			p.lexer.GobackTo(ch1)
-			_, off := p.lexer.Currpos(p.lexer.GetPos())
 			node, err := p.particalvarChain()
 			p.lexer.GobackTo(ch1)
 			src, ln := p.lexer.SkipLn()
 			errnode := &ast.ErrSTNode{
 				File: p.path,
-				Pos:  off,
+				Pos:  ln,
 				Src:  src,
-				Line: ln,
 			}
 			if err == nil {
 				errnode.ParticalNode = node
@@ -225,7 +224,7 @@ func (p *Parser) statement() (n ast.Node) {
 	src, ln := p.lexer.SkipLn()
 	errnode := &ast.ErrSTNode{
 		File: p.path,
-		Line: ln,
+		Pos:  ln,
 		Src:  src,
 	}
 	if err == nil {
@@ -700,18 +699,22 @@ func (p *Parser) particalvarChain() (n ast.ExpNode, err error) {
 }
 
 func (p *Parser) varBlock() (n *ast.VarBlockNode, err error) {
-	pos := p.lexer.GetPos()
+	p.lexer.SkipEmpty()
+	ln, col := p.lexer.Currpos()
+	start := protocol.Position{
+		Line:      uint32(ln),
+		Character: uint32(col),
+	}
 	t, err := p.lexer.ScanType(lexer.TYPE_VAR)
 	if err != nil {
 		return nil, err
 	}
 	n = &ast.VarBlockNode{
 		Token:   t,
-		Pos:     pos,
-		Lexer:   p.lexer,
 		SrcFile: p.path,
 	}
 	for {
+
 		_, err := p.lexer.ScanType(lexer.TYPE_LSB)
 		if err != nil {
 			break
@@ -721,6 +724,15 @@ func (p *Parser) varBlock() (n *ast.VarBlockNode, err error) {
 		if err != nil {
 			return nil, err
 		}
+	}
+	ln, col = p.lexer.Currpos()
+	end := protocol.Position{
+		Line:      uint32(ln),
+		Character: uint32(col),
+	}
+	n.Pos = protocol.Range{
+		Start: start,
+		End:   end,
 	}
 	return n, nil
 }
