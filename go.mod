@@ -12,6 +12,7 @@ require (
 	github.com/sasha-s/go-deadlock v0.3.1 // indirect
 	github.com/sourcegraph/jsonrpc2 v0.1.0 // indirect
 	github.com/zchee/color/v2 v2.0.6 // indirect
+	go.lsp.dev/uri v0.3.0 // indirect
 	golang.org/x/crypto v0.0.0-20220408190544-5352b0902921 // indirect
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
 )

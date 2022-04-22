@@ -9,6 +9,7 @@ import (
 	"github.com/llir/llvm/ir/constant"
 	"github.com/llir/llvm/ir/types"
 	"github.com/llir/llvm/ir/value"
+	protocol "github.com/tliron/glsp/protocol_3_16"
 )
 
 type Scope struct {
@@ -94,6 +95,7 @@ type variable struct {
 	v            value.Value
 	generics     []types.Type
 	attachedFunc bool
+	Pos          protocol.Location // define position
 }
 
 type typedef struct {

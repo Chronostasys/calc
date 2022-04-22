@@ -5,6 +5,8 @@ import (
 
 	"github.com/Chronostasys/calc/compiler/ast"
 	"github.com/Chronostasys/calc/compiler/lexer"
+	protocol "github.com/tliron/glsp/protocol_3_16"
+	"go.lsp.dev/uri"
 )
 
 func (p *Parser) extFuncParam() (n *ast.ParamNode, err error) {
@@ -69,11 +71,28 @@ func (p *Parser) function() ast.Node {
 	if err != nil {
 		panic(err)
 	}
+	p.lexer.SkipEmpty()
+	ln, off := p.lexer.Currpos()
+	pos := protocol.Position{
+		Line:      uint32(ln),
+		Character: uint32(off),
+	}
 	id, err := p.lexer.ScanType(lexer.TYPE_VAR)
 	if err != nil {
 		panic(err)
 	}
-	fn := &ast.FuncNode{ID: id}
+	ln, off = p.lexer.Currpos()
+	pos2 := protocol.Position{
+		Line:      uint32(ln),
+		Character: uint32(off),
+	}
+	fn := &ast.FuncNode{ID: id, Pos: protocol.Location{
+		URI: string(uri.File(p.path)),
+		Range: protocol.Range{
+			Start: pos,
+			End:   pos2,
+		},
+	}}
 	p.lexer.SetCheckpoint()
 	fn.Generics, _ = p.genericParams()
 	fn.Params = p.funcParams()

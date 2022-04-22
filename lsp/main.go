@@ -78,6 +78,24 @@ func main() {
 			}
 			return ls, nil
 		},
+		TextDocumentReferences: func(context *glsp.Context, params *protocol.ReferenceParams) ([]protocol.Location, error) {
+			url, _ := url.ParseRequestURI(params.TextDocument.URI)
+			p := url.Path
+			if runtime.GOOS == "windows" {
+				p = strings.Trim(p, "/")
+			}
+			poss := ast.GetRefPos(p, params.Position)
+			return poss, nil
+		},
+		TextDocumentDefinition: func(context *glsp.Context, params *protocol.DefinitionParams) (interface{}, error) {
+			url, _ := url.ParseRequestURI(params.TextDocument.URI)
+			p := url.Path
+			if runtime.GOOS == "windows" {
+				p = strings.Trim(p, "/")
+			}
+			poss := ast.GetRefPos(p, params.Position)
+			return poss, nil
+		},
 	}
 
 	server := server.NewServer(&handler, lsName, false)
