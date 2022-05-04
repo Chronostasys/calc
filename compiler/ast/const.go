@@ -11,3 +11,5 @@ const (
 	SLICE            = "github.com/Chronostasys/calc/runtime/slice"
 	RUNTIME          = "github.com/Chronostasys/calc/runtime"
 )
+
+var DIAGNOSTIC_SOURCE = "Calc lsp"
