@@ -720,7 +720,7 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 				}
 				fnv = gfn(m, gs...)
 			} else {
-				fnNode.err()
+				fnNode.err(m, f, s)
 			}
 		} else {
 			var va *variable
@@ -732,13 +732,13 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 				sse := ss[len(ss)-1]
 				st := scope.getStruct(ssf)
 				if st == nil {
-					fnNode.err()
+					fnNode.err(m, f, s)
 				}
 				idx := st.fieldsIdx[sse]
 				va = &variable{}
 				err = nil
 				if idx == nil {
-					fnNode.err()
+					fnNode.err(m, f, s)
 				}
 				va.v = s.block.NewGetElementPtr(st.structType, alloca, zero, constant.NewInt(types.I32, int64(idx.idx)))
 				member = true

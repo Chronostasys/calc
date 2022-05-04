@@ -98,19 +98,39 @@ func (p *Parser) assign() (n ast.Node, err error) {
 		}
 		level++
 	}
-	node, err := p.runWithCatch2Exp(p.varChain)
-	if err != nil {
-		return nil, err
+	node, err1 := p.runWithCatch2Exp(p.varChain)
+	if err1 != nil {
+		return nil, err1
 	}
 	_, err = p.lexer.ScanType(lexer.TYPE_ASSIGN)
 	if err != nil {
 		return nil, err
 	}
-	r := p.allexp()
+	ch1 := p.lexer.SetCheckpoint()
+	r, err := p.runWithCatch(func() ast.Node {
+		return p.allexp()
+	})
+	if err != nil {
+		p.lexer.GobackTo(ch1)
+		node, err1 := p.particalvarChain()
+		p.lexer.GobackTo(ch1)
+		src, ln := p.lexer.SkipBlock()
+		errnode := &ast.ErrBlockNode{
+			File: p.path,
+			Pos:  ln,
+			Src:  src,
+		}
+		if err1 == nil {
+			errnode.ParticalNode = node
+			err = nil
+		}
+		n = errnode
+		return n, err
+	}
 	return &ast.BinNode{
 		Left:  &ast.TakeValNode{Node: node, Level: level},
 		Op:    lexer.TYPE_ASSIGN,
-		Right: r,
+		Right: r.(ast.ExpNode),
 	}, nil
 }
 
@@ -467,8 +487,28 @@ func (p *Parser) defineAndAssign() (n ast.Node, err error) {
 		return nil, err
 	}
 VAL:
-	val := p.allexp()
-	return &ast.DefAndAssignNode{ValNode: val, ID: id}, nil
+	ch1 := p.lexer.SetCheckpoint()
+	r, err := p.runWithCatch(func() ast.Node {
+		return p.allexp()
+	})
+	if err != nil {
+		p.lexer.GobackTo(ch1)
+		node, err1 := p.particalvarChain()
+		p.lexer.GobackTo(ch1)
+		src, ln := p.lexer.SkipBlock()
+		errnode := &ast.ErrBlockNode{
+			File: p.path,
+			Pos:  ln,
+			Src:  src,
+		}
+		if err1 == nil {
+			errnode.ParticalNode = node
+			err = nil
+		}
+		n = errnode
+		return n, err
+	}
+	return &ast.DefAndAssignNode{ValNode: r, ID: id}, nil
 }
 
 func (p *Parser) breakST() (n ast.Node, err error) {
@@ -829,7 +869,7 @@ func getModule(dir string) (mod, sub string) {
 			return mod, sub
 		}
 		if os.IsNotExist(err) {
-			sub = path.Join(sub, path.Base(dir))
+			sub = path.Join(sub, filepath.Base(dir))
 			dir = filepath.Dir(dir)
 			continue
 		}

@@ -52,9 +52,32 @@ type ErrBlockNode struct {
 	ParticalNode Node // used for auto complete
 }
 
+func (n *ErrBlockNode) tp() TypeNode {
+	return nil
+}
+
 func (n *ErrBlockNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
-	msg := fmt.Sprintf("calcls: failed to parse source \033[36m\n%s\n\033[0m at line %d. (%s:%d)\n", n.Src, n.Pos.End.Line+1, n.File, n.Pos.End.Line+1)
+	msg := fmt.Sprintf("calcls: failed to parse source \n%s\n at line %d. (%s:%d)\n", n.Src, n.Pos.End.Line+1, n.File, n.Pos.End.Line+1)
 	end := n.Pos.End
+	source := strings.Trim(n.Src, " ")
+	blocks := strings.Split(source, " ")
+	if len(blocks) == 3 && blocks[0] == "var" {
+		leading := blocks[2]
+		re := strings.Split(blocks[2], ".")
+		scope := s
+		extern := false
+		if len(re) == 2 {
+			leading = re[1]
+			ScopeMapMu.RLock()
+			scope = ScopeMap[re[0]]
+			ScopeMapMu.RUnlock()
+			extern = true
+		}
+		if scope != nil {
+			genAutoComplete(n.File, end.Line, scope, leading, true, extern, true)
+		}
+	}
+
 	if n.ParticalNode != nil {
 		func() {
 			defer func() {
@@ -63,11 +86,11 @@ func (n *ErrBlockNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 			pn := n.ParticalNode.(*VarBlockNode)
 			sc, ok := ScopeMap[pn.Token]
 			if !ok && pn.Next == nil && len(n.Src) > 0 && n.Src[len(n.Src)-1] != '.' {
-				genAutoComplete(n.File, end.Line, s, pn.Token, true, false)
+				genAutoComplete(n.File, end.Line, s, pn.Token, true, false, false)
 				return
 			}
 			if ok && pn.Next == nil {
-				cmpls := genAutoComplete(n.File, end.Line, sc, "", false, true)
+				cmpls := genAutoComplete(n.File, end.Line, sc, "", false, true, false)
 				setDotAutocomplete(n.File, sc.Pkgname, end.Line, cmpls)
 				return
 			}
@@ -373,10 +396,12 @@ func (b *VarBlockNode) tp() TypeNode {
 func (n *VarBlockNode) travel(f func(Node) bool) {
 	f(n)
 }
-func (n *VarBlockNode) err() {
+func (n *VarBlockNode) err(m *ir.Module, f *ir.Func, s *Scope) {
 	errn++
 	msg := fmt.Sprintf("calcls: symbol %s not defined (%s:%d:%d)", n.Token, n.SrcFile, n.Pos.Start.Line+1, n.Pos.Start.Character+1)
 	addDiagnostic(n.SrcFile, msg, n.Pos, protocol.DiagnosticSeverityError)
+	node := ErrBlockNode{File: n.SrcFile, Pos: n.Pos, Src: n.Token, ParticalNode: n}
+	node.calc(m, f, s)
 	panic(msg)
 }
 
@@ -410,11 +435,14 @@ func (n *VarBlockNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		if err != nil {
 			scope := ScopeMap[n.Token]
 			if scope == nil {
-				n.err()
+				n.err(m, f, s)
+			}
+			if n.Next == nil {
+				n.err(m, f, s)
 			}
 			val, err = scope.searchVar(n.Next.Token)
 			if err != nil {
-				n.err()
+				n.err(m, f, s)
 			}
 			n = n.Next
 		}
@@ -424,6 +452,9 @@ func (n *VarBlockNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 
 		tp := getTypeInfo(va, s)
 		fi := tp.fieldsIdx[n.Token]
+		if fi == nil {
+			n.err(m, f, s)
+		}
 		va = s.block.NewGetElementPtr(tp.structType, va,
 			constant.NewIndex(zero),
 			constant.NewIndex(constant.NewInt(types.I32, int64(fi.idx))))
@@ -813,14 +844,23 @@ func (n *ProgramNode) CalcGlobals(m *ir.Module) {
 
 	globalScope.types = map[string]*typedef{}
 	// define all structs & interfaces
+	prevFailn := 100000
 	for {
+		var err error
 		failed := []func(m *ir.Module, s *Scope) error{}
 		for _, v := range globalScope.defFuncs {
-			if v(m, n.GlobalScope) != nil {
+			err = v(m, n.GlobalScope)
+			if err != nil {
 				failed = append(failed, v)
 			}
 		}
 		globalScope.defFuncs = failed
+		if prevFailn == len(failed) {
+			// a compile error occured
+			// it will be handled by node
+			break
+		}
+		prevFailn = len(failed)
 		if len(failed) == 0 {
 			break
 		}

@@ -16,6 +16,7 @@ type autoComplete struct {
 	scope     string
 	m         map[string]struct{}
 	leading   string
+	tp        bool
 }
 
 var autocompleteMap = map[string]map[uint32]autoComplete{}
@@ -57,8 +58,14 @@ func GetAutocomplete(file string, line uint32) []protocol.CompletionItem {
 	ScopeMapMu.RLock()
 	sc := ScopeMap[ac.scope]
 	ScopeMapMu.RUnlock()
+	if sc == nil {
+		return ls
+	}
+	if ac.tp {
+		return ls
+	}
 	mu.RLock()
-	cmpls := getCurrentScopeAutoComplete(ac.m, sc, ac.leading, false)
+	cmpls := getCurrentScopeAutoComplete(ac.m, sc, ac.leading, false, ac.tp)
 	mu.RUnlock()
 	return append(ls, cmpls...)
 }
@@ -70,11 +77,34 @@ func GetDotAutocomplete(file string, line uint32) []protocol.CompletionItem {
 	return autocompleteMap[file][line].completes[1]
 }
 
-func getCurrentScopeAutoComplete(m map[string]struct{}, sc *Scope, leading string, extern bool) []protocol.CompletionItem {
+func getCurrentScopeAutoComplete(m map[string]struct{}, sc *Scope, leading string, extern, tponly bool) []protocol.CompletionItem {
 	if m == nil {
 		m = map[string]struct{}{}
 	}
 	cmpls := []protocol.CompletionItem{}
+	for k := range sc.types {
+		k = helper.LastBlock(k)
+		if extern && !unicode.IsUpper(rune(k[0])) {
+			continue
+		}
+		if strings.Index(k, leading) < 0 {
+			continue
+		}
+		if _, ok := m[k]; ok {
+			continue
+		}
+		m[k] = struct{}{}
+		kind := protocol.CompletionItemKindStruct
+		ins := k + "{}"
+		cmpls = append(cmpls, protocol.CompletionItem{
+			Label:      k,
+			Kind:       &kind,
+			InsertText: &ins,
+		})
+	}
+	if tponly {
+		return cmpls
+	}
 	for k, v := range sc.vartable {
 		if v.attachedFunc {
 			continue
@@ -137,12 +167,12 @@ func getCurrentScopeAutoComplete(m map[string]struct{}, sc *Scope, leading strin
 	return cmpls
 }
 
-func genAutoComplete(file string, line uint32, sc *Scope, leading string, set, extern bool) []protocol.CompletionItem {
+func genAutoComplete(file string, line uint32, sc *Scope, leading string, set, extern, tp bool) []protocol.CompletionItem {
 	m := map[string]struct{}{}
 	cmpls := []protocol.CompletionItem{}
 	orisc := sc
 	for {
-		cmpls = append(cmpls, getCurrentScopeAutoComplete(m, sc, leading, extern)...)
+		cmpls = append(cmpls, getCurrentScopeAutoComplete(m, sc, leading, extern, tp)...)
 		sc = sc.parent
 		if sc == nil || sc.parent == nil {
 			break
@@ -161,6 +191,7 @@ func genAutoComplete(file string, line uint32, sc *Scope, leading string, set, e
 		m:         m,
 		scope:     orisc.Pkgname,
 		leading:   leading,
+		tp:        tp,
 	}
 	return cmpls
 }
