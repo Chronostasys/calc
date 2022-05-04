@@ -4,6 +4,10 @@ type as struct {
 
 }
 
+type d {
+    
+}
+
 
 func main() void {
     -100

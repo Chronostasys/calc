@@ -226,7 +226,12 @@ func (l *Lexer) Currpos() (line, off int) {
 
 }
 
-func (l *Lexer) SkipLn() (src string, rang protocol.Range) {
+var pair = map[int]int{
+	TYPE_LP: TYPE_RP,
+	TYPE_LB: TYPE_RB,
+}
+
+func (l *Lexer) SkipBlock() (src string, rang protocol.Range) {
 	l.SkipEmpty()
 	rang.Start = protocol.Position{
 		Line:      uint32(l.line),
@@ -250,7 +255,7 @@ func (l *Lexer) SkipLn() (src string, rang protocol.Range) {
 			continue
 		}
 		if code == TYPE_LP || code == TYPE_LB {
-			stack = append(stack, code)
+			stack = append(stack, pair[code])
 		}
 		if len(stack) == 0 && code == TYPE_NL {
 			s := string(l.runes[prevpos:l.pos])

@@ -45,15 +45,15 @@ type Node interface {
 	travel(func(Node) bool)
 }
 
-type ErrSTNode struct {
+type ErrBlockNode struct {
 	File         string
 	Pos          protocol.Range
 	Src          string
 	ParticalNode Node // used for auto complete
 }
 
-func (n *ErrSTNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
-	msg := fmt.Sprintf("calcls: failed to parse statement `%s` at line %d. (%s:%d)\n", n.Src, n.Pos.End.Line+1, n.File, n.Pos.End.Line+1)
+func (n *ErrBlockNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
+	msg := fmt.Sprintf("calcls: failed to parse source \033[36m\n%s\n\033[0m at line %d. (%s:%d)\n", n.Src, n.Pos.End.Line+1, n.File, n.Pos.End.Line+1)
 	end := n.Pos.End
 	if n.ParticalNode != nil {
 		func() {
@@ -102,7 +102,7 @@ func (n *ErrSTNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	addDiagnostic(n.File, msg, n.Pos, protocol.DiagnosticSeverityError)
 	return nil
 }
-func (n *ErrSTNode) travel(func(Node) bool) {
+func (n *ErrBlockNode) travel(func(Node) bool) {
 }
 
 type ExpNode interface {

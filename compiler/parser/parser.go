@@ -155,8 +155,8 @@ func (p *Parser) statement() (n ast.Node) {
 			p.lexer.GobackTo(ch1)
 			node, err := p.particalvarChain()
 			p.lexer.GobackTo(ch1)
-			src, ln := p.lexer.SkipLn()
-			errnode := &ast.ErrSTNode{
+			src, ln := p.lexer.SkipBlock()
+			errnode := &ast.ErrBlockNode{
 				File: p.path,
 				Pos:  ln,
 				Src:  src,
@@ -221,8 +221,8 @@ func (p *Parser) statement() (n ast.Node) {
 	p.lexer.GobackTo(ch1)
 	node, err := p.particalvarChain()
 	p.lexer.GobackTo(ch1)
-	src, ln := p.lexer.SkipLn()
-	errnode := &ast.ErrSTNode{
+	src, ln := p.lexer.SkipBlock()
+	errnode := &ast.ErrBlockNode{
 		File: p.path,
 		Pos:  ln,
 		Src:  src,
@@ -290,23 +290,34 @@ func (p *Parser) program() *ast.ProgramNode {
 		if eos {
 			break
 		}
-		ast, err := p.runWithCatch2(p.typeDef)
+		astnode, err := p.runWithCatch2(p.typeDef)
 		if err == nil {
-			n.Children = append(n.Children, ast)
+			n.Children = append(n.Children, astnode)
 			continue
 		}
-		ast, err = p.runWithCatch2(p.define)
+		astnode, err = p.runWithCatch2(p.define)
 		if err == nil {
-			n.Children = append(n.Children, ast)
+			n.Children = append(n.Children, astnode)
 			continue
 		}
-		ast, err = p.runWithCatch2(p.defineAndAssign)
+		astnode, err = p.runWithCatch2(p.defineAndAssign)
 		if err == nil {
-			n.Children = append(n.Children, ast)
+			n.Children = append(n.Children, astnode)
 			continue
 		}
 
-		n.Children = append(n.Children, p.function())
+		node, err := p.runWithCatch(p.function)
+		if err == nil {
+			n.Children = append(n.Children, node)
+			continue
+		}
+		src, ln := p.lexer.SkipBlock()
+		errnode := &ast.ErrBlockNode{
+			File: p.path,
+			Pos:  ln,
+			Src:  src,
+		}
+		n.Children = append(n.Children, errnode)
 	}
 	return n
 }
