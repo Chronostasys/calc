@@ -766,6 +766,10 @@ func (p *Parser) ParseAST(s string) *ast.ProgramNode {
 }
 
 func getModule(dir string) (mod, sub string) {
+	dir, err := filepath.Abs(dir)
+	if err != nil {
+		panic(err)
+	}
 	c, err := os.ReadDir(dir)
 	ismain := false
 	if err != nil {
@@ -795,6 +799,7 @@ func getModule(dir string) (mod, sub string) {
 		}
 	}
 	for i := 0; i < 20; i++ {
+		// println(path.Join(dir, "calc.mod"))
 		_, err := os.Stat(path.Join(dir, "calc.mod"))
 		if err == nil {
 			// path/to/whatever does not exist
@@ -814,7 +819,7 @@ func getModule(dir string) (mod, sub string) {
 		}
 		if os.IsNotExist(err) {
 			sub = path.Join(sub, path.Base(dir))
-			dir = path.Dir(dir)
+			dir = filepath.Dir(dir)
 			continue
 		}
 		panic(err)

@@ -100,7 +100,6 @@ func (n *ErrSTNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	}
 	errn++
 	addDiagnostic(n.File, msg, n.Pos, protocol.DiagnosticSeverityError)
-	diagMu.Unlock()
 	return nil
 }
 func (n *ErrSTNode) travel(func(Node) bool) {

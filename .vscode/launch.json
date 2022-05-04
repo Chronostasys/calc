@@ -17,7 +17,7 @@
             "request": "launch",
             "mode": "auto",
             "program": "${workspaceFolder}/compiler",
-            "args": ["-d","../test/tcpserver"]
+            "args": ["-d","../test/notcompile"]
         },{
             "name": "Launch lsp",
             "type": "go",
