@@ -119,11 +119,13 @@ func (p *Parser) function() ast.Node {
 }
 
 func (p *Parser) callFunc() ast.ExpNode {
+	p.lexer.SkipEmpty()
+	start := p.lexer.CurrProtocolpos()
 	fnnode, err := p.runWithCatch2Exp(p.varChain)
 	if err != nil {
 		panic(err)
 	}
-	fn := &ast.CallFuncNode{FnNode: fnnode}
+	fn := &ast.CallFuncNode{FnNode: fnnode, SrcFile: p.path}
 	fn.Generics, _ = p.genericCallParams()
 	_, err = p.lexer.ScanType(lexer.TYPE_LP)
 	if err != nil {
@@ -165,6 +167,11 @@ END:
 			}
 		}
 		fn.Next = inner
+	}
+	end := p.lexer.CurrProtocolpos()
+	fn.Range = protocol.Range{
+		Start: start,
+		End:   end,
 	}
 	return fn
 }

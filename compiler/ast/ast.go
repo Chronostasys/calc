@@ -782,7 +782,11 @@ func catchDiagnosticErrs(f func()) {
 	defer func() {
 		err := recover()
 		if err != nil {
-			if e, ok := err.(error); ok {
+
+			if e, ok := err.(*syntaxErr); ok {
+				errn++
+				e.calc(nil, nil, nil)
+			} else if e, ok := err.(error); ok {
 				if !strings.Contains(e.Error(), "calcls") {
 					panic(e)
 				}

@@ -2,10 +2,7 @@ package ast
 
 import (
 	"fmt"
-	"path/filepath"
-	"sort"
 	"strings"
-	"sync"
 
 	"github.com/Chronostasys/calc/compiler/helper"
 	"github.com/Chronostasys/calc/compiler/lexer"
@@ -16,52 +13,6 @@ import (
 	"github.com/llir/llvm/ir/value"
 	protocol "github.com/tliron/glsp/protocol_3_16"
 )
-
-type refPos struct {
-	pos       protocol.Location
-	character uint32
-}
-
-var refMu = &sync.RWMutex{}
-
-var refMap = map[string]map[uint32][]refPos{}
-
-func addRef(f string, ln, ch uint32, pos protocol.Location) {
-	f, _ = filepath.Abs(f)
-	if pos.Range.Start.Line == 0 && pos.Range.Start.Character == 0 {
-		return
-	}
-	refMu.Lock()
-	defer refMu.Unlock()
-	if refMap[f] == nil {
-		refMap[f] = map[uint32][]refPos{}
-	}
-	frefMap := refMap[f]
-	frefMap[ln] = append(frefMap[ln], refPos{pos: pos, character: ch})
-	sort.Slice(frefMap[ln], func(i, j int) bool {
-		return frefMap[ln][i].character < frefMap[ln][j].character
-	})
-}
-
-func GetRefPos(f string, pos protocol.Position) []protocol.Location {
-	f, _ = filepath.Abs(f)
-	refMu.RLock()
-	defer refMu.RUnlock()
-	if refMap[f] == nil {
-		return []protocol.Location{}
-	}
-	frefMap := refMap[f]
-	ls := frefMap[pos.Line]
-	if ls == nil {
-		return []protocol.Location{}
-	}
-	for i, v := range ls {
-		if pos.Character >= v.character && (i == len(ls)-1 || pos.Character < ls[i+1].character) {
-			return []protocol.Location{v.pos}
-		}
-	}
-	return []protocol.Location{}
-}
 
 type ParamNode struct {
 	ID  string
@@ -593,6 +544,8 @@ type CallFuncNode struct {
 	parent   value.Value
 	Next     Node
 	Generics []TypeNode
+	SrcFile  string
+	Range    protocol.Range
 }
 
 func (n *CallFuncNode) tp() TypeNode {
@@ -615,6 +568,7 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	var fntp *types.FuncType
 
 	params := []value.Value{}
+
 	pvs := []value.Value{}
 	poff := 0
 	varNode := n.FnNode.(*VarBlockNode)
@@ -653,6 +607,7 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	if n.parent != nil {
 		varNode = nil
 	}
+	// 是附属于struct或interface的method或者别的模块中的func
 	if fnNode != varNode {
 		var alloca value.Value
 		if varNode != nil {
@@ -785,6 +740,16 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 			fntp = loadElmType(fn.Type()).(*types.FuncType)
 		}
 	}
+	if len(pvs)+poff != len(fntp.Params) {
+		// param length doesn't match
+		err := &syntaxErr{}
+		err.Message = fmt.Sprintf("Function parameter number doesn't match. Expect %d params, got %d. (%s:%d:%d)",
+			len(fntp.Params)-poff, len(pvs), n.SrcFile, n.Range.Start.Line+1, n.Range.Start.Character+1)
+		err.File = n.SrcFile
+		err.Src = ""
+		err.Pos = n.Range
+		panic(err)
+	}
 	for i, v := range pvs {
 		tp := fntp.Params[i+poff]
 		v1 := v
@@ -794,6 +759,7 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		}
 		params = append(params, p)
 	}
+	fn = loadIfVar(fn, s)
 	if f, ok := fn.(*ir.Func); ok {
 		va, err := scope.searchVar(f.GlobalIdent.GlobalName)
 		if err == nil {
@@ -801,7 +767,7 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		}
 	}
 
-	var re value.Value = s.block.NewCall(loadIfVar(fn, s), params...)
+	var re value.Value = s.block.NewCall(fn, params...)
 	if !re.Type().Equal(types.Void) {
 		// autoAlloc()
 		var alloc value.Value
