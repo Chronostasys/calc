@@ -18,8 +18,12 @@ func ResetErr() {
 	diagMu.Lock()
 	diagnostics = make(map[string][]protocol.Diagnostic)
 	diagMu.Unlock()
+}
+
+func ResetRefmap(f string) {
 	refMu.Lock()
-	refMap = map[string]map[uint32][]refPos{}
+	f, _ = filepath.Abs(f)
+	delete(refMap, f)
 	refMu.Unlock()
 }
 

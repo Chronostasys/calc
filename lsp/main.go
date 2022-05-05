@@ -33,6 +33,7 @@ func main() {
 			if runtime.GOOS == "windows" {
 				p = p[1:]
 			}
+			ast.ResetRefmap(p)
 			parser.ChangeActiveFile(p, params.ContentChanges)
 			parser.GetDiagnostics(path.Dir(p))
 
