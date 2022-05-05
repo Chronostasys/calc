@@ -438,6 +438,7 @@ func (n *VarBlockNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		var err error
 		var val *variable
 		val, err = s.searchVar(n.Token)
+		val.addRef(n.SrcFile, n.Pos)
 		if err != nil {
 			scope := ScopeMap[n.Token]
 			if scope == nil {
@@ -447,6 +448,7 @@ func (n *VarBlockNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 				n.err(m, f, s)
 			}
 			val, err = scope.searchVar(n.Next.Token)
+			val.addRef(n.SrcFile, n.Pos)
 			if err != nil {
 				n.err(m, f, s)
 			}
@@ -995,10 +997,12 @@ type defNode interface {
 }
 
 type DefineNode struct {
-	ID  string
-	TP  TypeNode
-	Val value.Value
-	vf  func(s *Scope) value.Value
+	ID      string
+	TP      TypeNode
+	Val     value.Value
+	Range   protocol.Range
+	vf      func(s *Scope) value.Value
+	SrcFile string
 }
 
 func (n *DefineNode) setVal(f func(s *Scope) value.Value) {
@@ -1013,9 +1017,10 @@ func (n *DefineNode) getID() string {
 }
 
 func (n *DefineNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
+	location := helper.Location(n.Range, n.SrcFile)
 	if n.vf != nil {
 		v := n.vf(s)
-		s.addVar(n.ID, &variable{v: v})
+		s.addVar(n.ID, &variable{v: v, Pos: location})
 		return v
 	}
 	tp, err := n.TP.calc(s)
@@ -1024,14 +1029,14 @@ func (n *DefineNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	}
 	if f == nil {
 		n.Val = m.NewGlobalDef(s.getFullName(n.ID), constant.NewZeroInitializer(tp))
-		s.addVar(n.ID, &variable{v: n.Val})
+		s.addVar(n.ID, &variable{v: n.Val, Pos: location})
 	} else {
 		if s.heapAllocTable[n.ID] {
 			n.Val = gcmalloc(m, s, n.TP)
-			s.addVar(n.ID, &variable{v: n.Val})
+			s.addVar(n.ID, &variable{v: n.Val, Pos: location})
 		} else {
 			n.Val = stackAlloc(m, s, tp)
-			s.addVar(n.ID, &variable{v: n.Val})
+			s.addVar(n.ID, &variable{v: n.Val, Pos: location})
 		}
 	}
 	return n.Val
@@ -1141,6 +1146,8 @@ type DefAndAssignNode struct {
 	ValNode Node
 	ID      string
 	Val     func(s *Scope) value.Value
+	SrcFile string
+	Range   protocol.Range
 }
 
 func (n *DefAndAssignNode) getID() string {
@@ -1167,6 +1174,7 @@ func autoAlloc(m *ir.Module, id string, gtp TypeNode, tp types.Type, s *Scope) (
 }
 
 func (n *DefAndAssignNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
+	pos := helper.Location(n.Range, n.SrcFile)
 	if n.Val != nil {
 		v := n.Val(s)
 		rawval := n.ValNode.calc(m, f, s)
@@ -1176,7 +1184,7 @@ func (n *DefAndAssignNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value 
 			panic(err)
 		}
 		store(val, v, s)
-		s.addVar(n.ID, &variable{v: v})
+		s.addVar(n.ID, &variable{v: v, Pos: pos})
 		return v
 	}
 	global := false
@@ -1227,7 +1235,7 @@ func (n *DefAndAssignNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value 
 	if err != nil {
 		panic(err)
 	}
-	va := &variable{v: v}
+	va := &variable{v: v, Pos: pos}
 	store(val1, v, s)
 	s.addVar(n.ID, va)
 	return v

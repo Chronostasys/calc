@@ -99,6 +99,12 @@ type variable struct {
 	Pos          protocol.Location // define position
 }
 
+func (v *variable) addRef(f string, ran protocol.Range) {
+	if v != nil && len(v.Pos.URI) > 0 {
+		addRef(f, ran, v.Pos)
+	}
+}
+
 type typedef struct {
 	structType types.Type
 	fieldsIdx  map[string]*field

@@ -1,6 +1,11 @@
 package helper
 
-import "strings"
+import (
+	"strings"
+
+	protocol "github.com/tliron/glsp/protocol_3_16"
+	"go.lsp.dev/uri"
+)
 
 func SplitLast(str, sep string) []string {
 	mainStr := str
@@ -26,4 +31,11 @@ func LastBlock(str string) string {
 
 func Trim(str string) string {
 	return strings.Trim(str, "%*\"")
+}
+
+func Location(ran protocol.Range, path string) protocol.Location {
+	return protocol.Location{
+		URI:   string(uri.File(path)),
+		Range: ran,
+	}
 }

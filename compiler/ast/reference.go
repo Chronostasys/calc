@@ -9,15 +9,15 @@ import (
 )
 
 type refPos struct {
-	pos       protocol.Location
-	character uint32
+	pos        protocol.Location
+	start, end uint32
 }
 
 var refMu = &sync.RWMutex{}
 
 var refMap = map[string]map[uint32][]refPos{}
 
-func addRef(f string, ln, ch uint32, pos protocol.Location) {
+func addRef(f string, ran protocol.Range, pos protocol.Location) {
 	f, _ = filepath.Abs(f)
 	if pos.Range.Start.Line == 0 && pos.Range.Start.Character == 0 {
 		return
@@ -28,9 +28,10 @@ func addRef(f string, ln, ch uint32, pos protocol.Location) {
 		refMap[f] = map[uint32][]refPos{}
 	}
 	frefMap := refMap[f]
-	frefMap[ln] = append(frefMap[ln], refPos{pos: pos, character: ch})
+	ln := ran.Start.Line
+	frefMap[ln] = append(frefMap[ln], refPos{pos: pos, start: ran.Start.Character, end: ran.End.Character})
 	sort.Slice(frefMap[ln], func(i, j int) bool {
-		return frefMap[ln][i].character < frefMap[ln][j].character
+		return frefMap[ln][i].start < frefMap[ln][j].start
 	})
 }
 
@@ -46,8 +47,8 @@ func GetRefPos(f string, pos protocol.Position) []protocol.Location {
 	if ls == nil {
 		return []protocol.Location{}
 	}
-	for i, v := range ls {
-		if pos.Character >= v.character && (i == len(ls)-1 || pos.Character < ls[i+1].character) {
+	for _, v := range ls {
+		if pos.Character >= v.start && pos.Character <= v.end {
 			return []protocol.Location{v.pos}
 		}
 	}

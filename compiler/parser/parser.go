@@ -164,6 +164,8 @@ func (p *Parser) define() (n ast.Node, err error) {
 	if err != nil {
 		return nil, err
 	}
+	p.lexer.SkipEmpty()
+	start := p.lexer.CurrProtocolpos()
 	id, err := p.lexer.ScanType(lexer.TYPE_VAR)
 	if err != nil {
 		return nil, err
@@ -172,7 +174,8 @@ func (p *Parser) define() (n ast.Node, err error) {
 	if err != nil {
 		panic(err)
 	}
-	return &ast.DefineNode{ID: id, TP: tp}, nil
+	end := p.lexer.CurrProtocolpos()
+	return &ast.DefineNode{SrcFile: p.path, ID: id, TP: tp, Range: protocol.Range{Start: start, End: end}}, nil
 }
 
 func (p *Parser) statement() (n ast.Node) {
@@ -474,22 +477,35 @@ func (p *Parser) defineAndAssign() (n ast.Node, err error) {
 		}
 	}()
 	var id string
+	var ran protocol.Range
+	var start, end protocol.Position
 	_, err = p.lexer.ScanType(lexer.TYPE_RES_VAR)
 	if err != nil {
+		p.lexer.SkipEmpty()
+		start = p.lexer.CurrProtocolpos()
 		id, err = p.lexer.ScanType(lexer.TYPE_VAR)
 		if err != nil {
 			return nil, err
 		}
+		end = p.lexer.CurrProtocolpos()
+		ran.Start = start
+		ran.End = end
 		_, err = p.lexer.ScanType(lexer.TYPE_DEAS)
 		if err != nil {
 			return nil, err
 		}
 		goto VAL
 	}
+
+	p.lexer.SkipEmpty()
+	start = p.lexer.CurrProtocolpos()
 	id, err = p.lexer.ScanType(lexer.TYPE_VAR)
 	if err != nil {
 		return nil, err
 	}
+	end = p.lexer.CurrProtocolpos()
+	ran.Start = start
+	ran.End = end
 	_, err = p.lexer.ScanType(lexer.TYPE_ASSIGN)
 	if err != nil {
 		return nil, err
@@ -516,7 +532,7 @@ VAL:
 		n = errnode
 		return n, err
 	}
-	return &ast.DefAndAssignNode{ValNode: r, ID: id}, nil
+	return &ast.DefAndAssignNode{ValNode: r, ID: id, Range: ran, SrcFile: p.path}, nil
 }
 
 func (p *Parser) breakST() (n ast.Node, err error) {

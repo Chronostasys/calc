@@ -769,8 +769,12 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	fn = loadIfVar(fn, s)
 	if f, ok := fn.(*ir.Func); ok {
 		va, err := scope.searchVar(f.GlobalIdent.GlobalName)
+		nd := fnNode
+		if nd.Next != nil {
+			nd = nd.Next
+		}
 		if err == nil {
-			addRef(fnNode.SrcFile, fnNode.Pos.Start.Line, fnNode.Pos.Start.Character, va.Pos)
+			addRef(fnNode.SrcFile, nd.Pos, va.Pos)
 		}
 	}
 
