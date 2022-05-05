@@ -50,6 +50,8 @@ type ErrBlockNode struct {
 	Pos          protocol.Range
 	Src          string
 	ParticalNode Node // used for auto complete
+	TypeOnly     bool
+	Message      string
 }
 
 func (n *ErrBlockNode) tp() TypeNode {
@@ -57,7 +59,10 @@ func (n *ErrBlockNode) tp() TypeNode {
 }
 
 func (n *ErrBlockNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
-	msg := fmt.Sprintf("calcls: failed to parse source \n%s\n at line %d. (%s:%d)\n", n.Src, n.Pos.End.Line+1, n.File, n.Pos.End.Line+1)
+	msg := n.Message
+	if len(n.Message) == 0 {
+		msg = fmt.Sprintf("calcls: failed to parse source \n%s\n at line %d. (%s:%d)\n", n.Src, n.Pos.End.Line+1, n.File, n.Pos.End.Line+1)
+	}
 	end := n.Pos.End
 	source := strings.Trim(n.Src, " ")
 	blocks := strings.Split(source, " ")
@@ -86,11 +91,11 @@ func (n *ErrBlockNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 			pn := n.ParticalNode.(*VarBlockNode)
 			sc, ok := ScopeMap[pn.Token]
 			if !ok && pn.Next == nil && len(n.Src) > 0 && n.Src[len(n.Src)-1] != '.' {
-				genAutoComplete(n.File, end.Line, s, pn.Token, true, false, false)
+				genAutoComplete(n.File, end.Line, s, pn.Token, true, false, n.TypeOnly)
 				return
 			}
 			if ok && pn.Next == nil {
-				cmpls := genAutoComplete(n.File, end.Line, sc, "", false, true, false)
+				cmpls := genAutoComplete(n.File, end.Line, sc, "", false, true, n.TypeOnly)
 				setDotAutocomplete(n.File, sc.Pkgname, end.Line, cmpls)
 				return
 			}
@@ -399,8 +404,7 @@ func (n *VarBlockNode) travel(f func(Node) bool) {
 func (n *VarBlockNode) err(m *ir.Module, f *ir.Func, s *Scope) {
 	errn++
 	msg := fmt.Sprintf("calcls: symbol %s not defined (%s:%d:%d)", n.Token, n.SrcFile, n.Pos.Start.Line+1, n.Pos.Start.Character+1)
-	addDiagnostic(n.SrcFile, msg, n.Pos, protocol.DiagnosticSeverityError)
-	node := ErrBlockNode{File: n.SrcFile, Pos: n.Pos, Src: n.Token, ParticalNode: n}
+	node := ErrBlockNode{File: n.SrcFile, Pos: n.Pos, Src: n.Token, ParticalNode: n, Message: msg}
 	node.calc(m, f, s)
 	panic(msg)
 }
@@ -767,24 +771,33 @@ func (n *SLNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 LOOP:
 	for _, v := range n.Children {
 		f := func() {
-			defer func() {
-				err := recover()
-				if err != nil {
-					if e, ok := err.(string); ok {
-						if !strings.Contains(e, "calcls") {
-							panic(e)
-						}
-					} else {
-						panic(e)
-					}
-				}
-			}()
 			v.calc(m, f, s)
 		}
-		f()
+		catchDiagnosticErrs(f)
 	}
 	return zero
 }
+
+func catchDiagnosticErrs(f func()) {
+	defer func() {
+		err := recover()
+		if err != nil {
+			if e, ok := err.(error); ok {
+				if !strings.Contains(e.Error(), "calcls") {
+					panic(e)
+				}
+			} else if e, ok := err.(string); ok {
+				if !strings.Contains(e, "calcls") {
+					panic(e)
+				}
+			} else {
+				panic(e)
+			}
+		}
+	}()
+	f()
+}
+
 func findEsc(next []*escNode, defMap map[string]bool, heapAllocTable map[string]bool, escMap map[string][]*escNode) {
 	if next == nil {
 		return
@@ -845,7 +858,20 @@ func (n *ProgramNode) CalcGlobals(m *ir.Module) {
 	globalScope.types = map[string]*typedef{}
 	// define all structs & interfaces
 	prevFailn := 100000
+	olde := errn
+
+	oldds := make(map[string][]protocol.Diagnostic)
+	for k, v := range diagnostics {
+		oldds[k] = v
+	}
 	for {
+		diagMu.Lock()
+		diagnostics = make(map[string][]protocol.Diagnostic)
+		for k, v := range oldds {
+			diagnostics[k] = v
+		}
+		errn = olde
+		diagMu.Unlock()
 		var err error
 		failed := []func(m *ir.Module, s *Scope) error{}
 		for _, v := range globalScope.defFuncs {
@@ -865,10 +891,24 @@ func (n *ProgramNode) CalcGlobals(m *ir.Module) {
 			break
 		}
 	}
+	olde = errn
+
+	oldds = make(map[string][]protocol.Diagnostic)
+	for k, v := range diagnostics {
+		oldds[k] = v
+	}
 	// add all func declaration to scope
 	for _, v := range globalScope.funcDefFuncs {
-		v(n.GlobalScope)
+		f := func() {
+			v(n.GlobalScope)
+		}
+		catchDiagnosticErrs(f)
+
 	}
+	diagMu.Lock()
+	diagnostics = oldds
+	errn = olde
+	diagMu.Unlock()
 	globalScope.funcDefFuncs = globalScope.funcDefFuncs[:0]
 	// add all global variables to scope
 	for _, v := range n.Children {
@@ -886,7 +926,10 @@ func (n *ProgramNode) Emit(m *ir.Module) {
 		switch v.(type) {
 		case *DefineNode, *DefAndAssignNode:
 		default:
-			v.calc(m, nil, globalScope)
+			f := func() {
+				v.calc(m, nil, globalScope)
+			}
+			catchDiagnosticErrs(f)
 		}
 	}
 	mi, err := globalScope.searchVar("main")

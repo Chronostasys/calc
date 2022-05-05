@@ -82,7 +82,7 @@ func getCurrentScopeAutoComplete(m map[string]struct{}, sc *Scope, leading strin
 		m = map[string]struct{}{}
 	}
 	cmpls := []protocol.CompletionItem{}
-	for k := range sc.types {
+	for k, v := range sc.types {
 		k = helper.LastBlock(k)
 		if extern && !unicode.IsUpper(rune(k[0])) {
 			continue
@@ -95,7 +95,13 @@ func getCurrentScopeAutoComplete(m map[string]struct{}, sc *Scope, leading strin
 		}
 		m[k] = struct{}{}
 		kind := protocol.CompletionItemKindStruct
-		ins := k + "{}"
+		if _, ok := v.structType.(*interf); ok {
+			kind = protocol.CompletionItemKindInterface
+		}
+		ins := k
+		if !tponly {
+			ins = ins + "{}"
+		}
 		cmpls = append(cmpls, protocol.CompletionItem{
 			Label:      k,
 			Kind:       &kind,
@@ -174,7 +180,7 @@ func genAutoComplete(file string, line uint32, sc *Scope, leading string, set, e
 	for {
 		cmpls = append(cmpls, getCurrentScopeAutoComplete(m, sc, leading, extern, tp)...)
 		sc = sc.parent
-		if sc == nil || sc.parent == nil {
+		if sc == nil {
 			break
 		}
 	}

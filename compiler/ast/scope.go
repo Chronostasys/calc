@@ -42,6 +42,7 @@ type Scope struct {
 	yieldBlock     value.Value
 	continueTask   value.Value
 	strict         bool
+	calctpstr      bool
 }
 
 var genericAttached = map[string]bool{}

@@ -10,14 +10,16 @@ import (
 	"github.com/llir/llvm/ir/constant"
 	"github.com/llir/llvm/ir/types"
 	"github.com/llir/llvm/ir/value"
+	protocol "github.com/tliron/glsp/protocol_3_16"
 )
 
 type BasicTypeNode struct {
-	ResType  int
-	CustomTp []string
-	PtrLevel int
-	Generics []TypeNode
-	Pkg      string
+	ResType      int
+	CustomTp     []string
+	PtrLevel     int
+	Generics     []TypeNode
+	Range        protocol.Range
+	Pkg, SrcFile string
 }
 
 func (n *BasicTypeNode) GetPtrLevel() int {
@@ -25,7 +27,7 @@ func (n *BasicTypeNode) GetPtrLevel() int {
 }
 func (n *BasicTypeNode) Clone() TypeNode {
 	return &BasicTypeNode{
-		n.ResType, n.CustomTp, n.PtrLevel, n.Generics, n.Pkg,
+		n.ResType, n.CustomTp, n.PtrLevel, n.Generics, n.Range, n.Pkg, n.SrcFile,
 	}
 }
 
@@ -147,7 +149,9 @@ func (v *BasicTypeNode) String(s *Scope) string {
 	m := ir.NewModule()
 	oldm := s.m
 	s.m = m
+	s.globalScope.calctpstr = true
 	t, err := v.calc(s.globalScope)
+	s.globalScope.calctpstr = false
 	if err != nil {
 		panic(err)
 	}
@@ -178,6 +182,22 @@ func loadElmType(tp types.Type) types.Type {
 		tp = p.ElemType
 	}
 	return tp
+}
+
+func (n *BasicTypeNode) err(m *ir.Module, f *ir.Func, s *Scope) error {
+	errn++
+	tps := strings.Join(n.CustomTp, ".")
+	msg := fmt.Sprintf("calcls: type %s not defined (%s:%d:%d)", tps, n.SrcFile, n.Range.Start.Line+1, n.Range.Start.Character+1)
+
+	head := &VarBlockNode{Token: n.CustomTp[0], Pos: n.Range}
+	n1 := head
+	for i := 1; i < len(n.CustomTp); i++ {
+		n1.Next = &VarBlockNode{Token: n.CustomTp[i]}
+		n1 = n1.Next
+	}
+	node := ErrBlockNode{File: n.SrcFile, Pos: n.Range, Src: tps, ParticalNode: head, TypeOnly: true, Message: msg}
+	node.calc(m, f, s)
+	return fmt.Errorf(msg)
 }
 
 func (v *BasicTypeNode) calc(sc *Scope) (types.Type, error) {
@@ -226,8 +246,8 @@ func (v *BasicTypeNode) calc(sc *Scope) (types.Type, error) {
 				s = sc.getGenericType(tpname)
 			} else {
 				st.TypeName = v.Pkg + "." + tpname
-				if st.TypeName != "github.com/Chronostasys/calc/runtime/strings._str" && sc.strict {
-					return fmt.Errorf("type %s not found", v.Pkg+"."+tpname)
+				if st.TypeName != "github.com/Chronostasys/calc/runtime/strings._str" && (sc.strict || !sc.calctpstr) {
+					return v.err(nil, nil, sc)
 				}
 				s = st
 			}

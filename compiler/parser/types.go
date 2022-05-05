@@ -6,6 +6,7 @@ import (
 
 	"github.com/Chronostasys/calc/compiler/ast"
 	"github.com/Chronostasys/calc/compiler/lexer"
+	protocol "github.com/tliron/glsp/protocol_3_16"
 )
 
 func (p *Parser) allTypes() (n ast.TypeNode, err error) {
@@ -83,6 +84,9 @@ func (p *Parser) basicTypes() (n ast.TypeNode, err error) {
 			p.lexer.GobackTo(ch)
 		}
 	}()
+	ran := protocol.Range{}
+	p.lexer.SkipEmpty()
+	start := p.lexer.CurrProtocolpos()
 	code, t, eos := p.lexer.Scan()
 	if eos {
 		return nil, lexer.ErrEOS
@@ -94,6 +98,7 @@ func (p *Parser) basicTypes() (n ast.TypeNode, err error) {
 			_, err = p.lexer.ScanType(lexer.TYPE_DOT)
 			if err == nil {
 				// module
+				start = p.lexer.CurrProtocolpos()
 				t, err = p.lexer.ScanType(lexer.TYPE_VAR)
 				if err != nil {
 					return nil, err
@@ -102,7 +107,10 @@ func (p *Parser) basicTypes() (n ast.TypeNode, err error) {
 				tp[0] = p.imp[tp[0]]
 			}
 			generic, _ := p.genericCallParams()
-			return &ast.BasicTypeNode{CustomTp: tp, Generics: generic, Pkg: p.mod}, nil
+			end := p.lexer.CurrProtocolpos()
+			ran.Start = start
+			ran.End = end
+			return &ast.BasicTypeNode{CustomTp: tp, Generics: generic, Pkg: p.mod, Range: ran, SrcFile: p.path}, nil
 		} else {
 			return nil, fmt.Errorf("not basic type")
 		}

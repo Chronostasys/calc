@@ -225,6 +225,10 @@ func (l *Lexer) Currpos() (line, off int) {
 	return l.line, l.col
 
 }
+func (l *Lexer) CurrProtocolpos() protocol.Position {
+	return protocol.Position{Line: uint32(l.line), Character: uint32(l.col)}
+
+}
 
 var pair = map[int]int{
 	TYPE_LP: TYPE_RP,
