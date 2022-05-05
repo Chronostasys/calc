@@ -18,6 +18,9 @@ func ResetErr() {
 	diagMu.Lock()
 	diagnostics = make(map[string][]protocol.Diagnostic)
 	diagMu.Unlock()
+	refMu.Lock()
+	refMap = map[string]map[uint32][]refPos{}
+	refMu.Unlock()
 }
 
 func CheckErr() {
