@@ -84,12 +84,14 @@ func NewParser(mod, path string, m *ir.Module, fathers map[string]bool) *Parser 
 }
 
 func (p *Parser) assign() (n ast.Node, err error) {
+	p.lexer.SkipEmpty()
 	c := p.lexer.SetCheckpoint()
 	defer func() {
 		if err != nil {
 			p.lexer.GobackTo(c)
 		}
 	}()
+	start := p.lexer.CurrProtocolpos()
 	level := 0
 	for {
 		_, err = p.lexer.ScanType(lexer.TYPE_MUL)
@@ -127,10 +129,16 @@ func (p *Parser) assign() (n ast.Node, err error) {
 		n = errnode
 		return n, err
 	}
+	end := p.lexer.CurrProtocolpos()
 	return &ast.BinNode{
 		Left:  &ast.TakeValNode{Node: node, Level: level},
 		Op:    lexer.TYPE_ASSIGN,
 		Right: r.(ast.ExpNode),
+		Range: protocol.Range{
+			Start: start,
+			End:   end,
+		},
+		SrcFile: p.path,
 	}, nil
 }
 
@@ -571,8 +579,9 @@ func (p *Parser) structInit() (n ast.ExpNode, err error) {
 		return nil, err
 	}
 	stNode := &ast.StructInitNode{
-		TP:     tp,
-		Fields: make(map[string]ast.Node),
+		TP:      tp,
+		Fields:  make(map[string]ast.PosNode),
+		SrcFile: p.path,
 	}
 	_, err = p.lexer.ScanType(lexer.TYPE_LB)
 	if err != nil {
@@ -595,7 +604,11 @@ func (p *Parser) structInit() (n ast.ExpNode, err error) {
 		if err != nil {
 			return nil, err
 		}
-		stNode.Fields[t] = p.allexp()
+		p.lexer.SkipEmpty()
+		start := p.lexer.CurrProtocolpos()
+		exp := p.allexp()
+		end := p.lexer.CurrProtocolpos()
+		stNode.Fields[t] = ast.PosNode{Node: exp, Range: protocol.Range{Start: start, End: end}}
 		_, err = p.lexer.ScanType(lexer.TYPE_COMMA)
 		if err != nil {
 			_, err = p.lexer.ScanType(lexer.TYPE_RB)
@@ -609,7 +622,7 @@ func (p *Parser) structInit() (n ast.ExpNode, err error) {
 }
 
 func (p *Parser) arrayInit() (n ast.ExpNode, err error) {
-	an := &ast.ArrayInitNode{}
+	an := &ast.ArrayInitNode{SrcFile: p.path}
 	tp, err := p.arrayTypes()
 	if err != nil {
 		return nil, err
@@ -628,7 +641,11 @@ func (p *Parser) arrayInit() (n ast.ExpNode, err error) {
 		if err == nil {
 			continue
 		}
-		an.Vals = append(an.Vals, p.allexp())
+		p.lexer.SkipEmpty()
+		start := p.lexer.CurrProtocolpos()
+		exp := p.allexp()
+		end := p.lexer.CurrProtocolpos()
+		an.Vals = append(an.Vals, ast.PosNode{Node: exp, Range: protocol.Range{Start: start, End: end}})
 		_, err = p.lexer.ScanType(lexer.TYPE_COMMA)
 		if err != nil {
 			_, err = p.lexer.ScanType(lexer.TYPE_RB)

@@ -139,9 +139,11 @@ type ExpNode interface {
 }
 
 type BinNode struct {
-	Op    int
-	Left  ExpNode
-	Right ExpNode
+	Op      int
+	Left    ExpNode
+	Right   ExpNode
+	Range   protocol.Range
+	SrcFile string
 }
 
 func (b *BinNode) tp() TypeNode {
@@ -269,7 +271,7 @@ func (n *BinNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 			return rawL
 		}
 		val := rawL
-		r1, err := implicitCast(r, val.Type().(*types.PointerType).ElemType, s)
+		r1, err := implicitCast(r, val.Type().(*types.PointerType).ElemType, s, n.Range, n.SrcFile)
 		if err != nil {
 			panic(err)
 		}
@@ -516,10 +518,10 @@ func (n *VarBlockNode) getReloadIdx(val value.Value, idxs []Node, m *ir.Module, 
 		i := INDEX_RELOAD
 
 		for iter, v := range idxs {
-			ps := []Node{v}
+			ps := []PosNode{PosNode{Node: v}}
 			if len(idxs)-1 == iter {
 				i = INDEX_SET_RELOAD
-				ps = append(ps, &fakeNode{v: s.rightValue})
+				ps = append(ps, PosNode{Node: &fakeNode{v: s.rightValue}})
 			}
 			b := &VarBlockNode{Token: i}
 			cf := &CallFuncNode{
@@ -536,7 +538,7 @@ func (n *VarBlockNode) getReloadIdx(val value.Value, idxs []Node, m *ir.Module, 
 	for _, v := range idxs {
 		cf := &CallFuncNode{
 			FnNode: b,
-			Params: []Node{v},
+			Params: []PosNode{PosNode{Node: v}},
 			parent: val,
 		}
 		val = cf.calc(m, f, s)
@@ -618,7 +620,7 @@ func (n *SLNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 
 	callfanf := func(node *CallFuncNode) {
 		for _, v := range node.Params {
-			if in, ok := v.(*InlineFuncNode); ok {
+			if in, ok := v.Node.(*InlineFuncNode); ok {
 				travel(in)
 			}
 			v.travel(func(right Node) bool {
@@ -966,7 +968,7 @@ func (n *ProgramNode) Emit(m *ir.Module) {
 	if asyncMain {
 		fe, _ := ScopeMap[CORO_MOD].searchVar("Exec")
 		i := ScopeMap[CORO_SM_MOD].getStruct("StateMachine").structType
-		in, err := implicitCast(ret, i, &Scope{block: entry})
+		in, err := implicitCast(ret, i, &Scope{block: entry}, protocol.Range{}, "")
 		if err != nil {
 			panic(err)
 		}
@@ -1036,8 +1038,10 @@ func (n *DefineNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 }
 
 type RetNode struct {
-	Exp   Node
-	async bool
+	Exp     Node
+	async   bool
+	Range   protocol.Range
+	SrcFile string
 }
 
 func (n *RetNode) travel(f func(Node) bool) {
@@ -1058,7 +1062,7 @@ func (n *RetNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 			store(constant.NewBlockAddress(f, nb), s.yieldBlock, s)
 
 			i := ScopeMap[CORO_SM_MOD].getStruct("StateMachine").structType
-			sm, _ := implicitCast(f.Params[0], i, s)
+			sm, _ := implicitCast(f.Params[0], i, s, protocol.Range{}, "")
 			// idx := i.(*interf).interfaceFuncs["GetMutex"].i
 			// mu := s.block.NewGetElementPtr(i, sm, zero, constant.NewInt(types.I32, int64(idx)))
 
@@ -1086,7 +1090,7 @@ func (n *RetNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	if n.async {
 		rtp = getElmType(s.yieldRet.Type())
 	}
-	v, err := implicitCast(l, rtp, s)
+	v, err := implicitCast(l, rtp, s, n.Range, n.SrcFile)
 	if err != nil {
 		panic(err)
 	}
@@ -1103,7 +1107,7 @@ func (n *RetNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 
 		fqt := qt.v.(*ir.Func)
 		i := ScopeMap[CORO_SM_MOD].getStruct("StateMachine").structType
-		sm, err := implicitCast(f.Params[0], i, s)
+		sm, err := implicitCast(f.Params[0], i, s, protocol.Range{}, "")
 		if err != nil {
 			panic(err)
 		}
@@ -1167,7 +1171,7 @@ func (n *DefAndAssignNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value 
 		v := n.Val(s)
 		rawval := n.ValNode.calc(m, f, s)
 		val := loadIfVar(rawval, s)
-		val, err := implicitCast(val, getElmType(v.Type()), s)
+		val, err := implicitCast(val, getElmType(v.Type()), s, protocol.Range{}, "")
 		if err != nil {
 			panic(err)
 		}
@@ -1219,7 +1223,7 @@ func (n *DefAndAssignNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value 
 		v = m.NewGlobalDef(s.getFullName(n.ID), constant.NewZeroInitializer(tp))
 	}
 
-	val1, err := implicitCast(val, tp, s)
+	val1, err := implicitCast(val, tp, s, protocol.Range{}, "")
 	if err != nil {
 		panic(err)
 	}
@@ -1231,7 +1235,7 @@ func (n *DefAndAssignNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value 
 
 var nilval = constant.NewNull(types.I8Ptr)
 
-func implicitCast(v value.Value, target types.Type, s *Scope) (value.Value, error) {
+func implicitCast(v value.Value, target types.Type, s *Scope, ran protocol.Range, file string) (value.Value, error) {
 	if v == nilval {
 		return constant.NewNull(target.(*types.PointerType)), nil
 	}
@@ -1243,14 +1247,26 @@ func implicitCast(v value.Value, target types.Type, s *Scope) (value.Value, erro
 		tp := v.Type().(*types.FloatType)
 		targetTp := target.(*types.FloatType)
 		if targetTp.Kind < tp.Kind {
-			return nil, fmt.Errorf("failed to perform implicit cast from %T to %v", v, target)
+			return nil, &syntaxErr{
+				ErrBlockNode: ErrBlockNode{
+					Message: fmt.Sprintf("failed to perform implicit cast from %T to %v", v, target),
+					File:    file,
+					Pos:     ran,
+				},
+			}
 		}
 		return s.block.NewFPExt(v, targetTp), nil
 	case *types.IntType:
 		tp := v.Type().(*types.IntType)
 		targetTp := target.(*types.IntType)
 		if targetTp.BitSize < tp.BitSize {
-			return nil, fmt.Errorf("failed to perform implicit cast from %T to %v", v, target)
+			return nil, &syntaxErr{
+				ErrBlockNode: ErrBlockNode{
+					Message: fmt.Sprintf("failed to perform implicit cast from %T to %v", v, target),
+					File:    file,
+					Pos:     ran,
+				},
+			}
 		}
 		return s.block.NewZExt(v, targetTp), nil
 	case *types.PointerType:
@@ -1259,7 +1275,13 @@ func implicitCast(v value.Value, target types.Type, s *Scope) (value.Value, erro
 			if val.ElemType.Equal(tp.ElemType) {
 				return v, nil
 			}
-			return nil, fmt.Errorf("failed to cast %v to interface %v", v, target.Name())
+			return nil, &syntaxErr{
+				ErrBlockNode: ErrBlockNode{
+					Message: fmt.Sprintf("failed to cast %v to interface %v", v, target.Name()),
+					File:    file,
+					Pos:     ran,
+				},
+			}
 		}
 		tp, ok := target.(*interf)
 		src := strings.Trim(v.Type().String(), "%*\"")
@@ -1345,7 +1367,13 @@ func implicitCast(v value.Value, target types.Type, s *Scope) (value.Value, erro
 			return loadIfVar(st, s), nil
 		}
 	FAIL:
-		return nil, fmt.Errorf("failed to cast %v to interface %v", v, target.Name())
+		return nil, &syntaxErr{
+			ErrBlockNode: ErrBlockNode{
+				Message: fmt.Sprintf("failed to cast %v to interface %v", v, target.Name()),
+				File:    file,
+				Pos:     ran,
+			},
+		}
 	case *interf:
 		tp, ok := target.(*interf)
 		if ok {
@@ -1393,7 +1421,13 @@ func implicitCast(v value.Value, target types.Type, s *Scope) (value.Value, erro
 			return loadIfVar(st, s), nil
 		}
 	FAIL1:
-		return nil, fmt.Errorf("failed to cast %v to interface %v", v, target.Name())
+		return nil, &syntaxErr{
+			ErrBlockNode: ErrBlockNode{
+				Message: fmt.Sprintf("failed to cast %v to interface %v", v, target.Name()),
+				File:    file,
+				Pos:     ran,
+			},
+		}
 	case *types.ArrayType:
 		v1 := gcmalloc(s.m, s, &calcedTypeNode{val})
 		store(v, v1, s)
@@ -1404,8 +1438,20 @@ func implicitCast(v value.Value, target types.Type, s *Scope) (value.Value, erro
 		if target.Equal(slice.Type()) {
 			return slice, nil
 		}
-		return nil, fmt.Errorf("failed to cast %v to %v", v, target.Name())
+		return nil, &syntaxErr{
+			ErrBlockNode: ErrBlockNode{
+				Message: fmt.Sprintf("failed to cast %v to %v", v, target.Name()),
+				File:    file,
+				Pos:     ran,
+			},
+		}
 	default:
-		return nil, fmt.Errorf("failed to cast %v to %v", v, target)
+		return nil, &syntaxErr{
+			ErrBlockNode: ErrBlockNode{
+				Message: fmt.Sprintf("failed to cast %v to %v", v, target),
+				File:    file,
+				Pos:     ran,
+			},
+		}
 	}
 }

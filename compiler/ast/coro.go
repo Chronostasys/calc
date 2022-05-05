@@ -6,6 +6,7 @@ import (
 	"github.com/llir/llvm/ir/constant"
 	"github.com/llir/llvm/ir/types"
 	"github.com/llir/llvm/ir/value"
+	protocol "github.com/tliron/glsp/protocol_3_16"
 )
 
 type AwaitNode struct {
@@ -46,10 +47,10 @@ func (n *AwaitNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	n.generator = smtp
 	var p value.Value
 	if len(f.Params) != 0 {
-		p, _ = implicitCast(f.Params[0], i, s)
+		p, _ = implicitCast(f.Params[0], i, s, protocol.Range{}, "")
 	}
 	lock, _ := ScopeMap[CORO_MOD].searchVar("LockST")
-	st, _ := implicitCast(loadIfVar(stateMachine, s), i, s)
+	st, _ := implicitCast(loadIfVar(stateMachine, s), i, s, protocol.Range{}, "")
 	s.block.NewCall(lock.v, st)
 	isdone, _ := ScopeMap[CORO_MOD].searchVar("IsDone")
 	b := loadIfVar(s.block.NewCall(isdone.v, st), s)

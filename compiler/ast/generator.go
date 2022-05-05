@@ -6,6 +6,7 @@ import (
 	"github.com/llir/llvm/ir/constant"
 	"github.com/llir/llvm/ir/types"
 	"github.com/llir/llvm/ir/value"
+	protocol "github.com/tliron/glsp/protocol_3_16"
 )
 
 type ctx struct {
@@ -145,8 +146,10 @@ func buildCtx(sl *SLNode, s *Scope, tps []types.Type, ps []*ir.Param) ([]types.T
 }
 
 type YieldNode struct {
-	Exp   Node
-	label string
+	Exp     Node
+	label   string
+	Range   protocol.Range
+	SrcFile string
 }
 
 func (n *YieldNode) travel(f func(Node) bool) {
@@ -159,7 +162,7 @@ func (n *YieldNode) travel(f func(Node) bool) {
 func (n *YieldNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	if n.Exp != nil {
 		v := n.Exp.calc(m, f, s)
-		v, err := implicitCast(loadIfVar(v, s), getElmType(s.yieldRet.Type()), s)
+		v, err := implicitCast(loadIfVar(v, s), getElmType(s.yieldRet.Type()), s, n.Range, n.SrcFile)
 		if err != nil {
 			panic(err)
 		}

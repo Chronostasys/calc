@@ -478,7 +478,7 @@ func buildGenerator(rtp types.Type, ps []*ir.Param,
 		store(mu, retptr, childScope)
 	}
 
-	r, err := implicitCast(st, tp, childScope)
+	r, err := implicitCast(st, tp, childScope, protocol.Range{}, "")
 	if err != nil {
 		panic(err)
 	}
@@ -539,13 +539,18 @@ func (n *FuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 var asyncMain = false
 
 type CallFuncNode struct {
-	Params   []Node
+	Params   []PosNode
 	FnNode   Node
 	parent   value.Value
 	Next     Node
 	Generics []TypeNode
 	SrcFile  string
 	Range    protocol.Range
+}
+
+type PosNode struct {
+	Node
+	Range protocol.Range
 }
 
 func (n *CallFuncNode) tp() TypeNode {
@@ -597,11 +602,13 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	} else {
 		fnNode = varNode
 	}
+	rangemap := map[value.Value]protocol.Range{}
 	paramGenerics = append(paramGenerics, s.generics)
 	for _, v := range n.Params {
 		v2 := v.calc(m, f, s)
 		v1 := loadIfVar(v2, s)
 		pvs = append(pvs, v1)
+		rangemap[v1] = v.Range
 		paramGenerics = append(paramGenerics, s.generics)
 	}
 	if n.parent != nil {
@@ -753,7 +760,7 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	for i, v := range pvs {
 		tp := fntp.Params[i+poff]
 		v1 := v
-		p, err := implicitCast(v1, tp, s)
+		p, err := implicitCast(v1, tp, s, rangemap[v], n.SrcFile)
 		if err != nil {
 			panic(err)
 		}
@@ -804,7 +811,7 @@ func (n *CallFuncNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		vst := loadIfVar(re, s)
 		qt, _ := ScopeMap[CORO_MOD].searchVar("QueueTask")
 		fqt := qt.v.(*ir.Func)
-		c, err := implicitCast(vst, i, s)
+		c, err := implicitCast(vst, i, s, protocol.Range{}, "")
 		if err != nil {
 			panic(err)
 		}

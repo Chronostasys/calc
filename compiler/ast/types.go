@@ -284,8 +284,9 @@ func (v *BasicTypeNode) calc(sc *Scope) (types.Type, error) {
 
 type ArrayInitNode struct {
 	Type        TypeNode
-	Vals        []Node
+	Vals        []PosNode
 	allocOnHeap bool
+	SrcFile     string
 }
 
 func (n *ArrayInitNode) tp() TypeNode {
@@ -317,7 +318,7 @@ func (n *ArrayInitNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		ptr := s.block.NewGetElementPtr(atype, va,
 			constant.NewIndex(zero),
 			constant.NewIndex(constant.NewInt(types.I32, int64(k))))
-		cs, err := implicitCast(loadIfVar(v.calc(m, f, s), s), atype.(*types.ArrayType).ElemType, s)
+		cs, err := implicitCast(loadIfVar(v.calc(m, f, s), s), atype.(*types.ArrayType).ElemType, s, v.Range, n.SrcFile)
 		if err != nil {
 			panic(err)
 		}
@@ -367,7 +368,7 @@ func (n *StructInitNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		ptr := s.block.NewGetElementPtr(tp.structType, va,
 			constant.NewIndex(zero),
 			constant.NewIndex(constant.NewInt(types.I32, int64(fi.idx))))
-		va, err := implicitCast(loadIfVar(v.calc(m, f, s), s), fi.ftype, s)
+		va, err := implicitCast(loadIfVar(v.calc(m, f, s), s), fi.ftype, s, v.Range, n.SrcFile)
 		if err != nil {
 			panic(err)
 		}
@@ -494,8 +495,9 @@ func (v *InterfaceDefNode) String(*Scope) string {
 
 type StructInitNode struct {
 	TP          TypeNode
-	Fields      map[string]Node
+	Fields      map[string]PosNode
 	allocOnHeap bool
+	SrcFile     string
 }
 
 func (b *StructInitNode) tp() TypeNode {

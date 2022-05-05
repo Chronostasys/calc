@@ -7,6 +7,7 @@ import (
 	"github.com/Chronostasys/calc/compiler/lexer"
 	"github.com/llir/llvm/ir/constant"
 	"github.com/llir/llvm/ir/types"
+	protocol "github.com/tliron/glsp/protocol_3_16"
 )
 
 func (p *Parser) number() (n ast.ExpNode) {
@@ -57,16 +58,21 @@ func (p *Parser) number() (n ast.ExpNode) {
 }
 
 func (p *Parser) factor() ast.ExpNode {
+	p.lexer.SkipEmpty()
+	start := p.lexer.CurrProtocolpos()
 	a := p.symbol()
 	ch := p.lexer.SetCheckpoint()
 	code, _, eos := p.lexer.Scan()
 	for !eos && code == lexer.TYPE_DIV ||
 		code == lexer.TYPE_MUL || code == lexer.TYPE_PS {
 		b := p.symbol()
+		end := p.lexer.CurrProtocolpos()
 		a = &ast.BinNode{
-			Op:    code,
-			Left:  a,
-			Right: b,
+			Op:      code,
+			Left:    a,
+			Right:   b,
+			Range:   protocol.Range{Start: start, End: end},
+			SrcFile: p.path,
 		}
 		ch = p.lexer.SetCheckpoint()
 		code, _, eos = p.lexer.Scan()
@@ -78,15 +84,20 @@ func (p *Parser) factor() ast.ExpNode {
 }
 
 func (p *Parser) exp() ast.ExpNode {
+	p.lexer.SkipEmpty()
+	start := p.lexer.CurrProtocolpos()
 	a := p.addedFactor()
 	ch := p.lexer.SetCheckpoint()
 	code, _, eos := p.lexer.Scan()
 	for !eos && code == lexer.TYPE_SHL || code == lexer.TYPE_SHR {
 		b := p.addedFactor()
+		end := p.lexer.CurrProtocolpos()
 		a = &ast.BinNode{
-			Op:    code,
-			Left:  a,
-			Right: b,
+			Op:      code,
+			Left:    a,
+			Right:   b,
+			Range:   protocol.Range{Start: start, End: end},
+			SrcFile: p.path,
 		}
 		ch = p.lexer.SetCheckpoint()
 		code, _, eos = p.lexer.Scan()
@@ -97,15 +108,20 @@ func (p *Parser) exp() ast.ExpNode {
 	return a
 }
 func (p *Parser) addedFactor() ast.ExpNode {
+	p.lexer.SkipEmpty()
+	start := p.lexer.CurrProtocolpos()
 	a := p.factor()
 	ch := p.lexer.SetCheckpoint()
 	code, _, eos := p.lexer.Scan()
 	for !eos && code == lexer.TYPE_PLUS || code == lexer.TYPE_SUB {
 		b := p.factor()
+		end := p.lexer.CurrProtocolpos()
 		a = &ast.BinNode{
-			Op:    code,
-			Left:  a,
-			Right: b,
+			Op:      code,
+			Left:    a,
+			Right:   b,
+			Range:   protocol.Range{Start: start, End: end},
+			SrcFile: p.path,
 		}
 		ch = p.lexer.SetCheckpoint()
 		code, _, eos = p.lexer.Scan()

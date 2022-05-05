@@ -5,6 +5,7 @@ import (
 
 	"github.com/Chronostasys/calc/compiler/ast"
 	"github.com/Chronostasys/calc/compiler/lexer"
+	protocol "github.com/tliron/glsp/protocol_3_16"
 )
 
 func (p *Parser) boolexp() (node ast.ExpNode, err error) {
@@ -45,6 +46,8 @@ func (p *Parser) bitOp() (node ast.ExpNode, err error) {
 			p.lexer.GobackTo(ch)
 		}
 	}()
+	p.lexer.SkipEmpty()
+	start := p.lexer.CurrProtocolpos()
 	node, err = p.compare()
 	if err != nil {
 		return nil, err
@@ -63,10 +66,13 @@ func (p *Parser) bitOp() (node ast.ExpNode, err error) {
 			if err != nil {
 				return nil, err
 			}
+			end := p.lexer.CurrProtocolpos()
 			node = &ast.BinNode{
-				Left:  node,
-				Op:    code,
-				Right: right,
+				Left:    node,
+				Op:      code,
+				Right:   right,
+				Range:   protocol.Range{Start: start, End: end},
+				SrcFile: p.path,
 			}
 		default:
 			p.lexer.GobackTo(check)

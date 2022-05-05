@@ -120,6 +120,7 @@ func (p *Parser) function() ast.Node {
 
 func (p *Parser) callFunc() ast.ExpNode {
 	p.lexer.SkipEmpty()
+	var startp, endp protocol.Position
 	start := p.lexer.CurrProtocolpos()
 	fnnode, err := p.runWithCatch2Exp(p.varChain)
 	if err != nil {
@@ -131,6 +132,7 @@ func (p *Parser) callFunc() ast.ExpNode {
 	if err != nil {
 		panic(err)
 	}
+	var exp ast.Node
 	_, err = p.lexer.ScanType(lexer.TYPE_RP)
 	if err == nil {
 		goto END
@@ -138,7 +140,11 @@ func (p *Parser) callFunc() ast.ExpNode {
 	if err == lexer.ErrEOS {
 		panic(err)
 	}
-	fn.Params = append(fn.Params, p.allexp())
+	p.lexer.SkipEmpty()
+	startp = p.lexer.CurrProtocolpos()
+	exp = p.allexp()
+	endp = p.lexer.CurrProtocolpos()
+	fn.Params = append(fn.Params, ast.PosNode{Node: exp, Range: protocol.Range{Start: startp, End: endp}})
 	for {
 		_, err = p.lexer.ScanType(lexer.TYPE_RP)
 		if err == nil {
@@ -151,7 +157,11 @@ func (p *Parser) callFunc() ast.ExpNode {
 		if err != nil {
 			panic(err)
 		}
-		fn.Params = append(fn.Params, p.allexp())
+		p.lexer.SkipEmpty()
+		startp = p.lexer.CurrProtocolpos()
+		exp = p.allexp()
+		endp = p.lexer.CurrProtocolpos()
+		fn.Params = append(fn.Params, ast.PosNode{Node: exp, Range: protocol.Range{Start: startp, End: endp}})
 	}
 END:
 	for {
@@ -177,15 +187,20 @@ END:
 }
 
 func (p *Parser) returnST() (n ast.Node, err error) {
+	p.lexer.SkipEmpty()
+	start := p.lexer.CurrProtocolpos()
 	_, err = p.lexer.ScanType(lexer.TYPE_RES_RET)
 	if err != nil {
 		return nil, err
 	}
 	_, err = p.runWithCatch(p.empty)
 	if err == nil {
-		return &ast.RetNode{}, nil
+		end := p.lexer.CurrProtocolpos()
+		return &ast.RetNode{Range: protocol.Range{Start: start, End: end}, SrcFile: p.path}, nil
 	}
-	return &ast.RetNode{Exp: p.allexp()}, nil
+	exp := p.allexp()
+	end := p.lexer.CurrProtocolpos()
+	return &ast.RetNode{Exp: exp, Range: protocol.Range{Start: start, End: end}, SrcFile: p.path}, nil
 }
 
 func (p *Parser) genericParams() (n []string, err error) {
@@ -274,11 +289,14 @@ func (p *Parser) inlineFunc() (n ast.ExpNode, err error) {
 }
 
 func (p *Parser) yield() (n ast.Node, err error) {
+	p.lexer.SkipEmpty()
+	start := p.lexer.CurrProtocolpos()
 	_, err = p.lexer.ScanType(lexer.TYPE_RES_YIELD)
 	if err != nil {
 		return nil, err
 	}
 	exp, _ := p.runWithCatchExp(p.allexp)
+	end := p.lexer.CurrProtocolpos()
 	p.empty()
-	return &ast.YieldNode{Exp: exp}, nil
+	return &ast.YieldNode{Exp: exp, Range: protocol.Range{Start: start, End: end}, SrcFile: p.path}, nil
 }
