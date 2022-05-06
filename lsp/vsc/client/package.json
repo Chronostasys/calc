@@ -1,13 +1,13 @@
 {
 	"name": "calc-lsp-client",
 	"description": "Calc VSCode language server client",
-	"author": "Microsoft Corporation",
+	"author": "Siris",
 	"license": "MIT",
 	"version": "0.0.1",
 	"publisher": "vscode",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/Microsoft/vscode-extension-samples"
+		"url": "https://github.com/Chronostasys/calc"
 	},
 	"engines": {
 		"vscode": "^1.63.0"
