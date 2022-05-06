@@ -97,6 +97,28 @@ func (n *FuncNode) AddtoScope(s *Scope) {
 	if len(n.Generics) > 0 {
 		if n.Attached {
 			genericAttached[s.getFullName(n.ID)] = true
+			name := helper.LastSecondBlock(n.ID)
+			if len(name) > 0 {
+
+				def := s.getStruct(name)
+				if def != nil {
+					if def.funcs == nil {
+						def.funcs = map[string]struct{}{}
+					}
+					def.funcs[helper.LastBlock(n.ID)] = struct{}{}
+				}
+				gendef := s.getGenericStruct2(name)
+				if gendef != nil {
+					s.genericStructs[s.getFullName(name)] = func(m *ir.Module, s *Scope, gens ...TypeNode) *typedef {
+						td := gendef(m, s, gens...)
+						if td.funcs == nil {
+							td.funcs = map[string]struct{}{}
+						}
+						td.funcs[helper.LastBlock(n.ID)] = struct{}{}
+						return td
+					}
+				}
+			}
 		}
 		s.globalScope.addGeneric(n.ID, func(m *ir.Module, s *Scope, gens ...TypeNode) value.Value {
 			psn := n.Params
@@ -104,36 +126,12 @@ func (n *FuncNode) AddtoScope(s *Scope) {
 			sig := fmt.Sprintf("%s<", n.ID)
 			defparams := func() {
 				s.currParam = 0
-				for i, v := range psn.Params {
+				for _, v := range psn.Params {
 					p := v
 					tp, err := p.TP.calc(s)
 					s.currParam++
 					if err != nil {
 						panic(err)
-					}
-					if i == 0 && n.Attached {
-						name := helper.LastBlock(getTypeName(tp))
-						if len(name) > 0 {
-
-							def := s.getStruct(name)
-							if def != nil {
-								if def.funcs == nil {
-									def.funcs = map[string]struct{}{}
-								}
-								def.funcs[n.ID] = struct{}{}
-							}
-							gendef := s.getGenericStruct(name)
-							if gendef != nil {
-								s.genericStructs[name] = func(m *ir.Module, s *Scope, gens ...TypeNode) *typedef {
-									td := gendef(m, gens...)
-									if td.funcs == nil {
-										td.funcs = map[string]struct{}{}
-									}
-									td.funcs[n.ID] = struct{}{}
-									return td
-								}
-							}
-						}
 					}
 					param := ir.NewParam(p.ID, tp)
 					ps = append(ps, param)

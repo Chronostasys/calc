@@ -224,6 +224,21 @@ func (s *Scope) getGenericStruct(id string) func(m *ir.Module, gens ...TypeNode)
 	}
 	return nil
 }
+func (s *Scope) getGenericStruct2(id string) func(m *ir.Module, s *Scope, gens ...TypeNode) *typedef {
+	id = s.getFullName(id)
+	scope := s
+	for {
+		if scope == nil {
+			break
+		}
+		val, ok := scope.genericStructs[id]
+		if ok {
+			return val
+		}
+		scope = scope.parent
+	}
+	return nil
+}
 
 var errVarNotFound = fmt.Errorf("variable defination not found")
 

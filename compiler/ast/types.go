@@ -352,7 +352,7 @@ func (n *StructInitNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 	}
 	tp := scope.getStruct(ss)
 	if tp == nil {
-		panic("failed to find type declareation")
+		panic(fmt.Sprintf("failed to find type declareation %s", ss))
 	}
 	var alloca value.Value
 	if n.allocOnHeap {

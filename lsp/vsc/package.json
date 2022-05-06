@@ -42,7 +42,7 @@
 	"scripts": {
 		"vscode:prepublish": "npm run compile ",
 		"compile": "tsc -b && go build -o ./client/out/lsp.exe ../main.go && go build -o ./client/out/lsp-debug.exe -gcflags=\"all=-N -l\" ../main.go",
-		"watch": "tsc -b -w && go build -o ./client/out/lsp.exe ../main.go && go build -o ./client/out/lsp-debug.exe -gcflags=\"all=-N -l\" ../main.go",
+		"watch": "go build -o ./client/out/lsp.exe ../main.go && go build -o ./client/out/lsp-debug.exe -gcflags=\"all=-N -l\" ../main.go && tsc -b -w",
 		"lint": "eslint ./client/src --ext .ts,.tsx",
 		"postinstall": "cd client && npm install && cd ..",
 		"test": "sh ./scripts/e2e.sh"

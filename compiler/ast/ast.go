@@ -459,6 +459,9 @@ func (n *VarBlockNode) calc(m *ir.Module, f *ir.Func, s *Scope) value.Value {
 		va = n.parent
 
 		tp := getTypeInfo(va, s)
+		if tp == nil {
+			n.err(m, f, s)
+		}
 		fi := tp.fieldsIdx[n.Token]
 		if fi == nil {
 			n.err(m, f, s)

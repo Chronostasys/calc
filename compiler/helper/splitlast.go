@@ -28,6 +28,13 @@ func LastBlock(str string) string {
 	}
 	return str[idx+1:]
 }
+func LastSecondBlock(str string) string {
+	idx := strings.LastIndex(str, ".")
+	if idx == -1 {
+		return str
+	}
+	return LastBlock(str[:idx])
+}
 
 func Trim(str string) string {
 	return strings.Trim(str, "%*\"")
