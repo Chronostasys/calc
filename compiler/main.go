@@ -21,6 +21,7 @@ func main() {
 		if err != nil {
 			panic(err)
 		}
+		egg()
 		fmt.Printf("	compile secceed. output file: %s\n", outf)
 		fmt.Printf("	time eplased: %v\n", time.Since(since))
 	}()
@@ -37,5 +38,24 @@ func main() {
 	err = f.Sync()
 	if err != nil {
 		log.Fatalln(err)
+	}
+}
+
+func egg() {
+	str := `
+     )" .
+    /    \      (\-./
+   /     |    _/ o. \
+  |      | .-"      y)-
+  |      |/       _/ \
+  \     /j   _".\(@) 
+   \   ( |    '.''  )         Guess today's whose birthday?
+    \  _'-     |   /
+      "  '-._  <_ (
+             '-.,),)`
+	_, m, d := time.Now().Date()
+	h, _, _ := time.Now().Clock()
+	if m == 5 && d == 7 && h <= 1 && h >= 0 {
+		println(str)
 	}
 }

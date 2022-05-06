@@ -902,7 +902,7 @@ func getModule(dir string) (mod, sub string) {
 			return mod, sub
 		}
 		if os.IsNotExist(err) {
-			sub = path.Join(sub, filepath.Base(dir))
+			sub = path.Join(filepath.Base(dir), sub)
 			dir = filepath.Dir(dir)
 			continue
 		}
