@@ -1253,8 +1253,8 @@ func implicitCast(v value.Value, target types.Type, s *Scope, ran protocol.Range
 	switch val := v.Type().(type) {
 	case *types.FloatType:
 		tp := v.Type().(*types.FloatType)
-		targetTp := target.(*types.FloatType)
-		if targetTp.Kind < tp.Kind {
+		targetTp, ok := target.(*types.FloatType)
+		if !ok || targetTp.Kind < tp.Kind {
 			return nil, &syntaxErr{
 				ErrBlockNode: ErrBlockNode{
 					Message: fmt.Sprintf("failed to perform implicit cast from %T to %v", v, target),
@@ -1266,8 +1266,8 @@ func implicitCast(v value.Value, target types.Type, s *Scope, ran protocol.Range
 		return s.block.NewFPExt(v, targetTp), nil
 	case *types.IntType:
 		tp := v.Type().(*types.IntType)
-		targetTp := target.(*types.IntType)
-		if targetTp.BitSize < tp.BitSize {
+		targetTp, ok := target.(*types.IntType)
+		if !ok || targetTp.BitSize < tp.BitSize {
 			return nil, &syntaxErr{
 				ErrBlockNode: ErrBlockNode{
 					Message: fmt.Sprintf("failed to perform implicit cast from %T to %v", v, target),

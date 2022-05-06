@@ -1,5 +1,6 @@
 {
     "files.associations": {
         "uvutil.h": "c"
-    }
+    },
+    "typescript.tsc.autoDetect": "off",
 }

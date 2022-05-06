@@ -1,6 +1,6 @@
 .PHONY: compiler
 
-all: uv-helper compiler test-ir test-asm test-exe
+all: uv-helper compiler test-ir test-asm test-exe lsp
 
 uv-helper:
 	cd libuv_helper && make
@@ -30,3 +30,7 @@ gc-dependency:
 
 gc-windows:
 	cd bdwgc && nmake -f NT_MAKEFILE cpu=AMD64 nodebug=1
+
+language-server:
+	cd lsp && go build -o lsp.exe main.go
+
