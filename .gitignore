@@ -25,3 +25,4 @@ bin/win/libuv/uv.dll
 bin/win/libuv/uv.lib
 bin/win/libuv/uvutil.a
 bin/win/github.com
+*.vsix
