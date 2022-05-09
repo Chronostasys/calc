@@ -82,6 +82,7 @@ func getCurrentScopeAutoComplete(m map[string]struct{}, sc *Scope, leading strin
 		m = map[string]struct{}{}
 	}
 	cmpls := []protocol.CompletionItem{}
+
 	for k, v := range sc.types {
 		k = helper.LastBlock(k)
 		if extern && !unicode.IsUpper(rune(k[0])) {
@@ -98,6 +99,32 @@ func getCurrentScopeAutoComplete(m map[string]struct{}, sc *Scope, leading strin
 		if _, ok := v.structType.(*interf); ok {
 			kind = protocol.CompletionItemKindInterface
 		}
+		if strings.Contains(k, "}") || strings.Contains(k, ">") { // generic和匿名结构体
+			continue
+		}
+		ins := k
+		if !tponly {
+			ins = ins + "{}"
+		}
+		cmpls = append(cmpls, protocol.CompletionItem{
+			Label:      k,
+			Kind:       &kind,
+			InsertText: &ins,
+		})
+	}
+	for k := range sc.genericStructs {
+		k = helper.LastBlock(k)
+		if extern && !unicode.IsUpper(rune(k[0])) {
+			continue
+		}
+		if strings.Index(k, leading) < 0 {
+			continue
+		}
+		if _, ok := m[k]; ok {
+			continue
+		}
+		m[k] = struct{}{}
+		kind := protocol.CompletionItemKindStruct
 		ins := k
 		if !tponly {
 			ins = ins + "{}"
