@@ -16,10 +16,7 @@ if ! [ -d "libatomic_ops" ]
 then
     git clone https://github.com/ivmai/libatomic_ops.git
 fi
-libtoolize --automake --copy --debug --force
-cp ../ltmain.sh ltmain.sh
-chmod +x ../ltmain.sh
-chmod +x ltmain.sh
+autoreconf -i
 ./autogen.sh
 ./configure
 sudo make install
