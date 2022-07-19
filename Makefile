@@ -15,9 +15,9 @@ test-asm:
 	cd test && clang -S out.ll -o test.asm
 
 test-exe:
-	cd test && copy ..\bin\win\bdwgc\*.* *.* && copy ..\bin\win\libuv\*.* *.* && clang out.ll libgc.dll.a uv.lib uvutil.a -static-libgcc -static-libstdc++ -lpthread  -o test.exe
+	cd test && copy ../bin/win/bdwgc/*.* *.* && copy ../bin/win/libuv/*.* *.* && clang out.ll libgc.dll.a uv.lib uvutil.a -static-libgcc -static-libstdc++ -lpthread  -o test.exe
 compiler:
-	cd compiler && go build -o calccf.exe main.go && copy calccf.exe ..\bin\win\calccf.exe
+	cd compiler && go build -o calccf.exe main.go && copy calccf.exe ../bin/win/calccf.exe
 
 compiler-linux:
 	cd compiler && go build -o calccf main.go && sudo cp calccf /usr/local/bin/calccf
