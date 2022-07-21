@@ -4,7 +4,7 @@
 	"author": "Siris",
 	"displayName": "Calc language support",
 	"license": "MIT",
-	"version": "0.0.3",
+	"version": "0.0.4",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/Chronostasys/calc"
@@ -41,8 +41,8 @@
 	},
 	"scripts": {
 		"vscode:prepublish": "npm run compile ",
-		"compile": "tsc -b && go build -o ./client/out/lsp.exe ../main.go && go build -o ./client/out/lsp-debug.exe -gcflags=\"all=-N -l\" ../main.go",
-		"watch": "go build -o ./client/out/lsp.exe ../main.go && go build -o ./client/out/lsp-debug.exe -gcflags=\"all=-N -l\" ../main.go && tsc -b -w",
+		"compile": "tsc -b && GOOS=windows GOARCH=amd64 go build -o ./client/out/win32/lsp.exe ../main.go && GOOS=windows GOARCH=amd64 go build -o ./client/out/win32/lsp-debug.exe -gcflags=\"all=-N -l\" ../main.go && GOOS=darwin GOARCH=amd64 go build -o ./client/out/darwin/lsp.exe ../main.go && GOOS=darwin GOARCH=amd64 go build -o ./client/out/darwin/lsp-debug.exe -gcflags=\"all=-N -l\" ../main.go && GOOS=linux GOARCH=amd64 go build -o ./client/out/linux/lsp.exe ../main.go && GOOS=linux GOARCH=amd64 go build -o ./client/out/linux/lsp-debug.exe -gcflags=\"all=-N -l\" ../main.go",
+		"watch": "GOOS=windows GOARCH=amd64 go build -o ./client/out/win32/lsp.exe ../main.go && GOOS=windows GOARCH=amd64 go build -o ./client/out/win32/lsp-debug.exe -gcflags=\"all=-N -l\" ../main.go && GOOS=darwin GOARCH=amd64 go build -o ./client/out/darwin/lsp.exe ../main.go && GOOS=darwin GOARCH=amd64 go build -o ./client/out/darwin/lsp-debug.exe -gcflags=\"all=-N -l\" ../main.go && GOOS=linux GOARCH=amd64 go build -o ./client/out/linux/lsp.exe ../main.go && GOOS=linux GOARCH=amd64 go build -o ./client/out/linux/lsp-debug.exe -gcflags=\"all=-N -l\" ../main.go && tsc -b -w",
 		"lint": "eslint ./client/src --ext .ts,.tsx",
 		"postinstall": "cd client && npm install && cd ..",
 		"test": "sh ./scripts/e2e.sh"

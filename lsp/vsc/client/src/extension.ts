@@ -3,8 +3,11 @@
  * Licensed under the MIT License. See License.txt in the project root for license information.
  * ------------------------------------------------------------------------------------------ */
 
+import { systemDefaultPlatform } from '@vscode/test-electron/out/util';
 import * as path from 'path';
+import { openStdin } from 'process';
 import { workspace, ExtensionContext } from 'vscode';
+import * as os from 'os';
 
 import {
 	LanguageClient,
@@ -24,12 +27,15 @@ export function activate(context: ExtensionContext) {
 	// --inspect=6009: runs the server in Node's Inspector mode so VS Code can attach to the server for debugging
 	const debugOptions = { execArgv: ['--nolazy', '--inspect=6009'] };
 
+	// Find exe according to platform
+	var dir = __dirname;
+	dir = path.join(dir, os.platform());
 	// If the extension is launched in debug mode then the debug server options are used
 	// Otherwise the run options are used
 	const serverOptions: ServerOptions = {
-		run: { command: path.join(__dirname, "/lsp.exe") },
+		run: { command: path.join(dir, "/lsp.exe") },
 		debug: {
-			command: path.join(__dirname, "/lsp-debug.exe")
+			command: path.join(dir, "/lsp-debug.exe")
 		},
 	};
 
