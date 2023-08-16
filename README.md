@@ -1,4 +1,8 @@
 # Calc
+
+> !!! This repo is nolonger maintained   
+> if you are intrested in other languages I buid, check out [Pivot Lang](https://github.com/Pivot-Studio/pivot-lang)
+
 `calc`是一个类似`golang`的编程语言  
 在项目根目录`make`可以编译[test](test)目录模块的ir文件、可执行文件和汇编  
 `make compiler`可以编译出编译器  
